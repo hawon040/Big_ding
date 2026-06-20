@@ -1,0 +1,42 @@
+const express = require("express");
+const http = require("http");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const connectDB = require("./config/db");
+const initSocket = require("./socket/chatSocket");
+
+dotenv.config();
+connectDB();
+
+const app = express();
+const server = http.createServer(app);
+
+// Socket.io 초기화
+initSocket(server);
+
+// 미들웨어
+app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+app.use(express.json());
+
+// 라우터 연결
+app.use("/api/auth", require("./routes/auth"));
+app.use("/api/posts", require("./routes/posts"));
+app.use("/api/chat", require("./routes/chat"));
+app.use("/api/users", require("./routes/users"));
+app.use("/api/reports", require("./routes/reports"));
+
+// 관리자 페이지 정적 파일 제공
+app.use(express.static("admin"));
+
+// http://localhost:5000/admin 접속 시 admin/index.html 반환
+app.get("/admin", (req, res) => {
+  res.sendFile(__dirname + "/admin/index.html");
+});
+
+// 헬스체크
+app.get("/", (req, res) => res.json({ message: "BigData Community Server 🚀" }));
+
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  console.log(`✅ 서버 실행 중: http://localhost:${PORT}`);
+});
