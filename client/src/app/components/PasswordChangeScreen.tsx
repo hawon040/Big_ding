@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { GraduationCap } from "lucide-react";
+import bigRoadingIcon from "@/assets/big-roading-icon.png";
 
 interface RegisterScreenProps {
   onComplete: () => void; // 회원가입 완료 → 로그인 화면으로
@@ -69,19 +70,16 @@ export function PasswordChangeScreen({ onComplete }: RegisterScreenProps) {
 
   return (
     <div
-      className="flex-1 flex flex-col items-center justify-center px-6 mt-7"
-      style={{ background: "linear-gradient(160deg, #0a0f1f 0%, #0d1426 60%, #111a30 100%)" }}
-    >
-      <div className="w-full rounded-3xl p-6 shadow-xl" style={{ background: "var(--card)" }}>
+  className="flex-1 flex flex-col items-center px-6 py-10 min-h-full"
+  style={{ background: "linear-gradient(160deg, #0a0f1f 0%, #0d1426 60%, #111a30 100%)" }}
+>
+      <div className="w-full rounded-3xl p-6 pb-60 shadow-xl" style={{ background: "var(--card)" }}>
 
         {/* 상단 아이콘 + 제목 */}
         <div className="flex flex-col items-center mb-6">
-          <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3"
-            style={{ background: "var(--primary)" }}
-          >
-            <GraduationCap size={30} color="white" />
-          </div>
+         <div className="w-24 h-24 rounded-3xl mb-3 overflow-hidden">
+  <img src={bigRoadingIcon} alt="Big Roading" className="w-full h-full object-cover" />
+</div>
           <h2 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
             {step === "password" ? "비밀번호 설정" : "회원가입"}
           </h2>
