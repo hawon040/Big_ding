@@ -468,8 +468,8 @@ export function CommunityScreen() {
             <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
               <button className="flex items-center gap-1.5"
                 onClick={() => setLikedPosts((l) => ({ ...l, [post.id]: !l[post.id] }))}>
-                <Heart size={16} fill={likedPosts[post.id] ? "#e07b39" : "none"}
-                  color={likedPosts[post.id] ? "#e07b39" : "var(--muted-foreground)"} />
+                <Heart size={16} fill={likedPosts[post.id] ? "#3b82f6" : "none"}
+                  color={likedPosts[post.id] ? "#3b82f6" : "var(--muted-foreground)"} />
                 <span className="text-xs" style={{ color: likedPosts[post.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
                   {post.likes + (likedPosts[post.id] ? 1 : 0)}
                 </span>

@@ -70,7 +70,7 @@ export function PasswordChangeScreen({ onComplete }: RegisterScreenProps) {
   return (
     <div
       className="flex-1 flex flex-col items-center justify-center px-6 mt-7"
-      style={{ background: "linear-gradient(160deg, #fdf0e0 0%, #fde8cc 60%, #f5d5a8 100%)" }}
+      style={{ background: "linear-gradient(160deg, #0a0f1f 0%, #0d1426 60%, #111a30 100%)" }}
     >
       <div className="w-full rounded-3xl p-6 shadow-xl" style={{ background: "var(--card)" }}>
 
