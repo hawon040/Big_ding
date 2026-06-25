@@ -1,8 +1,9 @@
 import { useState } from "react";
+import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
-  AlertTriangle, Search, Star, Send, UserPlus, ChevronDown, ChevronUp,
-  Users, Trophy, Megaphone, BookOpen, Coffee
+  Search, Star, Send, UserPlus, ChevronDown, ChevronUp,
+  Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, Edit2, Trash2, AlertTriangle
 } from "lucide-react";
 
 type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting";
@@ -189,11 +190,11 @@ const POSTS: Record<BoardType, Post[]> = {
 };
 
 const BOARDS = [
-  { id: "free" as BoardType, label: "자유게시판", emoji: "💬", icon: MessageCircle },
-  { id: "qna" as BoardType, label: "선후배 Q&A", emoji: "🙋", icon: Users },
-  { id: "contest" as BoardType, label: "프로젝트", emoji: "🏆", icon: Trophy },
+  { id: "free" as BoardType, label: "생활Q&A", emoji: "💬", icon: MessageCircle },
+  { id: "qna" as BoardType, label: "선배들 작품 전시 공간", emoji: "🏆", icon: Users },
+  { id: "contest" as BoardType, label: "학업", emoji: "📖", icon: Trophy },
   { id: "event" as BoardType, label: "행사공지", emoji: "📢", icon: Megaphone },
-  { id: "lecture" as BoardType, label: "강의평가", emoji: "⭐", icon: BookOpen },
+  { id: "lecture" as BoardType, label: "전공 강의평가", emoji: "⭐", icon: BookOpen },
   { id: "meeting" as BoardType, label: "공강모임", emoji: "☕", icon: Coffee },
 ];
 
@@ -206,11 +207,17 @@ export function CommunityScreen() {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [showWrite, setShowWrite] = useState(false);
   const [showReport, setShowReport] = useState<number | null>(null);
+  const [showMoreMenu, setShowMoreMenu] = useState<number | null>(null);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [deletedPostIds, setDeletedPostIds] = useState<number[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newBoard, setNewBoard] = useState<BoardType>("free");
+  const [newImage, setNewImage] = useState<string | null>(null);
 
   // 채팅 패널
   const [showChat, setShowChat] = useState(false);
@@ -221,14 +228,14 @@ export function CommunityScreen() {
   const [friendSearch, setFriendSearch] = useState("");
   const [friends, setFriends] = useState<Friend[]>(FRIENDS);
 
-  const allPosts = Object.values(POSTS).flat();
+  const allPosts = Object.values(POSTS).flat().filter((p) => !deletedPostIds.includes(p.id));
   const posts = showSearch && searchQuery
     ? allPosts.filter((p) =>
         p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
       )
-    : POSTS[activeBoard];
+    : POSTS[activeBoard].filter((p) => !deletedPostIds.includes(p.id));
 
   const sendMessage = () => {
     if (!chatInput.trim() || !activeFriend) return;
@@ -337,10 +344,13 @@ export function CommunityScreen() {
       {/* Header */}
       <div className="px-4 pt-5 pb-3 shrink-0">
         <div className="flex items-center justify-between mb-3">
-          <div>
-            <h1 className="font-bold text-xl" style={{ color: "var(--foreground)" }}>커뮤니티</h1>
-            <p className="text-sm mt-0.5" style={{ color: "var(--muted-foreground)" }}>AI빅데이터전공 학생 커뮤니티</p>
-          </div>
+          <div className="flex items-center gap-3">
+  <img src={bigRoadingIcon} alt="Big Roading" className="w-14 h-14 object-cover" />
+  <div>
+    <h1 className="font-bold text-xl" style={{ color: "var(--foreground)" }}>커뮤니티</h1>
+    <p className="text-sm mt-0.5" style={{ color: "var(--muted-foreground)" }}>AI빅데이터전공 학생 커뮤니티</p>
+  </div>
+</div>
           <div className="flex gap-2">
             <button
               onClick={() => setShowSearch(!showSearch)}
@@ -366,7 +376,7 @@ export function CommunityScreen() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full px-4 py-2.5 rounded-xl text-sm outline-none mb-2"
-            style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
+            style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
           />
         )}
       </div>
@@ -389,13 +399,19 @@ export function CommunityScreen() {
           ))}
         </div>
       )}
-
+      {/* 더보기 메뉴 외부 클릭 닫기 */}
+      {showMoreMenu !== null && (
+        <div
+          className="absolute inset-0 z-10"
+          onClick={() => setShowMoreMenu(null)}
+        />
+      )}
       {/* Posts */}
       <div className="flex-1 overflow-y-auto px-4 pb-20 flex flex-col gap-3">
         {posts.map((post) => (
           <div
             key={post.id}
-            className="rounded-2xl p-4 shadow-sm"
+            className="rounded-2xl p-4 shadow-sm relative"
             style={{ background: "var(--card)" }}
           >
             {/* Author */}
@@ -415,7 +431,61 @@ export function CommunityScreen() {
                 </span>
               )}
             </div>
-
+              {/* 더보기 버튼 */}
+              <div className="absolute top-3 right-3 z-10">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowMoreMenu(showMoreMenu === post.id ? null : post.id);
+                  }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{ color: "var(--muted-foreground)" }}
+                >
+                  <MoreVertical size={18} />
+                </button>
+                {showMoreMenu === post.id && (
+                  <div
+                    className="absolute right-0 top-9 z-20 rounded-xl shadow-lg py-1 min-w-[110px]"
+                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                  >
+                    <button
+                      onClick={() => {
+                        setEditingPost(post);
+                        setEditTitle(post.title);
+                        setEditContent(post.content);
+                        setShowMoreMenu(null);
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+                      style={{ color: "var(--foreground)" }}
+                    >
+                      <Edit2 size={14} /> 수정
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (confirm("이 게시물을 삭제하시겠습니까?")) {
+                          setDeletedPostIds((prev) => [...prev, post.id]);
+                          setShowMoreMenu(null);
+                        }
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+                      style={{ color: "#d4183d" }}
+                    >
+                      <Trash2 size={14} /> 삭제
+                    </button>
+                    <div style={{ borderTop: "1px solid var(--border)" }} />
+                    <button
+                      onClick={() => {
+                        setShowReport(post.id);
+                        setShowMoreMenu(null);
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+                      style={{ color: "#d4183d" }}
+                    >
+                      <AlertTriangle size={14} /> 신고
+                    </button>
+                  </div>
+                )}
+              </div>
             <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{post.title}</h3>
             <p className="text-sm leading-relaxed" style={{ color: "var(--muted-foreground)" }}>{post.content}</p>
 
@@ -493,10 +563,6 @@ export function CommunityScreen() {
                 onClick={() => setSavedPosts((s) => ({ ...s, [post.id]: !s[post.id] }))}>
                 <Bookmark size={16} fill={savedPosts[post.id] ? "var(--primary)" : "none"}
                   color={savedPosts[post.id] ? "var(--primary)" : "var(--muted-foreground)"} />
-              </button>
-              <button className="flex items-center gap-1.5 ml-auto"
-                onClick={() => setShowReport(post.id)}>
-                <AlertTriangle size={16} style={{ color: "#d4183d" }} />
               </button>
             </div>
             {openComments[post.id] && (
@@ -634,6 +700,7 @@ export function CommunityScreen() {
                 }
                 setNewTitle("");
                 setNewContent("");
+                setNewImage(null);
                 setShowWrite(false);
               }}
             >
@@ -667,7 +734,7 @@ export function CommunityScreen() {
               value={newTitle}
               onChange={(e) => setNewTitle(filterProfanity(e.target.value))}
               className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
-              style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
+              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
             />
             <textarea
               placeholder="내용을 입력하세요"
@@ -675,19 +742,89 @@ export function CommunityScreen() {
               onChange={(e) => setNewContent(filterProfanity(e.target.value))}
               rows={8}
               className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none"
-              style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
+              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
             />
-            <button
-              className="flex items-center gap-2 px-4 py-3 rounded-2xl border border-dashed"
-              style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
-            >
-              <Image size={18} />
-              <span className="text-sm">사진 첨부</span>
-            </button>
+            {/* 사진 첨부 */}
+            <input
+              id="image-upload"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => setNewImage(reader.result as string);
+                reader.readAsDataURL(file);
+              }}
+            />
+            {newImage ? (
+              <div className="relative rounded-2xl overflow-hidden">
+                <img src={newImage} alt="첨부 이미지" className="w-full max-h-48 object-cover rounded-2xl" />
+                <button
+                  onClick={() => setNewImage(null)}
+                  className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
+                  style={{ background: "rgba(0,0,0,0.5)" }}
+                >
+                  <X size={14} color="white" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => document.getElementById("image-upload")?.click()}
+                className="flex items-center gap-2 px-4 py-3 rounded-2xl border border-dashed"
+                style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
+              >
+                <Image size={18} />
+                <span className="text-sm">사진 첨부</span>
+              </button>
+            )}
           </div>
         </div>
       )}
-
+{/* 수정 모달 */}
+      {editingPost && (
+        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+          <div className="flex items-center gap-3 px-4 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+            <button onClick={() => setEditingPost(null)}>
+              <X size={20} style={{ color: "var(--foreground)" }} />
+            </button>
+            <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>게시물 수정</h2>
+            <button
+              className="px-4 py-1.5 rounded-xl text-sm font-semibold"
+              style={{ background: "var(--primary)", color: "white" }}
+              onClick={() => {
+                if (!editTitle.trim() || !editContent.trim()) {
+                  alert("제목과 내용을 입력해주세요.");
+                  return;
+                }
+                // 실제 서버 연동 시 여기서 API 호출
+                alert("게시물이 수정되었습니다.");
+                setEditingPost(null);
+              }}
+            >
+              완료
+            </button>
+          </div>
+          <div className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto">
+            <input
+              placeholder="제목을 입력하세요"
+              value={editTitle}
+              onChange={(e) => setEditTitle(filterProfanity(e.target.value))}
+              className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
+              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+            />
+            <textarea
+              placeholder="내용을 입력하세요"
+              value={editContent}
+              onChange={(e) => setEditContent(filterProfanity(e.target.value))}
+              rows={8}
+              className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none"
+              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+            />
+          </div>
+        </div>
+      )}
       {/* 신고 모달 */}
       {showReport && (
         <div className="absolute inset-0 z-50 flex items-end" style={{ background: "rgba(0,0,0,0.5)" }}>
