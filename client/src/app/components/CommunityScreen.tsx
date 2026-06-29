@@ -150,19 +150,19 @@ const POSTS: Record<BoardType, Post[]> = {
   lecture: [
     {
       id: 9, author: "4학년선배", avatar: "📚", time: "2시간 전",
-      title: "데이터마이닝 강의 추천합니다",
+      title: "데이터마이닝",
       content: "김교수님 데이터마이닝 강의 정말 좋아요! 실습 위주라 이해하기 쉽고 과제도 적당해요.",
       likes: 45, dislikes: 3, comments: 16, tags: ["강의평가"], rating: 4.5,
     },
     {
       id: 10, author: "수강생", avatar: "✏️", time: "5시간 전",
-      title: "머신러닝 수업 시험 족보 공유",
+      title: "머신러닝",
       content: "작년 기말고사 문제 유형 공유합니다. 이론 60% 실습 40% 비율이에요!",
       likes: 78, dislikes: 1, comments: 23, tags: ["시험", "족보"],
     },
     {
       id: 17, author: "통계학도", avatar: "📐", time: "1일 전",
-      title: "통계학 개론 수업 스타일 안내",
+      title: "통계학 개론",
       content: "출석 30%, 중간 30%, 기말 40% 비율입니다. 교수님 수업은 판서 위주라 필기 열심히 하세요!",
       likes: 62, dislikes: 0, comments: 18, tags: ["강의평가", "통계학"], rating: 3.8,
     },
@@ -304,112 +304,39 @@ export function CommunityScreen() {
       </div>
     );
   }
-if (selectedPost) {
-  return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-        <button onClick={() => setSelectedPost(null)} className="text-lg">←</button>
-        <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
-      </div>
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-        {/* 게시물 카드 */}
-        <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-9 h-9 rounded-full flex items-center justify-center text-xl" style={{ background: "var(--muted)" }}>
-              {selectedPost.avatar}
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{selectedPost.author}</p>
-              <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{selectedPost.time}</p>
-            </div>
-          </div>
-          <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h3>
-          <p className="text-sm leading-relaxed" style={{ color: "var(--muted-foreground)" }}>{selectedPost.content}</p>
-         {selectedPost.tags && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {selectedPost.tags.map((tag, i) => (
-                <span key={i} className="text-xs px-2 py-0.5 rounded-full"
-                  style={{ background: "var(--secondary)", color: "var(--primary)" }}>
-                  #{tag}
-                </span>
-              ))}
-            </div>
-          )}
-          {selectedPost.rating && (
-            <div className="flex items-center gap-1 mt-2">
-              {[...Array(5)].map((_, i) => (
-                <Star key={i} size={14}
-                  fill={i < Math.floor(selectedPost.rating!) ? "#ffc107" : "none"}
-                  color={i < Math.floor(selectedPost.rating!) ? "#ffc107" : "var(--muted-foreground)"} />
-              ))}
-              <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
-                {selectedPost.rating.toFixed(1)}
-              </span>
-            </div>
-          )}
-          <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-            <button className="flex items-center gap-1.5"
-              onClick={() => setLikedPosts((l) => ({ ...l, [selectedPost.id]: !l[selectedPost.id] }))}>
-              <Heart size={16} fill={likedPosts[selectedPost.id] ? "#3b82f6" : "none"}
-                color={likedPosts[selectedPost.id] ? "#3b82f6" : "var(--muted-foreground)"} />
-              <span className="text-xs" style={{ color: likedPosts[selectedPost.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
-                {selectedPost.likes + (likedPosts[selectedPost.id] ? 1 : 0)}
-              </span>
-            </button>
-            <button className="flex items-center gap-1.5"
-              onClick={() => setDislikedPosts((d) => ({ ...d, [selectedPost.id]: !d[selectedPost.id] }))}>
-              <ThumbsDown size={16} fill={dislikedPosts[selectedPost.id] ? "#d4183d" : "none"}
-                color={dislikedPosts[selectedPost.id] ? "#d4183d" : "var(--muted-foreground)"} />
-              <span className="text-xs" style={{ color: dislikedPosts[selectedPost.id] ? "#d4183d" : "var(--muted-foreground)" }}>
-                {selectedPost.dislikes + (dislikedPosts[selectedPost.id] ? 1 : 0)}
-              </span>
-            </button>
-            <div className="flex items-center gap-1.5">
-              <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
-              <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{selectedPost.comments}</span>
-            </div>
-            <button className="flex items-center gap-1.5"
-              onClick={() => setSavedPosts((s) => ({ ...s, [selectedPost.id]: !s[selectedPost.id] }))}>
-              <Bookmark size={16} fill={savedPosts[selectedPost.id] ? "var(--primary)" : "none"}
-                color={savedPosts[selectedPost.id] ? "var(--primary)" : "var(--muted-foreground)"} />
-            </button>
-          </div>
-        </div>
 
-        {/* 댓글 목록 */}
-        <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-          <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>댓글 {selectedPost.comments}개</p>
-          {[
-            { user: "익명1", text: "좋은 정보 감사해요!", emoji: "😊" },
-            { user: "익명2", text: "저도 궁금했는데 도움됐어요!", emoji: "🐱" },
-            { user: "익명3", text: "공유 감사합니다 👍", emoji: "📊" },
-          ].slice(0, selectedPost!.comments ?? 3).map((c, i) => (
-            <div key={i} className="flex gap-2 items-start">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
-                style={{ background: "var(--muted)" }}>{c.emoji}</div>
-              <div className="flex-1 px-3 py-2 rounded-xl text-xs"
-               style={{ color: "var(--foreground)" }}>
-                <span className="font-semibold">{c.user} </span>{c.text}
+  if (selectedPost) {
+    return (
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+          <button onClick={() => setSelectedPost(null)} className="text-lg">←</button>
+          <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>{selectedPost.content}</p>
+          <div className="border-t pt-3" style={{ borderColor: "var(--border)" }}>
+            <p className="text-xs font-semibold mb-2" style={{ color: "var(--muted-foreground)" }}>댓글 {selectedPost.comments}개</p>
+            <div className="flex gap-2 items-start">
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm" style={{ background: "var(--muted)" }}>😊</div>
+              <div className="flex-1 px-3 py-2 rounded-xl text-xs" style={{ background: "var(--muted)", color: "var(--foreground)" }}>
+                <span className="font-semibold">익명1 </span>좋은 정보 감사해요!
               </div>
             </div>
-          ))}
+          </div>
+        </div>
+        <div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+          <input
+            placeholder="댓글 입력..."
+            className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
+            style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
+          />
+          <button className="px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: "var(--primary)", color: "white" }}>
+            등록
+          </button>
         </div>
       </div>
-
-      {/* 댓글 입력 */}
-      <div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
-        <input
-          placeholder="댓글 입력..."
-          className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
-          style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
-        />
-        <button className="px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: "var(--primary)", color: "white" }}>
-          등록
-        </button>
-      </div>
-    </div>
-  );
-}
+    );
+  }
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden relative">
@@ -559,40 +486,28 @@ if (selectedPost) {
                   </div>
                 )}
               </div>
-            <div onClick={() => setSelectedPost(post)} className="cursor-pointer">
-  <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{post.title}</h3>
-  <p className="text-sm leading-relaxed" style={{ color: "var(--muted-foreground)" }}>{post.content}</p>
-</div>
+            <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{post.title}</h3>
+
             {post.id % 3 === 1 && (
               <div className="mt-2 h-32 rounded-xl flex items-center justify-center" style={{ background: "var(--muted)" }}>
                 <Image size={28} style={{ color: "var(--muted-foreground)" }} />
               </div>
             )}
 
-           {post.tags && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {post.tags.map((tag, i) => (
-                  <span key={i} className="text-xs px-2 py-0.5 rounded-full"
-                    style={{ background: "var(--secondary)", color: "var(--primary)" }}>
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
-
             {post.rating && (
-              <div className="flex items-center gap-1 mt-2">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} size={14}
-                    fill={i < Math.floor(post.rating!) ? "#ffc107" : "none"}
-                    color={i < Math.floor(post.rating!) ? "#ffc107" : "var(--muted-foreground)"} />
-                ))}
-                <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
-                  {post.rating.toFixed(1)}
-                </span>
-              </div>
-            )}
+  <div className="flex items-center gap-1 mb-1.5">
+    {[...Array(5)].map((_, i) => (
+      <Star key={i} size={14}
+        fill={i < Math.floor(post.rating!) ? "#ffc107" : "none"}
+        color={i < Math.floor(post.rating!) ? "#ffc107" : "var(--muted-foreground)"} />
+    ))}
+    <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
+      {post.rating.toFixed(1)}
+    </span>
+  </div>
+)}
 
+<p className="text-sm leading-relaxed" style={{ color: "var(--muted-foreground)" }}>{post.content}</p>
             {post.maxParticipants && (
               <div className="mt-2">
                 <span
@@ -611,11 +526,7 @@ if (selectedPost) {
             {/* Actions */}
             <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
               <button className="flex items-center gap-1.5"
-               onClick={() => {
-  if (!dislikedPosts[post.id]) {
-    setLikedPosts((l) => ({ ...l, [post.id]: !l[post.id] }));
-  }
-}}>
+                onClick={() => setLikedPosts((l) => ({ ...l, [post.id]: !l[post.id] }))}>
                 <Heart size={16} fill={likedPosts[post.id] ? "#3b82f6" : "none"}
                   color={likedPosts[post.id] ? "#3b82f6" : "var(--muted-foreground)"} />
                 <span className="text-xs" style={{ color: likedPosts[post.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
@@ -623,11 +534,7 @@ if (selectedPost) {
                 </span>
               </button>
               <button className="flex items-center gap-1.5"
-               onClick={() => {
-  if (!likedPosts[post.id]) {
-    setDislikedPosts((d) => ({ ...d, [post.id]: !d[post.id] }));
-  }
-}}>
+                onClick={() => setDislikedPosts((d) => ({ ...d, [post.id]: !d[post.id] }))}>
                 <ThumbsDown size={16} fill={dislikedPosts[post.id] ? "#d4183d" : "none"}
                   color={dislikedPosts[post.id] ? "#d4183d" : "var(--muted-foreground)"} />
                 <span className="text-xs" style={{ color: dislikedPosts[post.id] ? "#d4183d" : "var(--muted-foreground)" }}>
@@ -650,20 +557,14 @@ if (selectedPost) {
             {openComments[post.id] && (
             <div className="mt-3 flex flex-col gap-2">
             {/* 댓글 목록 */}
-            {[
-  { user: "익명1", text: "좋은 정보 감사해요!", emoji: "😊" },
-  { user: "익명2", text: "저도 궁금했는데 도움됐어요!", emoji: "🐱" },
-  { user: "익명3", text: "공유 감사합니다 👍", emoji: "📊" },
-].slice(0, selectedPost!.comments ?? 3).map((c, i) => (
-  <div key={i} className="flex gap-2 items-start">
-    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
-      style={{ background: "var(--muted)" }}>{c.emoji}</div>
-    <div className="flex-1 px-3 py-2 rounded-xl text-xs"
-      style={{ background: "var(--muted)", color: "var(--foreground)" }}>
-      <span className="font-semibold">{c.user} </span>{c.text}
-    </div>
-  </div>
-))}
+              <div className="flex gap-2 items-start">
+              <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
+                style={{ background: "var(--muted)" }}>😊</div>
+              <div className="flex-1 px-3 py-2 rounded-xl text-xs"
+                style={{ background: "var(--muted)", color: "var(--foreground)" }}>
+              <span className="font-semibold">익명1 </span>좋은 정보 감사해요!
+            </div>
+          </div>
         {/* 댓글 입력 */}
       <div className="flex gap-2 mt-1">
       <input
