@@ -150,19 +150,19 @@ const POSTS: Record<BoardType, Post[]> = {
   lecture: [
     {
       id: 9, author: "4학년선배", avatar: "📚", time: "2시간 전",
-      title: "데이터마이닝 강의 추천합니다",
+      title: "데이터마이닝",
       content: "김교수님 데이터마이닝 강의 정말 좋아요! 실습 위주라 이해하기 쉽고 과제도 적당해요.",
       likes: 45, dislikes: 3, comments: 16, tags: ["강의평가"], rating: 4.5,
     },
     {
       id: 10, author: "수강생", avatar: "✏️", time: "5시간 전",
-      title: "머신러닝 수업 시험 족보 공유",
+      title: "머신러닝",
       content: "작년 기말고사 문제 유형 공유합니다. 이론 60% 실습 40% 비율이에요!",
       likes: 78, dislikes: 1, comments: 23, tags: ["시험", "족보"],
     },
     {
       id: 17, author: "통계학도", avatar: "📐", time: "1일 전",
-      title: "통계학 개론 수업 스타일 안내",
+      title: "통계학 개론",
       content: "출석 30%, 중간 30%, 기말 40% 비율입니다. 교수님 수업은 판서 위주라 필기 열심히 하세요!",
       likes: 62, dislikes: 0, comments: 18, tags: ["강의평가", "통계학"], rating: 3.8,
     },
@@ -487,7 +487,6 @@ export function CommunityScreen() {
                 )}
               </div>
             <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{post.title}</h3>
-            <p className="text-sm leading-relaxed" style={{ color: "var(--muted-foreground)" }}>{post.content}</p>
 
             {post.id % 3 === 1 && (
               <div className="mt-2 h-32 rounded-xl flex items-center justify-center" style={{ background: "var(--muted)" }}>
@@ -495,30 +494,20 @@ export function CommunityScreen() {
               </div>
             )}
 
-            {post.tags && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {post.tags.map((tag, i) => (
-                  <span key={i} className="text-xs px-2 py-0.5 rounded-full"
-                    style={{ background: "var(--secondary)", color: "var(--primary)" }}>
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
-
             {post.rating && (
-              <div className="flex items-center gap-1 mt-2">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} size={14}
-                    fill={i < Math.floor(post.rating!) ? "#ffc107" : "none"}
-                    color={i < Math.floor(post.rating!) ? "#ffc107" : "var(--muted-foreground)"} />
-                ))}
-                <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
-                  {post.rating.toFixed(1)}
-                </span>
-              </div>
-            )}
+  <div className="flex items-center gap-1 mb-1.5">
+    {[...Array(5)].map((_, i) => (
+      <Star key={i} size={14}
+        fill={i < Math.floor(post.rating!) ? "#ffc107" : "none"}
+        color={i < Math.floor(post.rating!) ? "#ffc107" : "var(--muted-foreground)"} />
+    ))}
+    <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
+      {post.rating.toFixed(1)}
+    </span>
+  </div>
+)}
 
+<p className="text-sm leading-relaxed" style={{ color: "var(--muted-foreground)" }}>{post.content}</p>
             {post.maxParticipants && (
               <div className="mt-2">
                 <span
