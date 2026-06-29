@@ -204,7 +204,9 @@ export function CommunityScreen() {
   const [dislikedPosts, setDislikedPosts] = useState<Record<number, boolean>>({});
   const [savedPosts, setSavedPosts] = useState<Record<number, boolean>>({});
   const [openComments, setOpenComments] = useState<Record<number, boolean>>({});
+
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [viewedAuthor, setViewedAuthor] = useState<{ name: string; avatar: string } | null>(null);
   const [showWrite, setShowWrite] = useState(false);
   const [showReport, setShowReport] = useState<number | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<number | null>(null);
@@ -219,7 +221,6 @@ export function CommunityScreen() {
   const [newBoard, setNewBoard] = useState<BoardType>("free");
   const [newImage, setNewImage] = useState<string | null>(null);
 
-  // 채팅 패널
   const [showChat, setShowChat] = useState(false);
   const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
   const [chatMessages, setChatMessages] = useState<Record<number, Message[]>>(CHAT_MESSAGES);
@@ -254,7 +255,7 @@ export function CommunityScreen() {
     setChatInput("");
   };
 
-  // 채팅 창
+  // ── 채팅 창 ──────────────────────────────────────────────────────────────
   if (activeFriend) {
     return (
       <div className="flex flex-col flex-1 overflow-hidden">
@@ -305,7 +306,131 @@ export function CommunityScreen() {
     );
   }
 
-  // 게시물 상세 화면 (게시물 카드 + 댓글 목록)
+  // ── 작성자 프로필 화면 ────────────────────────────────────────────────────
+  // 1번 스크린샷처럼: 내글 / 댓글 / 좋아요 / 스크랩 탭 포함
+  if (viewedAuthor) {
+    const authorPosts = allPosts.filter((p) => p.author === viewedAuthor.name);
+
+    return (
+      <div className="flex flex-col flex-1 overflow-hidden">
+        {/* 헤더 */}
+        <div
+          className="flex items-center gap-3 px-4 py-4 border-b shrink-0"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <button
+            onClick={() => setViewedAuthor(null)}
+            className="text-lg"
+            style={{ color: "var(--foreground)" }}
+          >
+            ←
+          </button>
+          <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>
+            프로필
+          </h2>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {/* 프로필 상단 카드 */}
+          <div className="px-4 py-6 flex flex-col items-center gap-2">
+            <div
+              className="w-20 h-20 rounded-full flex items-center justify-center text-4xl"
+              style={{ background: "var(--muted)" }}
+            >
+              {viewedAuthor.avatar}
+            </div>
+            <p className="font-bold text-lg mt-1" style={{ color: "var(--foreground)" }}>
+              {viewedAuthor.name}
+            </p>
+
+            {/* 통계 */}
+            <div className="flex gap-8 mt-2">
+              {[
+                { label: "게시글", value: authorPosts.length },
+                { label: "댓글", value: authorPosts.reduce((s, p) => s + p.comments, 0) },
+                { label: "좋아요", value: authorPosts.reduce((s, p) => s + p.likes, 0) },
+              ].map(({ label, value }) => (
+                <div key={label} className="flex flex-col items-center">
+                  <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{value}</span>
+                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 탭: 내글 / 댓글 / 좋아요 / 스크랩 */}
+          <div
+            className="flex border-b shrink-0"
+            style={{ borderColor: "var(--border)" }}
+          >
+            {[
+              { label: "내 글", icon: "📄" },
+              { label: "댓글", icon: "💬" },
+              { label: "좋아요", icon: "🤍" },
+              { label: "스크랩", icon: "🔖" },
+            ].map(({ label, icon }, idx) => (
+              <button
+                key={label}
+                className="flex-1 flex flex-col items-center py-3 text-xs font-medium gap-1"
+                style={{
+                  color: idx === 0 ? "var(--primary)" : "var(--muted-foreground)",
+                  borderBottom: idx === 0 ? "2px solid var(--primary)" : "2px solid transparent",
+                }}
+              >
+                <span className="text-base">{icon}</span>
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* 게시물 목록 */}
+          <div className="px-4 py-3 flex flex-col gap-3">
+            {authorPosts.length === 0 ? (
+              <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
+                작성한 게시물이 없어요
+              </p>
+            ) : (
+              authorPosts.map((p) => (
+                <div
+                  key={p.id}
+                  onClick={() => {
+                    setViewedAuthor(null);
+                    setSelectedPost(p);
+                  }}
+                  className="p-4 rounded-2xl cursor-pointer"
+                  style={{ background: "var(--card)" }}
+                >
+                  {/* 게시판 라벨 */}
+                  <p className="text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>
+                    자유게시판
+                  </p>
+                  <h3 className="font-semibold text-sm mb-1" style={{ color: "var(--foreground)" }}>
+                    {p.title}
+                  </h3>
+                  <p className="text-xs leading-relaxed mb-2" style={{ color: "var(--muted-foreground)" }}>
+                    {p.content}
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
+                      <Heart size={12} /> {p.likes}
+                    </span>
+                    <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
+                      <MessageCircle size={12} /> {p.comments}
+                    </span>
+                    <span className="text-xs ml-auto" style={{ color: "var(--muted-foreground)" }}>
+                      {p.time}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── 게시물 상세 화면 ──────────────────────────────────────────────────────
   if (selectedPost) {
     return (
       <div className="flex flex-col flex-1 overflow-hidden">
@@ -316,13 +441,25 @@ export function CommunityScreen() {
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
           {/* 게시물 카드 */}
           <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center text-xl" style={{ background: "var(--muted)" }}>
+            {/* ✅ 수정: 아바타 + 작성자 정보를 한 행으로, 아바타 클릭 시 프로필로 이동 */}
+            <div className="flex items-center gap-2 mb-3">
+              <button
+                onClick={() => {
+                  setSelectedPost(null);
+                  setViewedAuthor({ name: selectedPost.author, avatar: selectedPost.avatar });
+                }}
+                className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0"
+                style={{ background: "var(--muted)" }}
+              >
                 {selectedPost.avatar}
-              </div>
+              </button>
               <div className="flex-1">
-                <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{selectedPost.author}</p>
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{selectedPost.time}</p>
+                <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                  {selectedPost.author}
+                </p>
+                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  {selectedPost.time}
+                </p>
               </div>
               {selectedPost.price && (
                 <span className="px-2 py-1 rounded-xl text-xs font-bold"
@@ -353,7 +490,9 @@ export function CommunityScreen() {
               </div>
             )}
 
-            <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>{selectedPost.content}</p>
+            <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
+              {selectedPost.content}
+            </p>
 
             {selectedPost.tags && (
               <div className="flex flex-wrap gap-1.5 mt-2">
@@ -418,9 +557,11 @@ export function CommunityScreen() {
             </div>
           </div>
 
-          {/* 댓글 목록 (배경색 없음) */}
+          {/* 댓글 목록 */}
           <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-            <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>댓글 {selectedPost.comments}개</p>
+            <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+              댓글 {selectedPost.comments}개
+            </p>
             {[
               { user: "익명1", text: "좋은 정보 감사해요!", emoji: "😊" },
               { user: "익명2", text: "저도 궁금했는데 도움됐어요!", emoji: "🐱" },
@@ -453,6 +594,7 @@ export function CommunityScreen() {
     );
   }
 
+  // ── 커뮤니티 메인 ─────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col flex-1 overflow-hidden relative">
 
@@ -460,12 +602,12 @@ export function CommunityScreen() {
       <div className="px-4 pt-5 pb-3 shrink-0">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
-  <img src={bigRoadingIcon} alt="Big Roading" className="w-14 h-14 object-cover" />
-  <div>
-    <h1 className="font-bold text-xl" style={{ color: "var(--foreground)" }}>커뮤니티</h1>
-    <p className="text-sm mt-0.5" style={{ color: "var(--muted-foreground)" }}></p>
-  </div>
-</div>
+            <img src={bigRoadingIcon} alt="Big Roading" className="w-14 h-14 object-cover" />
+            <div>
+              <h1 className="font-bold text-xl" style={{ color: "var(--foreground)" }}>커뮤니티</h1>
+              <p className="text-sm mt-0.5" style={{ color: "var(--muted-foreground)" }}></p>
+            </div>
+          </div>
           <div className="flex gap-2">
             <button
               onClick={() => setShowSearch(!showSearch)}
@@ -514,13 +656,12 @@ export function CommunityScreen() {
           ))}
         </div>
       )}
+
       {/* 더보기 메뉴 외부 클릭 닫기 */}
       {showMoreMenu !== null && (
-        <div
-          className="absolute inset-0 z-10"
-          onClick={() => setShowMoreMenu(null)}
-        />
+        <div className="absolute inset-0 z-10" onClick={() => setShowMoreMenu(null)} />
       )}
+
       {/* Posts */}
       <div className="flex-1 overflow-y-auto px-4 pb-20 flex flex-col gap-3">
         {posts.map((post) => (
@@ -531,10 +672,17 @@ export function CommunityScreen() {
           >
             {/* Author */}
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-9 h-9 rounded-full flex items-center justify-center text-xl"
-                style={{ background: "var(--muted)" }}>
+              {/* ✅ 수정: 아바타 클릭 시 프로필로 이동 */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setViewedAuthor({ name: post.author, avatar: post.avatar });
+                }}
+                className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0"
+                style={{ background: "var(--muted)" }}
+              >
                 {post.avatar}
-              </div>
+              </button>
               <div className="flex-1">
                 <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{post.author}</p>
                 <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{post.time}</p>
@@ -546,61 +694,62 @@ export function CommunityScreen() {
                 </span>
               )}
             </div>
-              {/* 더보기 버튼 */}
-              <div className="absolute top-3 right-3 z-10">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowMoreMenu(showMoreMenu === post.id ? null : post.id);
-                  }}
-                  className="w-8 h-8 rounded-full flex items-center justify-center"
-                  style={{ color: "var(--muted-foreground)" }}
+
+            {/* 더보기 버튼 */}
+            <div className="absolute top-3 right-3 z-10">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMoreMenu(showMoreMenu === post.id ? null : post.id);
+                }}
+                className="w-8 h-8 rounded-full flex items-center justify-center"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                <MoreVertical size={18} />
+              </button>
+              {showMoreMenu === post.id && (
+                <div
+                  className="absolute right-0 top-9 z-20 rounded-xl shadow-lg py-1 min-w-[110px]"
+                  style={{ background: "var(--card)", border: "1px solid var(--border)" }}
                 >
-                  <MoreVertical size={18} />
-                </button>
-                {showMoreMenu === post.id && (
-                  <div
-                    className="absolute right-0 top-9 z-20 rounded-xl shadow-lg py-1 min-w-[110px]"
-                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                  <button
+                    onClick={() => {
+                      setEditingPost(post);
+                      setEditTitle(post.title);
+                      setEditContent(post.content);
+                      setShowMoreMenu(null);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+                    style={{ color: "var(--foreground)" }}
                   >
-                    <button
-                      onClick={() => {
-                        setEditingPost(post);
-                        setEditTitle(post.title);
-                        setEditContent(post.content);
+                    <Edit2 size={14} /> 수정
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm("이 게시물을 삭제하시겠습니까?")) {
+                        setDeletedPostIds((prev) => [...prev, post.id]);
                         setShowMoreMenu(null);
-                      }}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-                      style={{ color: "var(--foreground)" }}
-                    >
-                      <Edit2 size={14} /> 수정
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm("이 게시물을 삭제하시겠습니까?")) {
-                          setDeletedPostIds((prev) => [...prev, post.id]);
-                          setShowMoreMenu(null);
-                        }
-                      }}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-                      style={{ color: "#d4183d" }}
-                    >
-                      <Trash2 size={14} /> 삭제
-                    </button>
-                    <div style={{ borderTop: "1px solid var(--border)" }} />
-                    <button
-                      onClick={() => {
-                        setShowReport(post.id);
-                        setShowMoreMenu(null);
-                      }}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-                      style={{ color: "#d4183d" }}
-                    >
-                      <AlertTriangle size={14} /> 신고
-                    </button>
-                  </div>
-                )}
-              </div>
+                      }
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+                    style={{ color: "#d4183d" }}
+                  >
+                    <Trash2 size={14} /> 삭제
+                  </button>
+                  <div style={{ borderTop: "1px solid var(--border)" }} />
+                  <button
+                    onClick={() => {
+                      setShowReport(post.id);
+                      setShowMoreMenu(null);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+                    style={{ color: "#d4183d" }}
+                  >
+                    <AlertTriangle size={14} /> 신고
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* 클릭하면 상세화면으로 이동 */}
             <div onClick={() => setSelectedPost(post)} className="cursor-pointer">
@@ -669,12 +818,9 @@ export function CommunityScreen() {
                   {post.dislikes + (dislikedPosts[post.id] ? 1 : 0)}
                 </span>
               </button>
-              <button
-              className="flex items-center gap-1.5"
-              onClick={() => setSelectedPost(post)}
->
-              <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
-              <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{post.comments}</span>
+              <button className="flex items-center gap-1.5" onClick={() => setSelectedPost(post)}>
+                <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
+                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{post.comments}</span>
               </button>
               <button className="flex items-center gap-1.5"
                 onClick={() => setSavedPosts((s) => ({ ...s, [post.id]: !s[post.id] }))}>
@@ -682,41 +828,38 @@ export function CommunityScreen() {
                   color={savedPosts[post.id] ? "var(--primary)" : "var(--muted-foreground)"} />
               </button>
             </div>
+
             {openComments[post.id] && (
-            <div className="mt-3 flex flex-col gap-2">
-            {/* 댓글 목록 */}
-              <div className="flex gap-2 items-start">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
-                style={{ background: "var(--muted)" }}>😊</div>
-              <div className="flex-1 px-3 py-2 rounded-xl text-xs"
-                style={{ background: "var(--muted)", color: "var(--foreground)" }}>
-              <span className="font-semibold">익명1 </span>좋은 정보 감사해요!
-            </div>
-          </div>
-        {/* 댓글 입력 */}
-      <div className="flex gap-2 mt-1">
-      <input
-        placeholder="댓글 입력..."
-        className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
-        style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-      />
-      <button className="px-3 py-2 rounded-xl text-xs font-semibold"
-        style={{ background: "var(--primary)", color: "white" }}>
-        등록
-      </button>
-    </div>
-  </div>
-)}
+              <div className="mt-3 flex flex-col gap-2">
+                <div className="flex gap-2 items-start">
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
+                    style={{ background: "var(--muted)" }}>😊</div>
+                  <div className="flex-1 px-3 py-2 rounded-xl text-xs"
+                    style={{ background: "var(--muted)", color: "var(--foreground)" }}>
+                    <span className="font-semibold">익명1 </span>좋은 정보 감사해요!
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-1">
+                  <input
+                    placeholder="댓글 입력..."
+                    className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
+                    style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                  />
+                  <button className="px-3 py-2 rounded-xl text-xs font-semibold"
+                    style={{ background: "var(--primary)", color: "white" }}>
+                    등록
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ))}
       </div>
 
-      {/* 친구/채팅 패널 버튼 (아래에서 위로 스와이프) */}
+      {/* 친구/채팅 패널 */}
       <div
         className="absolute bottom-0 left-0 right-0 z-30 transition-all duration-300"
-        style={{
-          transform: showChat ? "translateY(0)" : "translateY(calc(100% - 44px))",
-        }}
+        style={{ transform: showChat ? "translateY(0)" : "translateY(calc(100% - 44px))" }}
       >
         <button
           onClick={() => setShowChat(!showChat)}
@@ -733,10 +876,8 @@ export function CommunityScreen() {
           {showChat ? <ChevronDown size={18} color="white" /> : <ChevronUp size={18} color="white" />}
         </button>
 
-        {/* 채팅 패널 내용 */}
         <div className="px-4 py-3 h-160 overflow-y-auto flex flex-col gap-2"
           style={{ background: "var(--background)", borderTop: "1px solid var(--border)" }}>
-          {/* 친구 추가 */}
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>친구 목록</span>
             <button
@@ -825,7 +966,6 @@ export function CommunityScreen() {
             </button>
           </div>
           <div className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto">
-            {/* 게시판 선택 */}
             <div>
               <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
                 게시판 선택
@@ -861,7 +1001,6 @@ export function CommunityScreen() {
               className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none"
               style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
             />
-            {/* 사진 첨부 */}
             <input
               id="image-upload"
               type="file"
@@ -899,7 +1038,8 @@ export function CommunityScreen() {
           </div>
         </div>
       )}
-{/* 수정 모달 */}
+
+      {/* 수정 모달 */}
       {editingPost && (
         <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
           <div className="flex items-center gap-3 px-4 py-4 border-b" style={{ borderColor: "var(--border)" }}>
@@ -915,7 +1055,6 @@ export function CommunityScreen() {
                   alert("제목과 내용을 입력해주세요.");
                   return;
                 }
-                // 실제 서버 연동 시 여기서 API 호출
                 alert("게시물이 수정되었습니다.");
                 setEditingPost(null);
               }}
@@ -942,6 +1081,7 @@ export function CommunityScreen() {
           </div>
         </div>
       )}
+
       {/* 신고 모달 */}
       {showReport && (
         <div className="absolute inset-0 z-50 flex items-end" style={{ background: "rgba(0,0,0,0.5)" }}>
