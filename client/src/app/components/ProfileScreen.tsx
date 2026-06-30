@@ -33,7 +33,7 @@ export function ProfileScreen() {
       {/* Profile header */}
       <div
         className="relative px-4 pt-8 pb-6"
-        style={{ background: "linear-gradient(160deg, #f5e6d3 0%, #fdf0e0 100%)" }}
+        style={{ background: "linear-gradient(160deg, #111a30 0%, #0a0f1f 100%)" }}
       >
         <div className="flex items-start gap-4">
           <div className="relative">
@@ -57,23 +57,23 @@ export function ProfileScreen() {
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 className="font-bold text-lg border-b-2 outline-none bg-transparent w-full"
-                style={{ color: "black", borderColor: "var(--primary)" }}
+                style={{ color: "var(--foreground)", borderColor: "var(--primary)" }}
               />
             ) : (
-              <h2 className="font-bold text-lg" style={{ color: "black" }}>{nickname}</h2>
+              <h2 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>{nickname}</h2>
             )}
             <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>AI빅데이터전공 27학번</p>
             <div className="flex gap-3 mt-2">
               <div className="text-center">
-                <p className="font-bold text-sm" style={{ color: "black" }}>{MY_POSTS.length}</p>
+                <p className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{MY_POSTS.length}</p>
                 <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>게시글</p>
               </div>
               <div className="text-center">
-                <p className="font-bold text-sm" style={{ color: "black" }}>{MY_COMMENTS.length}</p>
+                <p className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{MY_COMMENTS.length}</p>
                 <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>댓글</p>
               </div>
               <div className="text-center">
-                <p className="font-bold text-sm" style={{ color: "black" }}>{LIKED_POSTS.length}</p>
+                <p className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{LIKED_POSTS.length}</p>
                 <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>좋아요</p>
               </div>
             </div>

@@ -33,7 +33,7 @@ export default function App() {
   const phoneFrame = (children: React.ReactNode) => (
     <div
       className="flex items-center justify-center min-h-screen"
-      style={{ background: "linear-gradient(135deg, #f5e6d3 0%, #e8d5b5 100%)" }}
+      style={{ background: "linear-gradient(135deg, #0a0f1f 0%, #05070f 100%)" }}
     >
       <div
         className="relative flex flex-col overflow-hidden shadow-2xl"
@@ -41,7 +41,7 @@ export default function App() {
           width: "390px",
           height: "844px",
           borderRadius: "44px",
-          border: "8px solid #1a100a",
+          border: "8px solid #05070f",
           background: "var(--background)",
           boxShadow: "0 40px 80px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.1)",
         }}
@@ -49,7 +49,7 @@ export default function App() {
         {/* Notch */}
         <div
           className="absolute top-0 left-1/2 -translate-x-1/2 z-50"
-          style={{ width: "126px", height: "30px", background: "#1a100a", borderRadius: "0 0 20px 20px" }}
+          style={{ width: "126px", height: "30px", background: "#05070f", borderRadius: "0 0 20px 20px" }}
         />
         {children}
       </div>

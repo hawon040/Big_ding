@@ -274,7 +274,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout }: SettingsScr
                 <span
                   className="text-xs px-2 py-1 rounded-full font-medium"
                   style={{
-                    background: r.status === "처리 완료" ? "#5cb85c22" : "#e07b3922",
+                    background: r.status === "처리 완료" ? "#5cb85c22" : "#3b82f622",
                     color: r.status === "처리 완료" ? "#5cb85c" : "var(--primary)",
                   }}
                 >
