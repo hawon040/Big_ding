@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>관리자 - 유저 등록</title>
+  <style>
+    /* 전체 배경 */
+    body {
+      font-family: sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+
+    /* 카드 박스 */
+    .box {
+      background: white;
+      padding: 36px;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      width: 400px;
+    }
+
+    h2 { margin-bottom: 24px; color: #333; }
+
+    /* 입력 필드 공통 스타일 */
+    input, select {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 14px;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    /* 등록 버튼 */
+    button {
+      width: 100%;
+      padding: 14px;
+      background: #e07b39;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover { background: #c96a2a; }
+
+    /* 결과 메시지 */
+    #result {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>👨‍💼 관리자 유저 등록</h2>
+
+    <!-- 학번 입력 -->
+    <input type="text" id="studentId" placeholder="학번 (예: 20210001)" maxlength="8" />
+
+    <!-- 특수번호 입력 -->
+    <input type="text" id="specialCode" placeholder="특수번호 2자리 (예: 07)" maxlength="2" />
+
+    <!-- 닉네임 입력 -->
+    <input type="text" id="nickname" placeholder="닉네임" />
+
+    <!-- 담당 교수 선택 -->
+    <select id="professor">
+      <option value="">담당 교수 선택</option>
+      <option value="유진호">유진호 교수</option>
+      <option value="차대현">차대현 교수</option>
+      <option value="홍진근">홍진근 교수</option>
+    </select>
+
+    <!-- 등록 버튼 -->
+    <button onclick="register()">등록하기</button>
+
+    <!-- 결과 메시지 출력 -->
+    <div id="result"></div>
+  </div>
+
+  <script>
+    // 유저 등록 함수
+    async function register() {
+      const studentId   = document.getElementById("studentId").value.trim();
+      const specialCode = document.getElementById("specialCode").value.trim();
+      const nickname    = document.getElementById("nickname").value.trim();
+      const professor   = document.getElementById("professor").value;
+
+      // 입력값 검증
+      if (!studentId || !specialCode || !nickname || !professor) {
+        showResult("모든 항목을 입력해주세요.", false);
+        return;
+      }
+
+      try {
+        // 서버 register API 호출
+        const res = await fetch("/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ studentId, specialCode, nickname, professor }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          // 실패 (중복 학번 등)
+          showResult("❌ " + data.message, false);
+          return;
+        }
+
+        // 성공 → 초기 비밀번호 표시
+        showResult(`✅ 등록 완료! 초기 비밀번호: ${data.initialPassword}`, true);
+
+        // 입력창 초기화
+        document.getElementById("studentId").value = "";
+        document.getElementById("specialCode").value = "";
+        document.getElementById("nickname").value = "";
+        document.getElementById("professor").value = "";
+
+      } catch {
+        showResult("❌ 서버 연결 실패", false);
+      }
+    }
+
+    // 결과 메시지 표시 함수
+    function showResult(msg, success) {
+      const el = document.getElementById("result");
+      el.style.display = "block";
+      el.style.background = success ? "#e8f5e9" : "#ffebee";
+      el.style.color = success ? "#2e7d32" : "#c62828";
+      el.textContent = msg;
+    }
+  </script>
+</body>
+</html>
