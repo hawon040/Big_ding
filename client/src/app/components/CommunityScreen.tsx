@@ -284,15 +284,15 @@ export function CommunityScreen() {
             </div>
           ))}
         </div>
-        <div className="flex items-center gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
-          <input
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            placeholder="메시지 입력..."
-            className="flex-1 px-4 py-2.5 rounded-2xl text-sm outline-none"
-            style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
-          />
+   <div className="flex items-center gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+  <input
+    value={chatInput}
+    onChange={(e) => setChatInput(e.target.value)}
+    onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+    placeholder="메시지 입력..."
+    className="flex-1 px-4 py-2.5 rounded-2xl text-sm outline-none text-white placeholder:text-white/60"
+    style={{ background: "var(--input-background)", border: "1.5px solid var(--border)" }}
+  /> 
           <button
             onClick={sendMessage}
             className="w-10 h-10 rounded-xl flex items-center justify-center"
@@ -568,26 +568,33 @@ export function CommunityScreen() {
             {openComments[post.id] && (
             <div className="mt-3 flex flex-col gap-2">
             {/* 댓글 목록 */}
-              <div className="flex gap-2 items-start">
-              <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
-                style={{ background: "var(--muted)" }}>😊</div>
-              <div className="flex-1 px-3 py-2 rounded-xl text-xs"
-                style={{ background: "var(--muted)", color: "var(--foreground)" }}>
-              <span className="font-semibold">익명1 </span>좋은 정보 감사해요!
-            </div>
-          </div>
-        {/* 댓글 입력 */}
-      <div className="flex gap-2 mt-1">
-      <input
-        placeholder="댓글 입력..."
-        className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
-        style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-      />
-      <button className="px-3 py-2 rounded-xl text-xs font-semibold"
-        style={{ background: "var(--primary)", color: "white" }}>
-        등록
-      </button>
-    </div>
+<div className="flex gap-2 items-start">
+  <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
+    style={{ background: "var(--muted)" }}>😊</div>
+
+  <div className="flex-1 px-3 py-2 rounded-xl text-xs text-white"
+    style={{ background: "var(--muted)" }}>
+    <span className="font-semibold text-white">익명1 </span>
+    좋은 정보 감사해요!
+  </div>
+</div>
+
+
+      {/* 댓글 입력 */}
+<div className="flex gap-2 mt-1">
+  <input
+    placeholder="댓글 입력..."
+    className="flex-1 px-3 py-2 rounded-xl text-xs outline-none text-white placeholder:text-white/60"
+    style={{ background: "var(--input-background)", border: "1.5px solid var(--border)" }}
+  />
+  <button
+    className="px-3 py-2 rounded-xl text-xs font-semibold"
+    style={{ background: "var(--primary)", color: "white" }}
+  >
+    등록
+  </button>
+</div>
+
   </div>
 )}
           </div>
