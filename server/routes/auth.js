@@ -11,6 +11,31 @@ const professorCodes = {
   "홍진근": "33",
 };
 
+// POST /api/auth/check-nickname
+router.post("/check-nickname", async (req, res) => {
+  try {
+    const { nickname } = req.body;
+
+    const exists = await User.findOne({ nickname });
+
+    if (exists) {
+      return res.json({
+        available: false,
+        message: "이미 사용 중인 닉네임입니다."
+      });
+    }
+
+    res.json({
+      available: true,
+      message: "사용 가능한 닉네임입니다."
+    });
+  } catch (err) {
+    res.status(500).json({
+      message: "서버 오류"
+    });
+  }
+});
+
 // POST /api/auth/verify-code
 // 교수별 인증번호 2자리 검증
 // 관리자가 교수마다 다른 코드를 설정
@@ -31,6 +56,31 @@ router.post("/verify-code", async (req, res) => {
     res.json({ message: "인증 성공!" });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+router.post("/check-nickname", async (req, res) => {
+  try {
+    const { nickname } = req.body;
+
+    const exists = await User.findOne({ nickname });
+
+    if (exists) {
+      return res.json({
+        available: false,
+        message: "이미 사용 중인 닉네임입니다.",
+      });
+    }
+
+    res.json({
+      available: true,
+      message: "사용 가능한 닉네임입니다.",
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      message: "서버 오류",
+    });
   }
 });
 
