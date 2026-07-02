@@ -5,6 +5,8 @@ interface SettingsScreenProps {
   darkMode: boolean;
   onToggleDark: () => void;
   onLogout: () => void;
+  nickname: string;
+  setNickname: (name: string) => void;
 }
 
 const REPORT_HISTORY = [
@@ -17,12 +19,10 @@ const BLOCKED_USERS = [
   { id: 2, name: "차단된유저2", reason: "스팸", date: "2026.05.15" },
 ];
 
-export function SettingsScreen({ darkMode, onToggleDark, onLogout }: SettingsScreenProps) {
+export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, setNickname }: SettingsScreenProps) {
   const [notifications, setNotifications] = useState({
     chat: true,
     community: true,
-    nearby: false,
-    marketing: false,
   });
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -299,10 +299,9 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout }: SettingsScr
         </div>
         <div className="px-4 py-4 flex flex-col gap-3">
           {[
-            { label: "이메일", value: "student@bu.ac.kr" },
+           { label: "이메일", value: "student@bu.ac.kr" },
             { label: "닉네임", value: "AI빅데이터21" },
-            { label: "전공", value: "AI빅데이터전공 27학번" },
-            { label: "가입일", value: "2026년 06월 07일" },
+            { label: "전공", value: "AI빅데이터전공 27학번" }, 
           ].map(({ label, value }) => (
             <div key={label} className="rounded-2xl p-4 flex items-center justify-between shadow-sm"
               style={{ background: "var(--card)" }}>
@@ -371,20 +370,9 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout }: SettingsScr
             label="커뮤니티 알림"
             value={notifications.community}
             onChange={() => setNotifications(n => ({ ...n, community: !n.community }))}
+          last
           />
-          <ToggleRow
-            icon={<Bell size={18} style={{ color: "#fd7e14" }} />}
-            label="근처 친구 알림"
-            value={notifications.nearby}
-            onChange={() => setNotifications(n => ({ ...n, nearby: !n.nearby }))}
-          />
-          <ToggleRow
-            icon={<Bell size={18} style={{ color: "var(--muted-foreground)" }} />}
-            label="마케팅 알림"
-            value={notifications.marketing}
-            onChange={() => setNotifications(n => ({ ...n, marketing: !n.marketing }))}
-            last
-          />
+         
         </Section>
 
         {/* Display */}

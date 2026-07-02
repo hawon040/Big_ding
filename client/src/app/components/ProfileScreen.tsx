@@ -8,24 +8,30 @@ const SCRAPPED = [
 ];
 
 const MY_POSTS = [
-  { id: 1, title: "AI빅데이터 프로젝트 발표 끝!", board: "자유게시판", time: "2일 전", likes: 24, comments: 8, visibility: "all" as const },
-  { id: 2, title: "자취방 구하는 팁 공유합니다", board: "자유게시판", time: "1주 전", likes: 45, comments: 15, visibility: "friends" as const },
+  { id: 1, title: "AI빅데이터 프로젝트 발표 끝!", board: "자유게시판", time: "2일 전", likes: 24, comments: 8, visibility: "all" as const, tags: ["프로젝트", "발표", "AI빅데이터"] },
+  { id: 2, title: "자취방 구하는 팁 공유합니다", board: "자유게시판", time: "1주 전", likes: 45, comments: 15, visibility: "friends" as const, tags: ["자취", "생활팁"] },
 ];
 
 const MY_COMMENTS = [
   { id: 1, postTitle: "ADsP 자격증 체감 난이도 후기", content: "저도 다음달에 시험 보는데 도움이 많이 됐어요!", time: "1일 전" },
-  { id: 2, postTitle: "학교 카페테리아 신메뉴 후기", content: "저도 어제 먹어봤는데 맛있더라구요", time: "3일 전" },
+  { id: 2, postTitle: "학교 카페테리아 신메뉴 AI빅데이터전공 27학번후기", content: "저도 어제 먹어봤는데 맛있더라구요", time: "3일 전" },
 ];
 
 const LIKED_POSTS = [
   { id: 1, title: "여름철 데이터 분석 꿀팁", board: "자유게시판", time: "1시간 전", likes: 89 },
   { id: 2, title: "공모전 팀원 모집", board: "공모전/자격증", time: "2시간 전", likes: 34 },
 ];
+// 
+interface ProfileScreenProps {
+  nickname: string;
+  setNickname: (name: string) => void;
+}
 
-export function ProfileScreen() {
+export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
   const [activeTab, setActiveTab] = useState<"posts" | "comments" | "likes" | "scrapped">("posts");
+  const [selectedPost, setSelectedPost] = useState<any | null>(null);
   const [editMode, setEditMode] = useState(false);
-  const [nickname, setNickname] = useState("27학번 샌애기");
+  const [userId, setUserId] = useState("id23abcd"); 
   const [showVisibilityModal, setShowVisibilityModal] = useState<number | null>(null);
 
   return (
@@ -60,23 +66,12 @@ export function ProfileScreen() {
                 style={{ color: "var(--foreground)", borderColor: "var(--primary)" }}
               />
             ) : (
-              <h2 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>{nickname}</h2>
-            )}
-            <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>AI빅데이터전공 27학번</p>
-            <div className="flex gap-3 mt-2">
-              <div className="text-center">
-                <p className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{MY_POSTS.length}</p>
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>게시글</p>
-              </div>
-              <div className="text-center">
-                <p className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{MY_COMMENTS.length}</p>
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>댓글</p>
-              </div>
-              <div className="text-center">
-                <p className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{LIKED_POSTS.length}</p>
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>좋아요</p>
-              </div>
-            </div>
+             <h2 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>{nickname}</h2>
+           )}
+           {/* ✨ userId의 3, 4번째 글자(인덱스 2부터 4 전까지)를 잘라와 고정시킵니다. */}
+         <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+          AI빅데이터전공 #{userId ? userId.slice(2, 4) : "23"}학번
+          </p>
           </div>
 
           <button
@@ -140,7 +135,7 @@ export function ProfileScreen() {
       {/* Tab content */}
       <div className="px-4 pb-6 flex flex-col gap-3">
         {activeTab === "posts" && MY_POSTS.map((post) => (
-          <div key={post.id} className="p-3.5 rounded-2xl shadow-sm" style={{ background: "var(--card)" }}>
+          <div key={post.id} className="p-3.5 rounded-2xl shadow-sm cursor-pointer" style={{ background: "var(--card)" }} onClick={() => setSelectedPost(post)}>
             <div className="flex items-start justify-between mb-2">
               <div className="flex-1">
                 <span
@@ -232,7 +227,30 @@ export function ProfileScreen() {
           </div>
         ))}
       </div>
-
+    
+    {selectedPost && (
+  <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+    <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+      <button onClick={() => setSelectedPost(null)} className="text-lg">←</button>
+      <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h2>
+    </div>
+    <div className="flex-1 overflow-y-auto px-4 py-4">
+      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--secondary)", color: "var(--primary)" }}>{selectedPost.board}</span>
+      <p className="font-bold text-base mt-3 mb-2" style={{ color: "var(--foreground)" }}>{selectedPost.title}</p>
+      <p className="text-xs mb-4" style={{ color: "var(--muted-foreground)" }}>{selectedPost.time}</p>
+      <div className="flex items-center gap-3 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-1">
+          <Heart size={13} fill="var(--primary)" color="var(--primary)" />
+          <span className="text-xs" style={{ color: "var(--primary)" }}>{selectedPost.likes}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <MessageCircle size={13} style={{ color: "var(--muted-foreground)" }} />
+          <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{selectedPost.comments}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
       {/* Visibility modal */}
       {showVisibilityModal && (
         <div className="absolute inset-0 z-50 flex items-end" style={{ background: "rgba(0,0,0,0.5)" }}>
