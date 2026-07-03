@@ -802,7 +802,15 @@ const handleDeleteFriends = () => {
           <div className="flex items-center gap-3">
             <img src={bigRoadingIcon} alt="Big Roading" className="w-14 h-14 object-cover" />
             <div>
-              <h1 className="font-bold text-xl" style={{ color: "var(--foreground)" }}>커뮤니티</h1>
+                          <h1
+              className="text-2xl"
+              style={{
+                color: "var(--foreground)",
+                fontFamily: "'Brush Script MT', cursive",
+              }}
+            >
+              Big Ding
+            </h1>
               <p className="text-sm mt-0.5" style={{ color: "var(--muted-foreground)" }}></p>
             </div>
           </div>

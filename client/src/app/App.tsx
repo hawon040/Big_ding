@@ -15,6 +15,28 @@ export default function App() {
   const [showRegister, setShowRegister] = useState(false); // 회원가입 화면
   const [showConsentModal, setShowConsentModal] = useState(false); // 개인정보 동의 팝업
   const [nickname, setNickname] = useState("데이터새내기");
+
+const [currentTime, setCurrentTime] = useState("");
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const formatted = now.toLocaleTimeString("ko-KR", {
+        timeZone: "Asia/Seoul",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      setCurrentTime(formatted);
+    };
+
+    updateTime();
+    const timer = setInterval(updateTime, 1000 * 10);
+
+    return () => clearInterval(timer);
+  }, []);
+
+
   // 앱 시작 시 토큰 확인 → 자동 로그인
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -134,7 +156,7 @@ export default function App() {
         className="flex items-center justify-between px-8 pt-2 pb-1 mt-8 text-xs font-semibold shrink-0"
         style={{ color: "var(--foreground)" }}
       >
-        <span>9:41</span>
+       <span>{currentTime}</span>
         <div className="flex items-center gap-1">
           <span>●●●</span>
           <span>WiFi</span>

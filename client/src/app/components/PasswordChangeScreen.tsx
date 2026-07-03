@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronLeft, Eye, EyeOff } from "lucide-react";
+import { ChevronLeft, Eye, EyeOff, X } from "lucide-react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
 
 interface RegisterScreenProps {
@@ -21,9 +21,26 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // 커스텀 알림 팝업 상태
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [alertCallback, setAlertCallback] = useState<(() => void) | null>(null);
+
+  const showAlert = (message: string, callback?: () => void) => {
+    setAlertMessage(message);
+    setAlertCallback(() => callback || null);
+  };
+
+  const closeAlert = () => {
+    setAlertMessage(null);
+    if (alertCallback) {
+      alertCallback();
+    }
+    setAlertCallback(null);
+  };
+
   const checkNickname = async () => {
     if (!name) {
-      alert("닉네임을 입력해주세요.");
+      showAlert("닉네임을 입력해주세요.");
       return;
     }
 
@@ -44,20 +61,20 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
         setNicknameChecked(true);
       }
 
-      alert(data.message);
+      showAlert(data.message);
     } catch {
-      alert("서버 연결 실패");
+      showAlert("서버 연결 실패");
     }
   };
 
   const handleVerify = async () => {
     if (!studentId || !name || !professor) {
-      alert("모든 항목을 입력해주세요.");
+      showAlert("모든 항목을 입력해주세요.");
       return;
     }
 
     if (!nicknameChecked) {
-      alert("닉네임 중복확인을 먼저 해주세요.");
+      showAlert("닉네임 중복확인을 먼저 해주세요.");
       return;
     }
     try {
@@ -67,28 +84,28 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
         body: JSON.stringify({ studentId, professor, code }),
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.message); return; }
+      if (!res.ok) { showAlert(data.message); return; }
       setVerified(true);
-      alert("인증이 완료되었습니다.");
+      showAlert("인증이 완료되었습니다.");
     } catch {
-      alert("서버 연결 실패");
+      showAlert("서버 연결 실패");
     }
   };
 
   const handleRegister = async () => {
     if (!password || !confirmPassword) {
-      alert("비밀번호를 입력해주세요.");
+      showAlert("비밀번호를 입력해주세요.");
       return;
     }
     if (password !== confirmPassword) {
-      alert("비밀번호가 일치하지 않습니다.");
+      showAlert("비밀번호가 일치하지 않습니다.");
       return;
     }
 
     const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
 
     if (!passwordRegex.test(password)) {
-      alert("비밀번호는 8자 이상이며 영문, 숫자, 특수문자를 모두 포함해야 합니다.");
+      showAlert("비밀번호는 8자 이상이며 영문, 숫자, 특수문자를 모두 포함해야 합니다.");
       return;
     }
     try {
@@ -98,21 +115,21 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
         body: JSON.stringify({ studentId, name, professor, code, password }),
       });
       const data = await res.json();
-      if (!res.ok) { alert(data.message); return; }
-      alert("회원가입이 완료되었습니다! 로그인해주세요.");
+      if (!res.ok) { showAlert(data.message); return; }
 
-      setNicknameChecked(false);
-      setVerified(false);
-
-      onComplete();
+      showAlert("회원가입이 완료되었습니다! 로그인해주세요.", () => {
+        setNicknameChecked(false);
+        setVerified(false);
+        onComplete();
+      });
     } catch {
-      alert("서버 연결 실패");
+      showAlert("서버 연결 실패");
     }
   };
 
   return (
     <div
-      className="flex-1 flex flex-col items-center px-5 py-4 h-full"
+      className="relative flex-1 flex flex-col items-center px-5 py-4 h-full"
       style={{ background: "linear-gradient(160deg, #0a0f1f 0%, #0d1426 60%, #111a30 100%)" }}
     >
       <div className="w-full rounded-3xl p-4 shadow-xl" style={{ background: "var(--card)" }}>
@@ -301,12 +318,12 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
           <button
             onClick={() => {
               if (!nicknameChecked) {
-                alert("닉네임 중복확인을 먼저 해주세요.");
+                showAlert("닉네임 중복확인을 먼저 해주세요.");
                 return;
               }
 
               if (!verified) {
-                alert("먼저 인증번호 확인을 완료해주세요.");
+                showAlert("먼저 인증번호 확인을 완료해주세요.");
                 return;
               }
 
@@ -320,6 +337,41 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
 
         </div>
       </div>
+
+      {/* 커스텀 알림 팝업 */}
+      {alertMessage && (
+        <div
+          className="absolute inset-0 z-[70] flex items-center justify-center px-6"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+        >
+          <div
+            className="w-full rounded-2xl overflow-hidden shadow-2xl"
+            style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+              style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+            >
+              Code
+              <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+              {alertMessage}
+            </div>
+            <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+              <button
+                className="w-full py-3 text-sm font-medium"
+                style={{ color: "var(--foreground)" }}
+                onClick={closeAlert}
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
