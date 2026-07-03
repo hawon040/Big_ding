@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Eye, EyeOff } from "lucide-react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import api from "@/api";
+
 
 interface LoginScreenProps {
   onLogin: (isFirstLogin: boolean) => void;
@@ -11,6 +12,8 @@ interface LoginScreenProps {
 export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
   const [studentId, setStudentId] = useState("");
   const [password, setPassword] = useState("");
+  const [autoLogin, setAutoLogin] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async () => {
     if (!studentId || !password) {
@@ -22,6 +25,7 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
       const data = res.data;
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("autoLogin", autoLogin ? "true" : "false");
       onLogin(data.isFirstLogin);
     } catch (err: any) {
       alert(err.response?.data?.message || "서버 연결 실패");
@@ -74,22 +78,42 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
             <label className="text-sm mb-1 block font-medium" style={{ color: "var(--muted-foreground)" }}>
               비밀번호
             </label>
-            <input
-              type="text"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="EX): beaksuk@041"
-              className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
-              style={{
-                background: "var(--input-background)",
-                color: "var(--foreground)",
-                border: "1.5px solid var(--border)",
-              }}
-            />
+            <div className="relative">
+  <input
+    type={showPassword ? "text" : "password"}
+    value={password}
+    onChange={(e) => setPassword(e.target.value)}
+    placeholder="암호를 입력해주세요"
+    className="w-full px-4 py-3 pr-11 rounded-2xl outline-none text-sm"
+    style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+  />
+  <button
+    type="button"
+    onClick={() => setShowPassword((v) => !v)}
+    className="absolute right-3 top-1/2 -translate-y-1/2"
+    style={{ color: "var(--muted-foreground)" }}
+    tabIndex={-1}
+  >
+    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+  </button>
+</div>
             <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
               
             </p>
           </div>
+
+          <label className="flex items-center gap-2 -mt-1 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={autoLogin}
+              onChange={(e) => setAutoLogin(e.target.checked)}
+              className="w-4 h-4 rounded accent-current cursor-pointer"
+              style={{ accentColor: "var(--primary)" }}
+            />
+            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              자동 로그인
+            </span>
+          </label>
 
           <button
             onClick={handleSubmit}

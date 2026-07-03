@@ -14,14 +14,18 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [showRegister, setShowRegister] = useState(false); // 회원가입 화면
 
-  // 앱 시작 시 토큰 확인 → 자동 로그인 (잠시 주석 처리)
-  //useEffect(() => {
-    //const token = localStorage.getItem("token");
-    //if (token) {
-      //setLoggedIn(true); // 토큰 있으면 바로 메인으로
-    //}
-  //}, []);
-
+  // 앱 시작 시 토큰 확인 → "자동 로그인" 체크박스를 선택했던 경우에만 자동 로그인
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const autoLogin = localStorage.getItem("autoLogin");
+    if (token && autoLogin === "true") {
+      setLoggedIn(true); // 토큰 있고 자동 로그인 동의한 경우에만 바로 메인으로
+    } else {
+      // 자동 로그인을 선택하지 않았다면 이전 토큰은 정리
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+    }
+  }, []);
   if (typeof document !== "undefined") {
     if (darkMode) {
       document.documentElement.classList.add("dark");
@@ -121,9 +125,10 @@ export default function App() {
               darkMode={darkMode}
               onToggleDark={() => setDarkMode((d) => !d)}
               onLogout={() => {
-                // 로그아웃 시 토큰 삭제
+                // 로그아웃 시 토큰 및 자동 로그인 설정 삭제
                 localStorage.removeItem("token");
                 localStorage.removeItem("user");
+                localStorage.removeItem("autoLogin");
                 setLoggedIn(false);
                 setActiveTab("community");
                 setDarkMode(false);

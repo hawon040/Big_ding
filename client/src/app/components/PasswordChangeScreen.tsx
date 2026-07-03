@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ChevronLeft, Eye, EyeOff } from "lucide-react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
 
 interface RegisterScreenProps {
@@ -6,7 +7,7 @@ interface RegisterScreenProps {
   onSkip: () => void;
 }
 
-export function PasswordChangeScreen({ onComplete }: RegisterScreenProps) {
+export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps) {
   // 단계: info(기본정보) → verify(인증) → password(비밀번호설정)
   const [verified, setVerified] = useState(false);
   const [nicknameChecked, setNicknameChecked] = useState(false);
@@ -17,6 +18,8 @@ export function PasswordChangeScreen({ onComplete }: RegisterScreenProps) {
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
 const checkNickname = async () => {
   if (!name) {
@@ -113,6 +116,17 @@ alert(data.message);
   style={{ background: "linear-gradient(160deg, #0a0f1f 0%, #0d1426 60%, #111a30 100%)" }}
 >
       <div className="w-full rounded-3xl p-6 pb-60 shadow-xl" style={{ background: "var(--card)" }}>
+
+        {/* 뒤로가기 버튼 */}
+        <button
+          type="button"
+          onClick={onSkip}
+          className="flex items-center gap-1 mb-2 -ml-1 px-1 py-1 text-xs font-medium transition-all active:scale-95"
+          style={{ color: "var(--muted-foreground)" }}
+        >
+          <ChevronLeft size={16} />
+          뒤로가기
+        </button>
 
         {/* 상단 아이콘 + 제목 */}
         <div className="flex flex-col items-center mb-6">
@@ -256,18 +270,29 @@ alert(data.message);
     비밀번호
   </label>
 
-  <input
-    type="password"
-    placeholder="8자 이상 입력하세요"
-    value={password}
-    onChange={(e) => setPassword(e.target.value)}
-    className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
-    style={{
-      background: "var(--input-background)",
-      color: "var(--foreground)",
-      border: "1.5px solid var(--border)"
-    }}
-  />
+  <div className="relative">
+    <input
+      type={showPassword ? "text" : "password"}
+      placeholder="8자 이상 입력하세요"
+      value={password}
+      onChange={(e) => setPassword(e.target.value)}
+      className="w-full px-4 py-3 pr-11 rounded-2xl outline-none text-sm"
+      style={{
+        background: "var(--input-background)",
+        color: "var(--foreground)",
+        border: "1.5px solid var(--border)"
+      }}
+    />
+    <button
+      type="button"
+      onClick={() => setShowPassword((v) => !v)}
+      className="absolute right-3 top-1/2 -translate-y-1/2"
+      style={{ color: "var(--muted-foreground)" }}
+      tabIndex={-1}
+    >
+      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+    </button>
+  </div>
 </div>
 
 {/* 비밀번호 확인 */}
@@ -279,18 +304,29 @@ alert(data.message);
     비밀번호 확인
   </label>
 
-  <input
-    type="password"
-    placeholder="비밀번호를 다시 입력하세요"
-    value={confirmPassword}
-    onChange={(e) => setConfirmPassword(e.target.value)}
-    className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
-    style={{
-      background: "var(--input-background)",
-      color: "var(--foreground)",
-      border: "1.5px solid var(--border)"
-    }}
-  />
+  <div className="relative">
+    <input
+      type={showConfirmPassword ? "text" : "password"}
+      placeholder="비밀번호를 다시 입력하세요"
+      value={confirmPassword}
+      onChange={(e) => setConfirmPassword(e.target.value)}
+      className="w-full px-4 py-3 pr-11 rounded-2xl outline-none text-sm"
+      style={{
+        background: "var(--input-background)",
+        color: "var(--foreground)",
+        border: "1.5px solid var(--border)"
+      }}
+    />
+    <button
+      type="button"
+      onClick={() => setShowConfirmPassword((v) => !v)}
+      className="absolute right-3 top-1/2 -translate-y-1/2"
+      style={{ color: "var(--muted-foreground)" }}
+      tabIndex={-1}
+    >
+      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+    </button>
+  </div>
 </div>
 
 <button
