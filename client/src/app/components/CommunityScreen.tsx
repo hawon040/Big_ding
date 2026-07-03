@@ -603,10 +603,11 @@ export function CommunityScreen() {
         {/* 댓글 입력 */}
         <div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
           <input
-            placeholder="댓글 입력..."
-            className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
-            style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
-          />
+  placeholder="댓글 입력..."
+  className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
+  style={{ background: "var(--input-background)", color: "white", border: "1.5px solid var(--border)" }}
+/>
+
           <button className="px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: "var(--primary)", color: "white" }}>
             등록
           </button>

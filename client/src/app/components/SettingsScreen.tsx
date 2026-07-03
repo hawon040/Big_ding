@@ -415,7 +415,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout }: SettingsScr
       />
       <SettingRow
         icon={<BookOpen size={18} style={{ color: "#5cb85c" }} />}
-        label="가이드 및 규칙"
+        label="커뮤니티 이용 규칙"
         onPress={() => setActiveSection("guidelines")}
         last
       />
