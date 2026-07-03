@@ -228,6 +228,9 @@ export function CommunityScreen() {
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [friendSearch, setFriendSearch] = useState("");
   const [friends, setFriends] = useState<Friend[]>(FRIENDS);
+  const [isSelectMode, setIsSelectMode] = useState(false);
+  const [selectedFriendIds, setSelectedFriendIds] = useState<number[]>([]);
+
 
   const allPosts = Object.values(POSTS).flat().filter((p) => !deletedPostIds.includes(p.id));
   const posts = showSearch && searchQuery
@@ -237,6 +240,26 @@ export function CommunityScreen() {
         p.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
       )
     : POSTS[activeBoard].filter((p) => !deletedPostIds.includes(p.id));
+
+  const toggleFriendSelectMode = () => {
+    setIsSelectMode((prev) => !prev);
+    setSelectedFriendIds([]);
+  };
+
+  const toggleFriendSelect = (id: number) => {
+    setSelectedFriendIds((prev) =>
+      prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id]
+    );
+  };
+
+  const handleDeleteFriends = () => {
+    if (selectedFriendIds.length === 0) return;
+    if (confirm(`선택한 ${selectedFriendIds.length}명의 친구를 삭제하시겠습니까?`)) {
+      setFriends((prev) => prev.filter((f) => !selectedFriendIds.includes(f.id)));
+      setSelectedFriendIds([]);
+      setIsSelectMode(false);
+    }
+  };
 
   const sendMessage = () => {
     if (!chatInput.trim() || !activeFriend) return;
@@ -307,7 +330,6 @@ export function CommunityScreen() {
   }
 
   // ── 작성자 프로필 화면 ────────────────────────────────────────────────────
-  // 1번 스크린샷처럼: 내글 / 댓글 / 좋아요 / 스크랩 탭 포함
   if (viewedAuthor) {
     const authorPosts = allPosts.filter((p) => p.author === viewedAuthor.name);
 
@@ -441,7 +463,6 @@ export function CommunityScreen() {
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
           {/* 게시물 카드 */}
           <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-            {/* ✅ 수정: 아바타 + 작성자 정보를 한 행으로, 아바타 클릭 시 프로필로 이동 */}
             <div className="flex items-center gap-2 mb-3">
               <button
                 onClick={() => {
@@ -672,7 +693,6 @@ export function CommunityScreen() {
           >
             {/* Author */}
             <div className="flex items-center gap-2 mb-2">
-              {/* ✅ 수정: 아바타 클릭 시 프로필로 이동 */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -878,15 +898,38 @@ export function CommunityScreen() {
 
         <div className="px-4 py-3 h-160 overflow-y-auto flex flex-col gap-2"
           style={{ background: "var(--background)", borderTop: "1px solid var(--border)" }}>
+
+          {/* 친구 목록 헤더: 친구추가 / 친구삭제 / 취소 */}
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>친구 목록</span>
-            <button
-              onClick={() => setShowAddFriend(!showAddFriend)}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
-              style={{ background: "var(--secondary)", color: "var(--primary)" }}
-            >
-              <UserPlus size={12} /> 친구추가
-            </button>
+            <div className="flex items-center gap-2">
+              {!isSelectMode ? (
+                <>
+                  <button
+                    onClick={() => setShowAddFriend(!showAddFriend)}
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+                    style={{ background: "var(--secondary)", color: "var(--primary)" }}
+                  >
+                    <UserPlus size={12} /> 친구추가
+                  </button>
+                  <button
+                    onClick={toggleFriendSelectMode}
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+                    style={{ background: "var(--secondary)", color: "#d4183d" }}
+                  >
+                    <Trash2 size={12} /> 친구삭제
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={toggleFriendSelectMode}
+                  className="text-xs px-2 py-1 rounded-lg font-medium"
+                  style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
+                >
+                  취소
+                </button>
+              )}
+            </div>
           </div>
 
           {showAddFriend && (
@@ -914,16 +957,40 @@ export function CommunityScreen() {
             </div>
           )}
 
+          {/* 친구 목록: 선택 모드일 때 체크박스 표시 */}
           {friends.map((friend) => (
             <button
               key={friend.id}
               onClick={() => {
-                setActiveFriend(friend);
-                setShowChat(false);
+                if (isSelectMode) {
+                  toggleFriendSelect(friend.id);
+                } else {
+                  setActiveFriend(friend);
+                  setShowChat(false);
+                }
               }}
               className="flex items-center gap-3 p-2.5 rounded-xl text-left"
-              style={{ background: "var(--card)" }}
+              style={{
+                background: "var(--card)",
+                outline: isSelectMode && selectedFriendIds.includes(friend.id)
+                  ? "2px solid var(--primary)"
+                  : "none",
+              }}
             >
+              {isSelectMode && (
+                <div
+                  className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                  style={{
+                    background: selectedFriendIds.includes(friend.id) ? "var(--primary)" : "var(--muted)",
+                    border: "1.5px solid var(--border)",
+                  }}
+                >
+                  {selectedFriendIds.includes(friend.id) && (
+                    <span className="text-white text-[10px] font-bold">✓</span>
+                  )}
+                </div>
+              )}
+
               <div className="relative">
                 <span className="text-2xl">{friend.avatar}</span>
                 {friend.online && (
@@ -937,6 +1004,17 @@ export function CommunityScreen() {
               </div>
             </button>
           ))}
+
+          {/* 선택된 친구가 있을 때만 삭제 버튼 표시 */}
+          {isSelectMode && selectedFriendIds.length > 0 && (
+            <button
+              onClick={handleDeleteFriends}
+              className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm font-semibold"
+              style={{ background: "#d4183d", color: "white" }}
+            >
+              {selectedFriendIds.length}명 삭제
+            </button>
+          )}
         </div>
       </div>
 
