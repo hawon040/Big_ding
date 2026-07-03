@@ -13,8 +13,13 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("community");
   const [darkMode, setDarkMode] = useState(false);
   const [showRegister, setShowRegister] = useState(false); // 회원가입 화면
+<<<<<<< HEAD
 
   // 앱 시작 시 토큰 확인 → "자동 로그인" 체크박스를 선택했던 경우에만 자동 로그인
+=======
+  const [nickname, setNickname] = useState("데이터새내기");
+  // 앱 시작 시 토큰 확인 → 자동 로그인
+>>>>>>> master
   useEffect(() => {
     const token = localStorage.getItem("token");
     const autoLogin = localStorage.getItem("autoLogin");
@@ -116,16 +121,19 @@ export default function App() {
         )}
         {activeTab === "profile" && (
           <div className="flex-1 overflow-hidden">
-            <ProfileScreen />
+            <ProfileScreen nickname={nickname} setNickname={setNickname} />
           </div>
         )}
         {activeTab === "settings" && (
           <div className="flex-1 overflow-y-auto">
             <SettingsScreen
               darkMode={darkMode}
-              onToggleDark={() => setDarkMode((d) => !d)}
+              onToggleDark={() => setDarkMode(!darkMode)}
               onLogout={() => {
+<<<<<<< HEAD
                 // 로그아웃 시 토큰 및 자동 로그인 설정 삭제
+=======
+>>>>>>> master
                 localStorage.removeItem("token");
                 localStorage.removeItem("user");
                 localStorage.removeItem("autoLogin");
@@ -133,6 +141,8 @@ export default function App() {
                 setActiveTab("community");
                 setDarkMode(false);
               }}
+              nickname={nickname}
+              setNickname={setNickname}
             />
           </div>
         )}
