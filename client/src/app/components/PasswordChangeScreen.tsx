@@ -11,8 +11,6 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
   // 단계: info(기본정보) → verify(인증) → password(비밀번호설정)
   const [verified, setVerified] = useState(false);
   const [nicknameChecked, setNicknameChecked] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [studentId, setStudentId] = useState("");
   const [name, setName] = useState("");
@@ -20,6 +18,10 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  
+  // 팀원 추가 기능: 비밀번호 보이기/숨기기 상태
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const checkNickname = async () => {
     if (!name) {
@@ -121,7 +123,7 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
     >
       <div className="w-full rounded-3xl p-6 pb-60 shadow-xl" style={{ background: "var(--card)" }}>
 
-        {/* 뒤로가기 버튼 */}
+        {/* 팀원 추가 기능: 뒤로가기 버튼 */}
         <button
           type="button"
           onClick={onSkip}
