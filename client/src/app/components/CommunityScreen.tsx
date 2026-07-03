@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
@@ -7,6 +7,17 @@ import {
 } from "lucide-react";
 
 type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting";
+
+interface PollOption {
+  id: number;
+  text: string;
+  votes: number;
+}
+
+interface Poll {
+  question: string;
+  options: PollOption[];
+}
 
 interface Post {
   id: number;
@@ -24,6 +35,8 @@ interface Post {
   maxParticipants?: number;
   currentParticipants?: number;
   price?: number;
+  poll?: Poll;
+  board?: BoardType;
 }
 
 interface Friend {
@@ -79,19 +92,19 @@ const POSTS: Record<BoardType, Post[]> = {
       id: 1, author: "AI빅데이터21", avatar: "📊", time: "10분 전",
       title: "오늘 AI빅데이터 프로젝트 발표 끝!",
       content: "한 학기 동안 진행한 AI빅데이터 분석 프로젝트 발표가 무사히 끝났습니다! 팀원분들 모두 고생하셨어요 👏",
-      likes: 24, dislikes: 0, comments: 8, tags: ["프로젝트", "발표", "AI빅데이터"],
+      likes: 24, dislikes: 0, comments: 8
     },
     {
       id: 2, author: "데이터분석가", avatar: "💻", time: "1시간 전",
       title: "자취방 구하는 팁 공유합니다",
       content: "학교 근처에서 자취방 구하면서 배운 꿀팁들 공유해요. 부동산 어플 잘 활용하면 좋은 방 구할 수 있어요!",
-      likes: 45, dislikes: 2, comments: 15, tags: ["자취", "생활팁"],
+      likes: 45, dislikes: 2, comments: 15
     },
     {
       id: 3, author: "통계전공생", avatar: "📈", time: "3시간 전",
       title: "학교 카페테리아 신메뉴 후기",
       content: "오늘 새로 나온 돈까스 먹어봤는데 가성비 좋네요! 4,500원에 이 정도면 괜찮은 것 같아요.",
-      likes: 67, dislikes: 5, comments: 22, tags: ["학식", "후기"],
+      likes: 67, dislikes: 5, comments: 22
     },
   ],
   qna: [
@@ -99,19 +112,19 @@ const POSTS: Record<BoardType, Post[]> = {
       id: 4, author: "신입생22", avatar: "🎓", time: "30분 전",
       title: "학교 도서관 이용 시간 문의",
       content: "시험 기간에 도서관 24시간 운영하나요? 처음이라 잘 몰라서 여쭤봅니다!",
-      likes: 8, dislikes: 0, comments: 12, tags: ["도서관", "시험기간"],
+      likes: 8, dislikes: 0, comments: 12
     },
     {
       id: 5, author: "선배님", avatar: "👨‍🎓", time: "2시간 전",
       title: "편의점 알바 추천드려요",
       content: "학교 앞 GS25에서 야간 알바생 구한다고 하네요. 시급 괜찮고 일도 널널해요!",
-      likes: 23, dislikes: 1, comments: 9, tags: ["알바", "생활팁"],
+      likes: 23, dislikes: 1, comments: 9
     },
     {
       id: 14, author: "3학년선배", avatar: "🎒", time: "4시간 전",
       title: "복수전공 신청 방법 알려드려요",
       content: "복수전공 신청은 3월 초에 학사포털에서 하면 됩니다. 경쟁률이 있으니 서두르세요!",
-      likes: 34, dislikes: 0, comments: 11, tags: ["복수전공", "학사정보"],
+      likes: 34, dislikes: 0, comments: 11
     },
   ],
   contest: [
@@ -119,19 +132,19 @@ const POSTS: Record<BoardType, Post[]> = {
       id: 6, author: "공모전헌터", avatar: "🏆", time: "1시간 전",
       title: "[공모전] AI빅데이터 분석 공모전 팀원 모집",
       content: "데이터 분석 공모전 프론트엔드 개발자 1명 구합니다! Python, R 가능하신 분 환영해요.",
-      likes: 34, dislikes: 0, comments: 18, tags: ["공모전", "팀원모집", "AI빅데이터"],
+      likes: 34, dislikes: 0, comments: 18
     },
     {
       id: 7, author: "자격증왕", avatar: "📜", time: "4시간 전",
       title: "ADsP 자격증 체감 난이도 후기",
       content: "지난주 ADsP 시험 봤는데 생각보다 어렵지 않았어요. 기출 문제 위주로 공부하시면 충분합니다!",
-      likes: 89, dislikes: 3, comments: 25, tags: ["자격증", "ADsP", "후기"],
+      likes: 89, dislikes: 3, comments: 25
     },
     {
       id: 15, author: "백엔드개발자", avatar: "⚙️", time: "2시간 전",
       title: "[팀모집] 창업 공모전 백엔드 구합니다",
       content: "Spring Boot 또는 Node.js 가능하신 분 구합니다. 상금 500만원 공모전이에요!",
-      likes: 56, dislikes: 1, comments: 20, tags: ["팀모집", "창업", "백엔드"],
+      likes: 56, dislikes: 1, comments: 20
     },
   ],
   event: [
@@ -139,13 +152,13 @@ const POSTS: Record<BoardType, Post[]> = {
       id: 8, author: "학생회", avatar: "🎉", time: "1일 전",
       title: "[행사] AI빅데이터 전공 축제 안내",
       content: "다음주 수요일 전공 축제가 열립니다! 다양한 이벤트와 경품 행사가 준비되어 있으니 많은 참여 부탁드립니다.",
-      likes: 156, dislikes: 2, comments: 42, tags: ["축제", "행사"],
+      likes: 156, dislikes: 2, comments: 42
     },
     {
       id: 16, author: "교수님대리", avatar: "📢", time: "3시간 전",
       title: "[공지] AI빅데이터 세미나 개최 안내",
       content: "이번 주 금요일 오후 3시, 산학협력관 101호에서 AI빅데이터 산업 동향 세미나가 열립니다.",
-      likes: 88, dislikes: 0, comments: 15, tags: ["세미나", "공지"],
+      likes: 88, dislikes: 0, comments: 15
     },
   ],
   lecture: [
@@ -153,19 +166,19 @@ const POSTS: Record<BoardType, Post[]> = {
       id: 9, author: "4학년선배", avatar: "📚", time: "2시간 전",
       title: "데이터마이닝",
       content: "김교수님 데이터마이닝 강의 정말 좋아요! 실습 위주라 이해하기 쉽고 과제도 적당해요.",
-      likes: 45, dislikes: 3, comments: 16, tags: ["강의평가"], rating: 4.5,
+      likes: 45, dislikes: 3, comments: 16
     },
     {
       id: 10, author: "수강생", avatar: "✏️", time: "5시간 전",
       title: "머신러닝",
       content: "작년 기말고사 문제 유형 공유합니다. 이론 60% 실습 40% 비율이에요!",
-      likes: 78, dislikes: 1, comments: 23, tags: ["시험", "족보"],
+      likes: 78, dislikes: 1, comments: 23
     },
     {
       id: 17, author: "통계학도", avatar: "📐", time: "1일 전",
       title: "통계학 개론",
       content: "출석 30%, 중간 30%, 기말 40% 비율입니다. 교수님 수업은 판서 위주라 필기 열심히 하세요!",
-      likes: 62, dislikes: 0, comments: 18, tags: ["강의평가", "통계학"], rating: 3.8,
+      likes: 62, dislikes: 0, comments: 18
     },
   ],
   meeting: [
@@ -173,23 +186,78 @@ const POSTS: Record<BoardType, Post[]> = {
       id: 11, author: "공강러", avatar: "☕", time: "30분 전",
       title: "오늘 3시 카페 공부 같이하실 분!",
       content: "학교 앞 스타벅스에서 3시부터 6시까지 공부하려고 해요. 같이 하실 분 댓글 주세요!",
-      likes: 12, dislikes: 0, comments: 5, maxParticipants: 4, currentParticipants: 2, tags: ["공부", "카페"],
+      likes: 12, dislikes: 0, comments: 5, maxParticipants: 4, currentParticipants: 2
     },
     {
       id: 12, author: "밥친구", avatar: "🍚", time: "1시간 전",
       title: "점심 같이 드실 분 구해요",
       content: "12시 30분에 학식 먹으러 가려고 하는데 혼자 먹기 심심해서요. 같이 가실 분~",
-      likes: 8, dislikes: 0, comments: 7, maxParticipants: 3, currentParticipants: 1, tags: ["점심", "밥"],
+      likes: 8, dislikes: 0, comments: 7, maxParticipants: 3, currentParticipants: 1
     },
     {
       id: 13, author: "운동러", avatar: "🏃", time: "2시간 전",
       title: "저녁 학교 운동장 러닝 같이해요",
       content: "매주 화목 저녁 7시에 운동장 러닝합니다. 부담 없이 참여하세요!",
-      likes: 19, dislikes: 0, comments: 10, maxParticipants: 8, currentParticipants: 5, tags: ["운동", "러닝"],
+      likes: 19, dislikes: 0, comments: 10, maxParticipants: 8, currentParticipants: 5
     },
   ],
 };
 
+// 좋아요/싫어요/댓글 등 사용자 상호작용을 새로고침해도 유지하기 위한 로컬 저장소 헬퍼
+const STORAGE_KEY = "bigding_community_interactions_v1";
+const REPORTS_STORAGE_KEY = "bigding_report_history_v1";
+const REPORTS_UPDATED_EVENT = "bigding-report-added";
+
+interface ReportHistoryItem {
+  id: number;
+  type: string;
+  target: string;
+  status: string;
+  date: string;
+}
+
+const addReportToHistory = (report: ReportHistoryItem) => {
+  try {
+    const raw = localStorage.getItem(REPORTS_STORAGE_KEY);
+    const list: ReportHistoryItem[] = raw ? JSON.parse(raw) : [];
+    const updated = [report, ...list];
+    localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(updated));
+    // 같은 탭 안에서도 설정 화면이 즉시 반영할 수 있도록 커스텀 이벤트 전파
+    window.dispatchEvent(new CustomEvent(REPORTS_UPDATED_EVENT, { detail: updated }));
+  } catch {
+    // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
+  }
+};
+interface StoredInteractions {
+  likedPosts: Record<number, boolean>;
+  dislikedPosts: Record<number, boolean>;
+  savedPosts: Record<number, boolean>;
+  extraComments: Record<number, { user: string; text: string; emoji: string }[]>;
+  createdPosts: Post[];
+  deletedPostIds: number[];
+  nextPostId: number;
+}
+ 
+const loadStoredInteractions = (): StoredInteractions => {
+  const fallback: StoredInteractions = {
+    likedPosts: {},
+    dislikedPosts: {},
+    savedPosts: {},
+    extraComments: {},
+    createdPosts: [],
+    deletedPostIds: [],
+    nextPostId: 10000,
+  };
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return { ...fallback, ...parsed };
+  } catch {
+    return fallback;
+  }
+};
+ 
 const BOARDS = [
   { id: "free" as BoardType, label: "생활Q&A", emoji: "💬", icon: MessageCircle },
   { id: "qna" as BoardType, label: "선배들 작품 전시 공간", emoji: "🏆", icon: Users },
@@ -200,13 +268,16 @@ const BOARDS = [
 ];
 
 export function CommunityScreen() {
+  // 좋아요/싫어요/댓글/스크랩/새 글 등은 로컬 저장소에서 초기값을 불러와
+  // 새로고침해도 그대로 유지되도록 한다.
+  const [storedInit] = useState(loadStoredInteractions);
   const [activeBoard, setActiveBoard] = useState<BoardType>("free");
-  const [likedPosts, setLikedPosts] = useState<Record<number, boolean>>({});
-  const [dislikedPosts, setDislikedPosts] = useState<Record<number, boolean>>({});
-  const [savedPosts, setSavedPosts] = useState<Record<number, boolean>>({});
+  const [likedPosts, setLikedPosts] = useState<Record<number, boolean>>(storedInit.likedPosts);
+  const [dislikedPosts, setDislikedPosts] = useState<Record<number, boolean>>(storedInit.dislikedPosts);
+  const [savedPosts, setSavedPosts] = useState<Record<number, boolean>>(storedInit.savedPosts);
  
   const [openComments, setOpenComments] = useState<Record<number, boolean>>({});
-  const [extraComments, setExtraComments] = useState<Record<number, { user: string; text: string; emoji: string }[]>>({});
+  const [extraComments, setExtraComments] = useState<Record<number, { user: string; text: string; emoji: string }[]>>(storedInit.extraComments);
   const [commentInput, setCommentInput] = useState("");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [viewedAuthor, setViewedAuthor] = useState<{ name: string; avatar: string } | null>(null);
@@ -216,13 +287,39 @@ export function CommunityScreen() {
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
-  const [deletedPostIds, setDeletedPostIds] = useState<number[]>([]);
+  const [deletedPostIds, setDeletedPostIds] = useState<number[]>(storedInit.deletedPostIds);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newBoard, setNewBoard] = useState<BoardType>("free");
   const [newImage, setNewImage] = useState<string | null>(null);
+  const [newPollEnabled, setNewPollEnabled] = useState(false);
+  const [newPollQuestion, setNewPollQuestion] = useState("");
+  const [newPollOptions, setNewPollOptions] = useState<string[]>(["", ""]);
+  const [createdPosts, setCreatedPosts] = useState<Post[]>(storedInit.createdPosts);
+  const [nextPostId, setNextPostId] = useState(storedInit.nextPostId);
+  const [pollSelections, setPollSelections] = useState<Record<number, number>>({});
+
+  // likedPosts/dislikedPosts/savedPosts/extraComments/createdPosts/deletedPostIds/nextPostId가
+  // 바뀔 때마다 로컬 저장소에 저장해서 새로고침해도 숫자가 유지되게 한다.
+  useEffect(() => {
+    const toStore: StoredInteractions = {
+      likedPosts,
+      dislikedPosts,
+      savedPosts,
+      extraComments,
+      createdPosts,
+      deletedPostIds,
+      nextPostId,
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
+    } catch {
+      // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
+    }
+  }, [likedPosts, dislikedPosts, savedPosts, extraComments, createdPosts, deletedPostIds, nextPostId]);
+  
 
   const [showChat, setShowChat] = useState(false);
   const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
@@ -257,14 +354,17 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
   };
   const closeConfirm = () => setConfirmState(null);
 
-  const allPosts = Object.values(POSTS).flat().filter((p) => !deletedPostIds.includes(p.id));
+ // 게시물의 실제 댓글 수 = 원래 댓글 수 + 내가 새로 등록한 댓글 수
+ const getCommentCount = (post: Post) => post.comments + (extraComments[post.id]?.length || 0);
+ 
+ const allPosts = [...createdPosts, ...Object.values(POSTS).flat()].filter((p) => !deletedPostIds.includes(p.id));
   const posts = showSearch && searchQuery
     ? allPosts.filter((p) =>
         p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
       )
-    : POSTS[activeBoard].filter((p) => !deletedPostIds.includes(p.id));
+    : [...createdPosts.filter((p) => p.board === activeBoard), ...POSTS[activeBoard]].filter((p) => !deletedPostIds.includes(p.id));
 
   const toggleFriendSelectMode = () => {
   setIsFriendSelectMode((prev) => !prev);
@@ -314,7 +414,6 @@ const handleDeleteFriends = () => {
 };
 
   // ── 채팅 창 ──────────────────────────────────────────────────────────────
-// ── 채팅 창 ──────────────────────────────────────────────────────────────
   if (activeFriend) {
     return (
       <div className="flex flex-col flex-1 overflow-hidden relative">
@@ -500,7 +599,6 @@ const handleDeleteFriends = () => {
   }
 
   // ── 작성자 프로필 화면 ────────────────────────────────────────────────────
-  // 1번 스크린샷처럼: 내글 / 댓글 / 좋아요 / 스크랩 탭 포함
   if (viewedAuthor) {
     const authorPosts = allPosts.filter((p) => p.author === viewedAuthor.name);
 
@@ -540,7 +638,7 @@ const handleDeleteFriends = () => {
             <div className="flex gap-8 mt-2">
               {[
                 { label: "게시글", value: authorPosts.length },
-                { label: "댓글", value: authorPosts.reduce((s, p) => s + p.comments, 0) },
+                { label: "댓글", value: authorPosts.reduce((s, p) => s + getCommentCount(p), 0) },
                 { label: "좋아요", value: authorPosts.reduce((s, p) => s + p.likes, 0) },
               ].map(({ label, value }) => (
                 <div key={label} className="flex flex-col items-center">
@@ -605,10 +703,10 @@ const handleDeleteFriends = () => {
                   </p>
                   <div className="flex items-center gap-3">
                     <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
-                      <Heart size={12} /> {p.likes}
+                      <Heart size={12} /> {p.likes + (likedPosts[p.id] ? 1 : 0)}
                     </span>
                     <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
-                      <MessageCircle size={12} /> {p.comments}
+                      <MessageCircle size={12} /> {getCommentCount(p)}
                     </span>
                     <span className="text-xs ml-auto" style={{ color: "var(--muted-foreground)" }}>
                       {p.time}
@@ -631,10 +729,9 @@ const handleDeleteFriends = () => {
           <button onClick={() => setSelectedPost(null)} className="text-lg">←</button>
           <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 scrollbar-hide">
           {/* 게시물 카드 */}
           <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-            {/* ✅ 수정: 아바타 + 작성자 정보를 한 행으로, 아바타 클릭 시 프로필로 이동 */}
             <div className="flex items-center gap-2 mb-3">
               <button
                 onClick={() => {
@@ -739,7 +836,7 @@ const handleDeleteFriends = () => {
               </button>
               <div className="flex items-center gap-1.5">
                 <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
-                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{selectedPost.comments}</span>
+                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(selectedPost)}</span>
               </div>
               <button className="flex items-center gap-1.5"
                 onClick={() => setSavedPosts((s) => ({ ...s, [selectedPost!.id]: !s[selectedPost!.id] }))}>
@@ -752,7 +849,7 @@ const handleDeleteFriends = () => {
           {/* 댓글 목록 */}
           <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3">
             <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
-              댓글 {selectedPost.comments}개
+              댓글 {getCommentCount(selectedPost)}개
             </p>
             {[
               { user: "익명1", text: "좋은 정보 감사해요!", emoji: "😊" },
@@ -821,15 +918,15 @@ const handleDeleteFriends = () => {
           <div className="flex items-center gap-3">
             <img src={bigRoadingIcon} alt="Big Roading" className="w-14 h-14 object-cover" />
             <div>
-                          <h1
-              className="text-2xl"
-              style={{
-                color: "var(--foreground)",
-                fontFamily: "'Brush Script MT', cursive",
-              }}
-            >
-              Big Ding
-            </h1>
+              <h1
+                className="text-2xl"
+                style={{
+                  color: "var(--foreground)",
+                  fontFamily: "'Brush Script MT', cursive",
+                }}
+              >
+                Big Ding
+              </h1>
               <p className="text-sm mt-0.5" style={{ color: "var(--muted-foreground)" }}></p>
             </div>
           </div>
@@ -842,12 +939,15 @@ const handleDeleteFriends = () => {
               <Search size={18} color={showSearch ? "white" : "var(--foreground)"} />
             </button>
             <button
-              onClick={() => setShowWrite(true)}
-              className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
-              style={{ background: "var(--primary)" }}
-            >
-              <Plus size={20} color="white" />
-            </button>
+  onClick={() => {
+    setNewBoard(activeBoard);
+    setShowWrite(true);
+  }}
+  className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
+  style={{ background: "var(--primary)" }}
+>
+  <Plus size={20} color="white" />
+</button>
           </div>
         </div>
 
@@ -896,7 +996,6 @@ const handleDeleteFriends = () => {
           >
             {/* Author */}
             <div className="flex items-center gap-2 mb-2">
-              {/* ✅ 수정: 아바타 클릭 시 프로필로 이동 */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -936,41 +1035,45 @@ const handleDeleteFriends = () => {
                   className="absolute right-0 top-9 z-20 rounded-xl shadow-lg py-1 min-w-[110px]"
                   style={{ background: "var(--card)", border: "1px solid var(--border)" }}
                 >
-                  <button
-                    onClick={() => {
-                      setEditingPost(post);
-                      setEditTitle(post.title);
-                      setEditContent(post.content);
-                      setShowMoreMenu(null);
-                    }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-                    style={{ color: "var(--foreground)" }}
-                  >
-                    <Edit2 size={14} /> 수정
-                  </button>
-                  <button
-                    onClick={() => {
-                      showConfirm("이 게시물을 삭제하시겠습니까?", () => {
-                        setDeletedPostIds((prev) => [...prev, post.id]);
+                  {post.author === "나" ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditingPost(post);
+                          setEditTitle(post.title);
+                          setEditContent(post.content);
+                          setShowMoreMenu(null);
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+                        style={{ color: "var(--foreground)" }}
+                      >
+                        <Edit2 size={14} /> 수정
+                      </button>
+                      <button
+                        onClick={() => {
+                          showConfirm("이 게시물을 삭제하시겠습니까?", () => {
+                            setDeletedPostIds((prev) => [...prev, post.id]);
+                            setShowMoreMenu(null);
+                          });
+                        }}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+                        style={{ color: "#d4183d" }}
+                      >
+                        <Trash2 size={14} /> 삭제
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setShowReport(post.id);
                         setShowMoreMenu(null);
-                      });
-                    }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-                    style={{ color: "#d4183d" }}
-                  >
-                    <Trash2 size={14} /> 삭제
-                  </button>
-                  <div style={{ borderTop: "1px solid var(--border)" }} />
-                  <button
-                    onClick={() => {
-                      setShowReport(post.id);
-                      setShowMoreMenu(null);
-                    }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-                    style={{ color: "#d4183d" }}
-                  >
-                    <AlertTriangle size={14} /> 신고
-                  </button>
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+                      style={{ color: "#d4183d" }}
+                    >
+                      <AlertTriangle size={14} /> 신고
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -999,6 +1102,65 @@ const handleDeleteFriends = () => {
               )}
 
               <p className="text-sm leading-relaxed" style={{ color: "var(--muted-foreground)" }}>{post.content}</p>
+
+              {post.poll && (() => {
+                const selectedId = pollSelections[post.id];
+                const totalVotes = post.poll.options.reduce(
+                  (sum, opt) => sum + opt.votes + (selectedId === opt.id ? 1 : 0),
+                  0
+                );
+                return (
+                  <div
+                    className="mt-3 p-3 rounded-2xl flex flex-col gap-2"
+                    style={{ background: "var(--muted)" }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                      🗳️ {post.poll.question}
+                    </p>
+                    {post.poll.options.map((opt) => {
+                      const votes = opt.votes + (selectedId === opt.id ? 1 : 0);
+                      const percent = totalVotes === 0 ? 0 : Math.round((votes / totalVotes) * 100);
+                      const isSelected = selectedId === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          onClick={() =>
+                            setPollSelections((prev) => ({
+                              ...prev,
+                              [post.id]: prev[post.id] === opt.id ? undefined : opt.id,
+                            } as Record<number, number>))
+                          }
+                          className="relative w-full text-left rounded-xl overflow-hidden text-xs"
+                          style={{ border: "1.5px solid var(--border)" }}
+                        >
+                          {selectedId !== undefined && (
+                            <div
+                              className="absolute inset-y-0 left-0 transition-all"
+                              style={{
+                                width: `${percent}%`,
+                                background: isSelected ? "var(--primary)" : "var(--secondary)",
+                                opacity: isSelected ? 0.35 : 0.25,
+                              }}
+                            />
+                          )}
+                          <div className="relative flex items-center justify-between px-3 py-2">
+                            <span style={{ color: "var(--foreground)", fontWeight: isSelected ? 600 : 400 }}>
+                              {opt.text}
+                            </span>
+                            {selectedId !== undefined && (
+                              <span style={{ color: "var(--muted-foreground)" }}>{percent}% ({votes})</span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                      {totalVotes}명 참여{selectedId === undefined ? " · 옵션을 눌러 투표하세요" : ""}
+                    </p>
+                  </div>
+                );
+              })()}
 
               {post.maxParticipants && (
                 <div className="mt-2">
@@ -1042,7 +1204,7 @@ const handleDeleteFriends = () => {
               </button>
               <button className="flex items-center gap-1.5" onClick={() => setSelectedPost(post)}>
                 <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
-                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{post.comments}</span>
+                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(post)}</span>
               </button>
               <button className="flex items-center gap-1.5"
                 onClick={() => setSavedPosts((s) => ({ ...s, [post.id]: !s[post.id] }))}>
@@ -1233,9 +1395,40 @@ const handleDeleteFriends = () => {
                   showAlert("제목과 내용을 입력해주세요.");
                   return;
                 }
+                const validOptions = newPollOptions.map((o) => o.trim()).filter(Boolean);
+                if (newPollEnabled && (!newPollQuestion.trim() || validOptions.length < 2)) {
+                  showAlert("투표 질문과 2개 이상의 옵션을 입력해주세요.");
+                  return;
+                }
+                const newPost: Post = {
+                  id: nextPostId,
+                  author: "나",
+                  avatar: "🙂",
+                  time: "방금 전",
+                  title: newTitle,
+                  content: newContent,
+                  likes: 0,
+                  dislikes: 0,
+                  comments: 0,
+                  image: newImage || undefined,
+                  board: newBoard,
+                  ...(newPollEnabled
+                    ? {
+                        poll: {
+                          question: newPollQuestion.trim(),
+                          options: validOptions.map((text, i) => ({ id: i, text, votes: 0 })),
+                        },
+                      }
+                    : {}),
+                };
+                setCreatedPosts((prev) => [newPost, ...prev]);
+                setNextPostId((n) => n + 1);
                 setNewTitle("");
                 setNewContent("");
                 setNewImage(null);
+                setNewPollEnabled(false);
+                setNewPollQuestion("");
+                setNewPollOptions(["", ""]);
                 setShowWrite(false);
               }}
             >
@@ -1247,12 +1440,12 @@ const handleDeleteFriends = () => {
               <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
                 게시판 선택
               </label>
-              <div className="flex flex-wrap gap-2">
+               <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4">
                 {BOARDS.map(({ id, label, emoji }) => (
                   <button
                     key={id}
                     onClick={() => setNewBoard(id)}
-                    className="px-3 py-1.5 rounded-xl text-xs font-medium"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap shrink-0"
                     style={{
                       background: newBoard === id ? "var(--primary)" : "var(--muted)",
                       color: newBoard === id ? "white" : "var(--muted-foreground)",
@@ -1310,6 +1503,69 @@ const handleDeleteFriends = () => {
               >
                 <Image size={18} />
                 <span className="text-sm">사진 첨부</span>
+              </button>
+            )}
+
+            {/* 투표 추가 */}
+            {newPollEnabled ? (
+              <div className="p-3 rounded-2xl flex flex-col gap-2.5" style={{ background: "var(--muted)" }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>🗳️ 투표 만들기</span>
+                  <button
+                    onClick={() => {
+                      setNewPollEnabled(false);
+                      setNewPollQuestion("");
+                      setNewPollOptions(["", ""]);
+                    }}
+                  >
+                    <X size={16} style={{ color: "var(--muted-foreground)" }} />
+                  </button>
+                </div>
+                <input
+                  placeholder="투표 질문을 입력하세요"
+                  value={newPollQuestion}
+                  onChange={(e) => setNewPollQuestion(filterProfanity(e.target.value))}
+                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                />
+                {newPollOptions.map((opt, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      placeholder={`옵션 ${idx + 1}`}
+                      value={opt}
+                      onChange={(e) => {
+                        const next = [...newPollOptions];
+                        next[idx] = filterProfanity(e.target.value);
+                        setNewPollOptions(next);
+                      }}
+                      className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
+                      style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                    />
+                    {newPollOptions.length > 2 && (
+                      <button onClick={() => setNewPollOptions(newPollOptions.filter((_, i) => i !== idx))}>
+                        <X size={16} style={{ color: "var(--muted-foreground)" }} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {newPollOptions.length < 5 && (
+                  <button
+                    onClick={() => setNewPollOptions([...newPollOptions, ""])}
+                    className="self-start text-xs font-medium px-3 py-1.5 rounded-xl"
+                    style={{ background: "var(--secondary)", color: "var(--primary)" }}
+                  >
+                    + 옵션 추가
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => setNewPollEnabled(true)}
+                className="flex items-center gap-2 px-4 py-3 rounded-2xl border border-dashed"
+                style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
+              >
+                <Plus size={18} />
+                <span className="text-sm">투표 추가</span>
               </button>
             )}
           </div>
@@ -1371,7 +1627,17 @@ const handleDeleteFriends = () => {
             {["스팸/도배", "욕설/비방", "음란물", "허위 정보", "기타"].map((reason) => (
               <button
                 key={reason}
-               onClick={() => {
+                onClick={() => {
+                  const targetPost = allPosts.find((p) => p.id === showReport);
+                  const now = new Date();
+                  const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
+                  addReportToHistory({
+                    id: Date.now(),
+                    type: reason,
+                    target: targetPost ? targetPost.title : "게시물",
+                    status: "처리 중",
+                    date,
+                  });
                   setShowReport(null);
                   showAlert(`신고가 접수되었습니다: ${reason}`);
                 }}
