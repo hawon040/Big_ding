@@ -28,11 +28,6 @@ export default defineConfig({
     alias: {
       // Alias @ to the src directory
       '@': path.resolve(__dirname, './src'),
-
- '@assets': path.resolve(__dirname, './src/assets'),
-    '@components': path.resolve(__dirname, './src/app/components'),
-    '@app': path.resolve(__dirname, './src/app'),
-
     },
   },
 
