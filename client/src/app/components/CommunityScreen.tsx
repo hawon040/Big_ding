@@ -204,8 +204,10 @@ export function CommunityScreen() {
   const [likedPosts, setLikedPosts] = useState<Record<number, boolean>>({});
   const [dislikedPosts, setDislikedPosts] = useState<Record<number, boolean>>({});
   const [savedPosts, setSavedPosts] = useState<Record<number, boolean>>({});
+ 
   const [openComments, setOpenComments] = useState<Record<number, boolean>>({});
-
+  const [extraComments, setExtraComments] = useState<Record<number, { user: string; text: string; emoji: string }[]>>({});
+  const [commentInput, setCommentInput] = useState("");
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [viewedAuthor, setViewedAuthor] = useState<{ name: string; avatar: string } | null>(null);
   const [showWrite, setShowWrite] = useState(false);
@@ -661,12 +663,11 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
             )}
 
             <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-              <button className="flex items-center gap-1.5"
-                onClick={() => {
-                  if (!dislikedPosts[selectedPost!.id]) {
-                    setLikedPosts((l) => ({ ...l, [selectedPost!.id]: !l[selectedPost!.id] }));
-                  }
-                }}>
+             <button className="flex items-center gap-1.5"
+              onClick={() => {
+                setLikedPosts((l) => ({ ...l, [selectedPost!.id]: !l[selectedPost!.id] }));
+                setDislikedPosts((d) => ({ ...d, [selectedPost!.id]: false }));
+              }}>
                 <Heart size={16} fill={likedPosts[selectedPost.id] ? "#3b82f6" : "none"}
                   color={likedPosts[selectedPost.id] ? "#3b82f6" : "var(--muted-foreground)"} />
                 <span className="text-xs" style={{ color: likedPosts[selectedPost.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
@@ -933,26 +934,24 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
               )}
             </div>
 
-            {/* Actions */}
-            <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-              <button className="flex items-center gap-1.5"
-                onClick={() => {
-                  if (!dislikedPosts[post.id]) {
-                    setLikedPosts((l) => ({ ...l, [post.id]: !l[post.id] }));
-                  }
-                }}>
-                <Heart size={16} fill={likedPosts[post.id] ? "#3b82f6" : "none"}
-                  color={likedPosts[post.id] ? "#3b82f6" : "var(--muted-foreground)"} />
-                <span className="text-xs" style={{ color: likedPosts[post.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
-                  {post.likes + (likedPosts[post.id] ? 1 : 0)}
-                </span>
-              </button>
-              <button className="flex items-center gap-1.5"
-                onClick={() => {
-                  if (!likedPosts[post.id]) {
-                    setDislikedPosts((d) => ({ ...d, [post.id]: !d[post.id] }));
-                  }
-                }}>
+           {/* Actions */}
+<div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+  <button className="flex items-center gap-1.5"
+    onClick={() => {
+      setLikedPosts((l) => ({ ...l, [post.id]: !l[post.id] }));
+      setDislikedPosts((d) => ({ ...d, [post.id]: false }));
+    }}>
+    <Heart size={16} fill={likedPosts[post.id] ? "#3b82f6" : "none"}
+      color={likedPosts[post.id] ? "#3b82f6" : "var(--muted-foreground)"} />
+    <span className="text-xs" style={{ color: likedPosts[post.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
+      {post.likes + (likedPosts[post.id] ? 1 : 0)}
+    </span>
+  </button>
+  <button className="flex items-center gap-1.5"
+    onClick={() => {
+      setDislikedPosts((d) => ({ ...d, [post.id]: !d[post.id] }));
+      setLikedPosts((l) => ({ ...l, [post.id]: false }));
+    }}>
                 <ThumbsDown size={16} fill={dislikedPosts[post.id] ? "#d4183d" : "none"}
                   color={dislikedPosts[post.id] ? "#d4183d" : "var(--muted-foreground)"} />
                 <span className="text-xs" style={{ color: dislikedPosts[post.id] ? "#d4183d" : "var(--muted-foreground)" }}>
