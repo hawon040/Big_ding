@@ -262,6 +262,16 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
     setChatInput("");
   };
 
+  const handleAddComment = () => {
+  if (!selectedPost || !commentInput.trim()) return;
+  const filtered = filterProfanity(commentInput.trim());
+  setExtraComments((prev) => ({
+    ...prev,
+    [selectedPost.id]: [...(prev[selectedPost.id] || []), { user: "나", text: filtered, emoji: "🙂" }],
+  }));
+  setCommentInput("");
+};
+
   // ── 채팅 창 ──────────────────────────────────────────────────────────────
 // ── 채팅 창 ──────────────────────────────────────────────────────────────
   if (activeFriend) {
@@ -717,22 +727,46 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
                 </div>
               </div>
             ))}
+
+           {(extraComments[selectedPost.id] || []).map((c, i) => (
+              <div key={`new-${i}`} className="flex gap-2 items-start">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
+                  style={{ background: "var(--muted)" }}>{c.emoji}</div>
+                <div className="flex-1 px-3 py-2 rounded-xl text-xs"
+                  style={{ color: "var(--foreground)" }}>
+                  <span className="font-semibold">{c.user} </span>{c.text}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* 댓글 입력 */}
-        <div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
-          <input
-  placeholder="댓글 입력..."
-  className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
-  style={{ background: "var(--input-background)", color: "white", border: "1.5px solid var(--border)" }}
-/>
-
-          <button className="px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: "var(--primary)", color: "white" }}>
-            등록
-          </button>
-        </div>
-      </div>
+       {/* 댓글 입력 */}
+<div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+  <input
+    value={commentInput}
+    onChange={(e) => setCommentInput(e.target.value)}
+    onKeyDown={(e) => {
+      if (e.key === "Enter") handleAddComment();
+    }}
+    placeholder="댓글 입력..."
+    className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
+    style={{ background: "var(--input-background)", color: "white", border: "1.5px solid var(--border)" }}
+  />
+  <button
+    onClick={handleAddComment}
+    disabled={!commentInput.trim()}
+    className="px-3 py-2 rounded-xl text-xs font-semibold"
+    style={{
+      background: commentInput.trim() ? "var(--primary)" : "var(--muted)",
+      color: commentInput.trim() ? "white" : "var(--muted-foreground)",
+      cursor: commentInput.trim() ? "pointer" : "not-allowed",
+    }}
+  >
+    등록
+  </button>
+  </div>
+</div>
     );
   }
 
