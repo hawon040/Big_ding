@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X } from "lucide-react";
 
 interface SettingsScreenProps {
@@ -9,10 +9,25 @@ interface SettingsScreenProps {
   setNickname: (name: string) => void;
 }
 
-const REPORT_HISTORY = [
+// 커뮤니티 신고 모달과 동일한 키/이벤트를 사용해 실시간으로 동기화한다.
+const REPORTS_STORAGE_KEY = "bigding_report_history_v1";
+const REPORTS_UPDATED_EVENT = "bigding-report-added";
+
+const DEFAULT_REPORT_HISTORY = [
   { id: 1, type: "스팸/도배", target: "자유게시판 게시글", status: "처리 중", date: "2026.05.28" },
   { id: 2, type: "욕설/비방", target: "선후배 Q&A 게시글", status: "처리 완료", date: "2026.05.10" },
 ];
+
+const loadReportHistory = () => {
+  try {
+    const raw = localStorage.getItem(REPORTS_STORAGE_KEY);
+    if (!raw) return DEFAULT_REPORT_HISTORY;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : DEFAULT_REPORT_HISTORY;
+  } catch {
+    return DEFAULT_REPORT_HISTORY;
+  }
+};
 
 const BLOCKED_USERS = [
   { id: 1, name: "차단된유저1", reason: "욕설/비방", date: "2026.05.25" },
@@ -33,6 +48,19 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [confirmPassword, setConfirmPassword] = useState("");
   const [inquiryTitle, setInquiryTitle] = useState("");
   const [inquiryContent, setInquiryContent] = useState("");
+  const [reportHistory, setReportHistory] = useState(loadReportHistory);
+
+  // 커뮤니티에서 신고가 접수되면(같은 탭: 커스텀 이벤트, 다른 탭: storage 이벤트)
+  // 신고 내역을 다시 불러와 화면에 실시간으로 반영한다.
+  useEffect(() => {
+    const refresh = () => setReportHistory(loadReportHistory());
+    window.addEventListener(REPORTS_UPDATED_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(REPORTS_UPDATED_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
 
   // 커스텀 알림/확인 팝업 상태
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -378,7 +406,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>신고 내역</h2>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-          {REPORT_HISTORY.map((r) => (
+          {reportHistory.map((r) => (
             <div key={r.id} className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
               <div className="flex items-start justify-between">
                 <div>
