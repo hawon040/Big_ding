@@ -23,6 +23,8 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [notifications, setNotifications] = useState({
     chat: true,
     community: true,
+    nearby: true,
+    marketing: false,
   });
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -365,8 +367,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       />
     </Section>
 
-<<<<<<< HEAD
-    {/* Notifications */}
+{/* Notifications */}
     <Section title="알림 설정">
       <ToggleRow
         icon={<Bell size={18} style={{ color: "#5bc0de" }} />}
@@ -382,7 +383,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       />
       <ToggleRow
         icon={<Bell size={18} style={{ color: "#fd7e14" }} />}
-        label="근처 친구 알림"
+        label="근처 모임 알림"
         value={notifications.nearby}
         onChange={() => setNotifications(n => ({ ...n, nearby: !n.nearby }))}
       />
@@ -394,25 +395,6 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
         last
       />
     </Section>
-=======
-        {/* Notifications */}
-        <Section title="알림 설정">
-          <ToggleRow
-            icon={<Bell size={18} style={{ color: "#5bc0de" }} />}
-            label="채팅 알림"
-            value={notifications.chat}
-            onChange={() => setNotifications(n => ({ ...n, chat: !n.chat }))}
-          />
-          <ToggleRow
-            icon={<Bell size={18} style={{ color: "#5cb85c" }} />}
-            label="커뮤니티 알림"
-            value={notifications.community}
-            onChange={() => setNotifications(n => ({ ...n, community: !n.community }))}
-          last
-          />
-         
-        </Section>
->>>>>>> master
 
     {/* Display */}
     <Section title="화면">
