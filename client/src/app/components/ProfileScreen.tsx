@@ -34,8 +34,32 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
   const [userId, setUserId] = useState("id23abcd"); 
   const [showVisibilityModal, setShowVisibilityModal] = useState<number | null>(null);
 
+  // 삭제/취소가 실제로 반영되도록 상태로 관리
+  const [myComments, setMyComments] = useState(MY_COMMENTS);
+  const [likedPosts, setLikedPosts] = useState(LIKED_POSTS);
+  const [scrapped, setScrapped] = useState(SCRAPPED);
+
+  // 커스텀 알림/확인 팝업 상태
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [alertCallback, setAlertCallback] = useState<(() => void) | null>(null);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
+
+  const showAlert = (message: string, callback?: () => void) => {
+    setAlertMessage(message);
+    setAlertCallback(() => callback || null);
+  };
+  const closeAlert = () => {
+    setAlertMessage(null);
+    if (alertCallback) alertCallback();
+    setAlertCallback(null);
+  };
+  const showConfirm = (message: string, onConfirm: () => void) => {
+    setConfirmState({ message, onConfirm });
+  };
+  const closeConfirm = () => setConfirmState(null);
+
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto">
+    <div className="relative flex flex-col flex-1 overflow-y-auto">
       {/* Profile header */}
       <div
         className="relative px-4 pt-8 pb-6"
@@ -147,7 +171,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                 <p className="font-semibold text-sm mt-1.5" style={{ color: "var(--foreground)" }}>{post.title}</p>
                 <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>{post.time}</p>
               </div>
-              <button onClick={() => setShowVisibilityModal(post.id)}>
+              <button onClick={(e) => { e.stopPropagation(); setShowVisibilityModal(post.id); }}>
                 {post.visibility === "all" ? (
                   <Globe size={16} style={{ color: "var(--muted-foreground)" }} />
                 ) : post.visibility === "friends" ? (
@@ -170,13 +194,19 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
           </div>
         ))}
 
-        {activeTab === "comments" && MY_COMMENTS.map((comment) => (
+        {activeTab === "comments" && myComments.map((comment) => (
           <div key={comment.id} className="p-3.5 rounded-2xl shadow-sm" style={{ background: "var(--card)" }}>
             <div className="flex items-start justify-between mb-1">
               <p className="text-xs font-semibold" style={{ color: "var(--primary)" }}>
                 {comment.postTitle}
               </p>
-              <button onClick={() => confirm("댓글을 삭제하시겠습니까?")}>
+              <button
+                onClick={() => {
+                  showConfirm("댓글을 삭제하시겠습니까?", () => {
+                    setMyComments((prev) => prev.filter((c) => c.id !== comment.id));
+                  });
+                }}
+              >
                 <X size={14} style={{ color: "#d4183d" }} />
               </button>
             </div>
@@ -185,7 +215,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
           </div>
         ))}
 
-        {activeTab === "likes" && LIKED_POSTS.map((post) => (
+        {activeTab === "likes" && likedPosts.map((post) => (
           <div key={post.id} className="p-3.5 rounded-2xl shadow-sm" style={{ background: "var(--card)" }}>
             <div className="flex items-start justify-between">
               <div className="flex-1">
@@ -198,14 +228,20 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                 <p className="font-semibold text-sm mt-1.5" style={{ color: "var(--foreground)" }}>{post.title}</p>
                 <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>{post.time}</p>
               </div>
-              <button onClick={() => confirm("좋아요를 취소하시겠습니까?")}>
+              <button
+                onClick={() => {
+                  showConfirm("좋아요를 취소하시겠습니까?", () => {
+                    setLikedPosts((prev) => prev.filter((p) => p.id !== post.id));
+                  });
+                }}
+              >
                 <Heart size={18} fill="var(--primary)" color="var(--primary)" />
               </button>
             </div>
           </div>
         ))}
 
-        {activeTab === "scrapped" && SCRAPPED.map((item) => (
+        {activeTab === "scrapped" && scrapped.map((item) => (
           <div key={item.id} className="p-3.5 rounded-2xl shadow-sm" style={{ background: "var(--card)" }}>
             <div className="flex items-start justify-between">
               <div className="flex-1">
@@ -220,7 +256,13 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                 </div>
                 <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>{item.title}</p>
               </div>
-              <button onClick={() => confirm("스크랩을 취소하시겠습니까?")}>
+              <button
+                onClick={() => {
+                  showConfirm("스크랩을 취소하시겠습니까?", () => {
+                    setScrapped((prev) => prev.filter((s) => s.id !== item.id));
+                  });
+                }}
+              >
                 <Bookmark size={18} fill="var(--primary)" color="var(--primary)" />
               </button>
             </div>
@@ -272,8 +314,8 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
               <button
                 key={id}
                 onClick={() => {
-                  alert(`공개 범위가 '${label}'로 변경되었습니다.`);
                   setShowVisibilityModal(null);
+                  showAlert(`공개 범위가 '${label}'로 변경되었습니다.`);
                 }}
                 className="w-full px-4 py-3 rounded-xl flex items-center gap-3 text-left text-sm"
                 style={{ background: "var(--card)", color: "var(--foreground)" }}
@@ -282,6 +324,87 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                 {label}
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 커스텀 알림 팝업 (확인 1개) */}
+      {alertMessage && (
+        <div
+          className="absolute inset-0 z-[70] flex items-center justify-center px-6"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+        >
+          <div
+            className="w-full rounded-2xl overflow-hidden shadow-2xl"
+            style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+              style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+            >
+              Code
+              <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+              {alertMessage}
+            </div>
+            <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+              <button
+                className="w-full py-3 text-sm font-medium"
+                style={{ color: "var(--foreground)" }}
+                onClick={closeAlert}
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 커스텀 확인 팝업 (확인/취소 2개) */}
+      {confirmState && (
+        <div
+          className="absolute inset-0 z-[70] flex items-center justify-center px-6"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+        >
+          <div
+            className="w-full rounded-2xl overflow-hidden shadow-2xl"
+            style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+              style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+            >
+              Code
+              <button onClick={closeConfirm} style={{ color: "var(--muted-foreground)" }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+              {confirmState.message}
+            </div>
+            <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+              <button
+                className="flex-1 py-3 text-sm font-medium"
+                style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
+                onClick={() => {
+                  const action = confirmState.onConfirm;
+                  setConfirmState(null);
+                  action();
+                }}
+              >
+                확인
+              </button>
+              <button
+                className="flex-1 py-3 text-sm font-medium"
+                style={{ color: "var(--foreground)" }}
+                onClick={closeConfirm}
+              >
+                취소
+              </button>
+            </div>
           </div>
         </div>
       )}

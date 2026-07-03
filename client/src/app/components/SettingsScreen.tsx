@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff } from "lucide-react";
+import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X } from "lucide-react";
 
 interface SettingsScreenProps {
   darkMode: boolean;
@@ -34,9 +34,109 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [inquiryTitle, setInquiryTitle] = useState("");
   const [inquiryContent, setInquiryContent] = useState("");
 
+  // 커스텀 알림/확인 팝업 상태
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [alertCallback, setAlertCallback] = useState<(() => void) | null>(null);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
+
+  const showAlert = (message: string, callback?: () => void) => {
+    setAlertMessage(message);
+    setAlertCallback(() => callback || null);
+  };
+  const closeAlert = () => {
+    setAlertMessage(null);
+    if (alertCallback) alertCallback();
+    setAlertCallback(null);
+  };
+  const showConfirm = (message: string, onConfirm: () => void) => {
+    setConfirmState({ message, onConfirm });
+  };
+  const closeConfirm = () => setConfirmState(null);
+
+  // 알림 팝업 (확인 버튼 1개)
+  const AlertModal = alertMessage && (
+    <div
+      className="absolute inset-0 z-[70] flex items-center justify-center px-6"
+      style={{ background: "rgba(0,0,0,0.6)" }}
+    >
+      <div
+        className="w-full rounded-2xl overflow-hidden shadow-2xl"
+        style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+      >
+        <div
+          className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+          style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+        >
+          Code
+          <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+          {alertMessage}
+        </div>
+        <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+          <button
+            className="w-full py-3 text-sm font-medium"
+            style={{ color: "var(--foreground)" }}
+            onClick={closeAlert}
+          >
+            확인
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  // 확인 팝업 (확인/취소 버튼 2개)
+  const ConfirmModal = confirmState && (
+    <div
+      className="absolute inset-0 z-[70] flex items-center justify-center px-6"
+      style={{ background: "rgba(0,0,0,0.6)" }}
+    >
+      <div
+        className="w-full rounded-2xl overflow-hidden shadow-2xl"
+        style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+      >
+        <div
+          className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+          style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+        >
+          Code
+          <button onClick={closeConfirm} style={{ color: "var(--muted-foreground)" }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+          {confirmState.message}
+        </div>
+        <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+          <button
+            className="flex-1 py-3 text-sm font-medium"
+            style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
+            onClick={() => {
+              const action = confirmState.onConfirm;
+              setConfirmState(null);
+              action();
+            }}
+          >
+            확인
+          </button>
+          <button
+            className="flex-1 py-3 text-sm font-medium"
+            style={{ color: "var(--foreground)" }}
+            onClick={closeConfirm}
+          >
+            취소
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (activeSection === "blocked") {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="relative flex flex-col flex-1 overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
           <button onClick={() => setActiveSection(null)}>
             <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
@@ -57,9 +157,9 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 </div>
                 <button
                   onClick={() => {
-                    if (confirm(`${user.name}님의 차단을 해제하시겠습니까?`)) {
-                      alert("차단이 해제되었습니다.");
-                    }
+                    showConfirm(`${user.name}님의 차단을 해제하시겠습니까?`, () => {
+                      showAlert("차단이 해제되었습니다.");
+                    });
                   }}
                   className="text-xs px-3 py-1 rounded-full font-medium"
                   style={{ background: "var(--primary)", color: "white" }}
@@ -70,13 +170,15 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             </div>
           ))}
         </div>
+        {AlertModal}
+        {ConfirmModal}
       </div>
     );
   }
 
   if (activeSection === "password") {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="relative flex flex-col flex-1 overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
           <button onClick={() => setActiveSection(null)}>
             <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
@@ -141,13 +243,14 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           <button
             onClick={() => {
               if (newPassword === confirmPassword) {
-                alert("비밀번호가 변경되었습니다.");
-                setCurrentPassword("");
-                setNewPassword("");
-                setConfirmPassword("");
-                setActiveSection(null);
+                showAlert("비밀번호가 변경되었습니다.", () => {
+                  setCurrentPassword("");
+                  setNewPassword("");
+                  setConfirmPassword("");
+                  setActiveSection(null);
+                });
               } else {
-                alert("새 비밀번호가 일치하지 않습니다.");
+                showAlert("새 비밀번호가 일치하지 않습니다.");
               }
             }}
             className="w-full py-3 rounded-xl font-semibold text-sm mt-2"
@@ -156,13 +259,15 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             변경하기
           </button>
         </div>
+        {AlertModal}
+        {ConfirmModal}
       </div>
     );
   }
 
   if (activeSection === "inquiry") {
   return (
-  <div className="flex flex-col flex-1 overflow-hidden">
+  <div className="relative flex flex-col flex-1 overflow-hidden">
     <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
       <button onClick={() => setActiveSection(null)}>
         <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
@@ -205,10 +310,11 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       {/* 제출 버튼 */}
       <button
         onClick={() => {
-          alert("문의가 접수되었습니다. 빠른 시일 내에 답변드리겠습니다.");
-          setInquiryTitle("");
-          setInquiryContent("");
-          setActiveSection(null);
+          showAlert("문의가 접수되었습니다. 빠른 시일 내에 답변드리겠습니다.", () => {
+            setInquiryTitle("");
+            setInquiryContent("");
+            setActiveSection(null);
+          });
         }}
         className="w-full py-3 rounded-xl font-semibold text-sm"
         style={{ background: "var(--primary)", color: "white" }}
@@ -217,6 +323,8 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       </button>
 
     </div>
+    {AlertModal}
+    {ConfirmModal}
   </div>
 );
   }
@@ -300,7 +408,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
   if (activeSection === "account") {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="relative flex flex-col flex-1 overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
           <button onClick={() => setActiveSection(null)}>
             <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
@@ -330,12 +438,13 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                   if (action === "password") {
                     setActiveSection("password");
                   } else if (action === "delete") {
-                    if (confirm("정말로 계정을 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
-                      if (confirm("탈퇴하시면 모든 데이터가 삭제됩니다. 계속하시겠습니까?")) {
-                        alert("계정이 탈퇴되었습니다.");
-                        onLogout();
-                      }
-                    }
+                    showConfirm("정말로 계정을 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.", () => {
+                      showConfirm("탈퇴하시면 모든 데이터가 삭제됩니다. 계속하시겠습니까?", () => {
+                        showAlert("계정이 탈퇴되었습니다.", () => {
+                          onLogout();
+                        });
+                      });
+                    });
                   }
                 }}
                 className="w-full flex items-center justify-between px-4 py-4 border-b last:border-b-0 transition-all"
@@ -347,6 +456,8 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             ))}
           </div>
         </div>
+        {AlertModal}
+        {ConfirmModal}
       </div>
     );
   }

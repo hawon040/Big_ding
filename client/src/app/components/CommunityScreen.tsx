@@ -238,6 +238,25 @@ const [selectMode, setSelectMode] = useState(false);
 const [selectedMsgs, setSelectedMsgs] = useState<number[]>([]);
 const [showReportConfirm, setShowReportConfirm] = useState(false);
 
+  // 커스텀 알림/확인 팝업 상태
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [alertCallback, setAlertCallback] = useState<(() => void) | null>(null);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
+
+  const showAlert = (message: string, callback?: () => void) => {
+    setAlertMessage(message);
+    setAlertCallback(() => callback || null);
+  };
+  const closeAlert = () => {
+    setAlertMessage(null);
+    if (alertCallback) alertCallback();
+    setAlertCallback(null);
+  };
+  const showConfirm = (message: string, onConfirm: () => void) => {
+    setConfirmState({ message, onConfirm });
+  };
+  const closeConfirm = () => setConfirmState(null);
+
   const allPosts = Object.values(POSTS).flat().filter((p) => !deletedPostIds.includes(p.id));
   const posts = showSearch && searchQuery
     ? allPosts.filter((p) =>
@@ -260,11 +279,11 @@ const toggleFriendSelect = (id: number) => {
 
 const handleDeleteFriends = () => {
   if (selectedFriendIds.length === 0) return;
-  if (confirm(`선택한 ${selectedFriendIds.length}명의 친구를 삭제하시겠습니까?`)) {
+  showConfirm(`선택한 ${selectedFriendIds.length}명의 친구를 삭제하시겠습니까?`, () => {
     setFriends((prev) => prev.filter((f) => !selectedFriendIds.includes(f.id)));
     setSelectedFriendIds([]);
     setIsFriendSelectMode(false);
-  }
+  });
 };
 
   const sendMessage = () => {
@@ -370,10 +389,10 @@ const handleDeleteFriends = () => {
                   <button
                     key={reason}
                     onClick={() => {
-                      alert(`"${reason}" 사유로 신고가 접수되었습니다.`);
                       setShowReportConfirm(false);
                       setSelectMode(false);
                       setSelectedMsgs([]);
+                      showAlert(`"${reason}" 사유로 신고가 접수되었습니다.`);
                     }}
                     className="w-full py-2.5 rounded-xl text-sm text-left px-4"
                     style={{ background: "var(--muted)", color: "var(--foreground)" }}
@@ -931,10 +950,10 @@ const handleDeleteFriends = () => {
                   </button>
                   <button
                     onClick={() => {
-                      if (confirm("이 게시물을 삭제하시겠습니까?")) {
+                      showConfirm("이 게시물을 삭제하시겠습니까?", () => {
                         setDeletedPostIds((prev) => [...prev, post.id]);
                         setShowMoreMenu(null);
-                      }
+                      });
                     }}
                     className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
                     style={{ color: "#d4183d" }}
@@ -1125,9 +1144,10 @@ const handleDeleteFriends = () => {
               <button
                 onClick={() => {
                   if (friendSearch.trim()) {
-                    alert(`'${friendSearch}'에게 친구 신청을 보냈습니다.`);
+                    const name = friendSearch;
                     setFriendSearch("");
                     setShowAddFriend(false);
+                    showAlert(`'${name}'에게 친구 신청을 보냈습니다.`);
                   }
                 }}
                 className="px-3 py-2 rounded-xl text-xs font-semibold"
@@ -1208,9 +1228,9 @@ const handleDeleteFriends = () => {
             <button
               className="px-4 py-1.5 rounded-xl text-sm font-semibold"
               style={{ background: "var(--primary)", color: "white" }}
-              onClick={() => {
+             onClick={() => {
                 if (!newTitle.trim() || !newContent.trim()) {
-                  alert("제목과 내용을 입력해주세요.");
+                  showAlert("제목과 내용을 입력해주세요.");
                   return;
                 }
                 setNewTitle("");
@@ -1309,11 +1329,10 @@ const handleDeleteFriends = () => {
               style={{ background: "var(--primary)", color: "white" }}
               onClick={() => {
                 if (!editTitle.trim() || !editContent.trim()) {
-                  alert("제목과 내용을 입력해주세요.");
+                  showAlert("제목과 내용을 입력해주세요.");
                   return;
                 }
-                alert("게시물이 수정되었습니다.");
-                setEditingPost(null);
+                showAlert("게시물이 수정되었습니다.", () => setEditingPost(null));
               }}
             >
               완료
@@ -1352,9 +1371,9 @@ const handleDeleteFriends = () => {
             {["스팸/도배", "욕설/비방", "음란물", "허위 정보", "기타"].map((reason) => (
               <button
                 key={reason}
-                onClick={() => {
-                  alert(`신고가 접수되었습니다: ${reason}`);
+               onClick={() => {
                   setShowReport(null);
+                  showAlert(`신고가 접수되었습니다: ${reason}`);
                 }}
                 className="w-full px-4 py-3 rounded-xl text-left text-sm"
                 style={{ background: "var(--card)", color: "var(--foreground)" }}
@@ -1362,18 +1381,99 @@ const handleDeleteFriends = () => {
                 {reason}
               </button>
             ))}
-            <button
+           <button
               onClick={() => {
-                if (confirm("이 사용자를 차단하시겠습니까?")) {
-                  alert("사용자가 차단되었습니다.");
+                showConfirm("이 사용자를 차단하시겠습니까?", () => {
                   setShowReport(null);
-                }
+                  showAlert("사용자가 차단되었습니다.");
+                });
               }}
               className="w-full px-4 py-3 rounded-xl text-sm font-semibold"
               style={{ background: "#d4183d22", color: "#d4183d" }}
             >
               사용자 차단
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 커스텀 알림 팝업 (확인 1개) */}
+      {alertMessage && (
+        <div
+          className="absolute inset-0 z-[70] flex items-center justify-center px-6"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+        >
+          <div
+            className="w-full rounded-2xl overflow-hidden shadow-2xl"
+            style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+              style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+            >
+              Code
+              <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+              {alertMessage}
+            </div>
+            <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+              <button
+                className="w-full py-3 text-sm font-medium"
+                style={{ color: "var(--foreground)" }}
+                onClick={closeAlert}
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 커스텀 확인 팝업 (확인/취소 2개) */}
+      {confirmState && (
+        <div
+          className="absolute inset-0 z-[70] flex items-center justify-center px-6"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+        >
+          <div
+            className="w-full rounded-2xl overflow-hidden shadow-2xl"
+            style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+              style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+            >
+              Code
+              <button onClick={closeConfirm} style={{ color: "var(--muted-foreground)" }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+              {confirmState.message}
+            </div>
+            <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+              <button
+                className="flex-1 py-3 text-sm font-medium"
+                style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
+                onClick={() => {
+                  const action = confirmState.onConfirm;
+                  setConfirmState(null);
+                  action();
+                }}
+              >
+                확인
+              </button>
+              <button
+                className="flex-1 py-3 text-sm font-medium"
+                style={{ color: "var(--foreground)" }}
+                onClick={closeConfirm}
+              >
+                취소
+              </button>
+            </div>
           </div>
         </div>
       )}
