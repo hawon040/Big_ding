@@ -38,7 +38,6 @@ interface Message {
   id: number;
   from: string;
   content: string;
-  image?: string;
   time: string;
   mine: boolean;
 }
@@ -204,10 +203,8 @@ export function CommunityScreen() {
   const [likedPosts, setLikedPosts] = useState<Record<number, boolean>>({});
   const [dislikedPosts, setDislikedPosts] = useState<Record<number, boolean>>({});
   const [savedPosts, setSavedPosts] = useState<Record<number, boolean>>({});
- 
   const [openComments, setOpenComments] = useState<Record<number, boolean>>({});
-  const [extraComments, setExtraComments] = useState<Record<number, { user: string; text: string; emoji: string }[]>>({});
-  const [commentInput, setCommentInput] = useState("");
+
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [viewedAuthor, setViewedAuthor] = useState<{ name: string; avatar: string } | null>(null);
   const [showWrite, setShowWrite] = useState(false);
@@ -231,10 +228,6 @@ export function CommunityScreen() {
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [friendSearch, setFriendSearch] = useState("");
   const [friends, setFriends] = useState<Friend[]>(FRIENDS);
-const [showChatMenu, setShowChatMenu] = useState(false);
-const [selectMode, setSelectMode] = useState(false);
-const [selectedMsgs, setSelectedMsgs] = useState<number[]>([]);
-const [showReportConfirm, setShowReportConfirm] = useState(false);
 
   const allPosts = Object.values(POSTS).flat().filter((p) => !deletedPostIds.includes(p.id));
   const posts = showSearch && searchQuery
@@ -262,29 +255,12 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
     setChatInput("");
   };
 
-  const handleAddComment = () => {
-  if (!selectedPost || !commentInput.trim()) return;
-  const filtered = filterProfanity(commentInput.trim());
-  setExtraComments((prev) => ({
-    ...prev,
-    [selectedPost.id]: [...(prev[selectedPost.id] || []), { user: "나", text: filtered, emoji: "🙂" }],
-  }));
-  setCommentInput("");
-};
-
   // ── 채팅 창 ──────────────────────────────────────────────────────────────
-// ── 채팅 창 ──────────────────────────────────────────────────────────────
   if (activeFriend) {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden relative">
-
-        {/* 헤더 */}
+      <div className="flex flex-col flex-1 overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-          {selectMode ? (
-            <button onClick={() => { setSelectMode(false); setSelectedMsgs([]); }} className="text-sm font-semibold" style={{ color: "var(--primary)" }}>취소</button>
-          ) : (
-            <button onClick={() => setActiveFriend(null)} className="text-lg">←</button>
-          )}
+          <button onClick={() => setActiveFriend(null)} className="text-lg">←</button>
           <span className="text-2xl">{activeFriend.avatar}</span>
           <div className="flex-1">
             <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>{activeFriend.name}</p>
@@ -292,160 +268,32 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
               {activeFriend.online ? "● 온라인" : "오프라인"}
             </p>
           </div>
-          {selectMode ? (
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setChatMessages((prev) => ({
-                    ...prev,
-                    [activeFriend.id]: (prev[activeFriend.id] || []).filter((m) => !selectedMsgs.includes(m.id)),
-                  }));
-                  setSelectedMsgs([]);
-                  setSelectMode(false);
-                }}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-                style={{ background: "#d4183d", color: "white" }}
-              >
-                🗑️ 삭제 ({selectedMsgs.length})
-              </button>
-              <button
-                onClick={() => setShowReportConfirm(true)}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-                style={{ background: "var(--muted)", color: "#d4183d" }}
-              >
-                🚨 신고
-              </button>
-            </div>
-          ) : (
-            <button onClick={() => setShowChatMenu((v) => !v)} className="p-1 text-xl">⋮</button>
-          )}
         </div>
-
-        {/* ⋮ 드롭다운 */}
-        {showChatMenu && (
-          <div
-            className="absolute right-4 top-16 z-50 rounded-xl shadow-lg overflow-hidden"
-            style={{ background: "var(--card)", border: "1px solid var(--border)", minWidth: "160px" }}
-          >
-            <button
-              onClick={() => { setShowChatMenu(false); setSelectMode(true); }}
-              className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left"
-              style={{ color: "var(--foreground)" }}
-            >
-              ☑️ 메시지 선택
-            </button>
-          </div>
-        )}
-
-        {/* 신고 팝업 */}
-        {showReportConfirm && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.4)" }}>
-            <div className="rounded-2xl p-5 mx-6 w-full" style={{ background: "var(--card)" }}>
-              <p className="font-semibold text-sm text-center mb-1" style={{ color: "var(--foreground)" }}>신고</p>
-              <p className="text-xs text-center mb-3" style={{ color: "var(--muted-foreground)" }}>신고 이유를 선택해주세요</p>
-              <div className="flex flex-col gap-2 mb-4">
-                {["욕설/비방", "스팸/광고", "음란물", "개인정보 침해", "기타"].map((reason) => (
-                  <button
-                    key={reason}
-                    onClick={() => {
-                      alert(`"${reason}" 사유로 신고가 접수되었습니다.`);
-                      setShowReportConfirm(false);
-                      setSelectMode(false);
-                      setSelectedMsgs([]);
-                    }}
-                    className="w-full py-2.5 rounded-xl text-sm text-left px-4"
-                    style={{ background: "var(--muted)", color: "var(--foreground)" }}
-                  >
-                    {reason}
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={() => setShowReportConfirm(false)}
-                className="w-full py-2.5 rounded-xl text-sm font-semibold"
-                style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
-              >
-                취소
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* 메시지 목록 */}
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
           {(chatMessages[activeFriend.id] || []).map((msg) => (
-            <div key={msg.id} className={`flex items-center gap-2 ${msg.mine ? "justify-end" : "justify-start"}`}>
-              {selectMode && (
-                <input
-                  type="checkbox"
-                  checked={selectedMsgs.includes(msg.id)}
-                  onChange={() => {
-                    setSelectedMsgs((prev) =>
-                      prev.includes(msg.id) ? prev.filter((id) => id !== msg.id) : [...prev, msg.id]
-                    );
-                  }}
-                  className="w-4 h-4 accent-orange-400"
-                />
-              )}
+            <div key={msg.id} className={`flex ${msg.mine ? "justify-end" : "justify-start"}`}>
               <div
                 className="max-w-[70%] px-3 py-2 rounded-2xl text-sm"
                 style={{
                   background: msg.mine ? "var(--primary)" : "var(--card)",
                   color: msg.mine ? "white" : "var(--foreground)",
-                  outline: selectedMsgs.includes(msg.id) ? "2px solid var(--primary)" : "none",
                 }}
               >
                 <p>{msg.content}</p>
-                {msg.image && (
-                  <img src={msg.image} alt="사진" className="rounded-xl mt-1 max-w-full" style={{ maxHeight: "200px" }} />
-                )}
                 <p className="text-[10px] mt-0.5 opacity-70 text-right">{msg.time}</p>
               </div>
             </div>
           ))}
         </div>
-
-        {/* 입력창 */}
-        <div className="flex items-center gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
-          <label
-            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 cursor-pointer"
-            style={{ background: "var(--muted)" }}
-          >
-            🖼️
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file || !activeFriend) return;
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const newMsg: Message = {
-                    id: Date.now(),
-                    from: "나",
-                    content: "",
-                    image: reader.result as string,
-                    time: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
-                    mine: true,
-                  };
-                  setChatMessages((prev) => ({
-                    ...prev,
-                    [activeFriend.id]: [...(prev[activeFriend.id] || []), newMsg],
-                  }));
-                };
-                reader.readAsDataURL(file);
-              }}
-            />
-          </label>
-          <input
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            placeholder="메시지 입력..."
-            className="flex-1 px-4 py-2.5 rounded-2xl text-sm outline-none"
-            style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
-          />
+   <div className="flex items-center gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+  <input
+    value={chatInput}
+    onChange={(e) => setChatInput(e.target.value)}
+    onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+    placeholder="메시지 입력..."
+    className="flex-1 px-4 py-2.5 rounded-2xl text-sm outline-none text-white placeholder:text-white/60"
+    style={{ background: "var(--input-background)", border: "1.5px solid var(--border)" }}
+  /> 
           <button
             onClick={sendMessage}
             className="w-10 h-10 rounded-xl flex items-center justify-center"
@@ -673,11 +521,12 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
             )}
 
             <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-             <button className="flex items-center gap-1.5"
-              onClick={() => {
-                setLikedPosts((l) => ({ ...l, [selectedPost!.id]: !l[selectedPost!.id] }));
-                setDislikedPosts((d) => ({ ...d, [selectedPost!.id]: false }));
-              }}>
+              <button className="flex items-center gap-1.5"
+                onClick={() => {
+                  if (!dislikedPosts[selectedPost!.id]) {
+                    setLikedPosts((l) => ({ ...l, [selectedPost!.id]: !l[selectedPost!.id] }));
+                  }
+                }}>
                 <Heart size={16} fill={likedPosts[selectedPost.id] ? "#3b82f6" : "none"}
                   color={likedPosts[selectedPost.id] ? "#3b82f6" : "var(--muted-foreground)"} />
                 <span className="text-xs" style={{ color: likedPosts[selectedPost.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
@@ -727,46 +576,21 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
                 </div>
               </div>
             ))}
-
-           {(extraComments[selectedPost.id] || []).map((c, i) => (
-              <div key={`new-${i}`} className="flex gap-2 items-start">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
-                  style={{ background: "var(--muted)" }}>{c.emoji}</div>
-                <div className="flex-1 px-3 py-2 rounded-xl text-xs"
-                  style={{ color: "var(--foreground)" }}>
-                  <span className="font-semibold">{c.user} </span>{c.text}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
 
-       {/* 댓글 입력 */}
-<div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
-  <input
-    value={commentInput}
-    onChange={(e) => setCommentInput(e.target.value)}
-    onKeyDown={(e) => {
-      if (e.key === "Enter") handleAddComment();
-    }}
-    placeholder="댓글 입력..."
-    className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
-    style={{ background: "var(--input-background)", color: "white", border: "1.5px solid var(--border)" }}
-  />
-  <button
-    onClick={handleAddComment}
-    disabled={!commentInput.trim()}
-    className="px-3 py-2 rounded-xl text-xs font-semibold"
-    style={{
-      background: commentInput.trim() ? "var(--primary)" : "var(--muted)",
-      color: commentInput.trim() ? "white" : "var(--muted-foreground)",
-      cursor: commentInput.trim() ? "pointer" : "not-allowed",
-    }}
-  >
-    등록
-  </button>
-  </div>
-</div>
+        {/* 댓글 입력 */}
+        <div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+          <input
+            placeholder="댓글 입력..."
+            className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
+            style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
+          />
+          <button className="px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: "var(--primary)", color: "white" }}>
+            등록
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -968,24 +792,26 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
               )}
             </div>
 
-           {/* Actions */}
-<div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-  <button className="flex items-center gap-1.5"
-    onClick={() => {
-      setLikedPosts((l) => ({ ...l, [post.id]: !l[post.id] }));
-      setDislikedPosts((d) => ({ ...d, [post.id]: false }));
-    }}>
-    <Heart size={16} fill={likedPosts[post.id] ? "#3b82f6" : "none"}
-      color={likedPosts[post.id] ? "#3b82f6" : "var(--muted-foreground)"} />
-    <span className="text-xs" style={{ color: likedPosts[post.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
-      {post.likes + (likedPosts[post.id] ? 1 : 0)}
-    </span>
-  </button>
-  <button className="flex items-center gap-1.5"
-    onClick={() => {
-      setDislikedPosts((d) => ({ ...d, [post.id]: !d[post.id] }));
-      setLikedPosts((l) => ({ ...l, [post.id]: false }));
-    }}>
+            {/* Actions */}
+            <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+              <button className="flex items-center gap-1.5"
+                onClick={() => {
+                  if (!dislikedPosts[post.id]) {
+                    setLikedPosts((l) => ({ ...l, [post.id]: !l[post.id] }));
+                  }
+                }}>
+                <Heart size={16} fill={likedPosts[post.id] ? "#3b82f6" : "none"}
+                  color={likedPosts[post.id] ? "#3b82f6" : "var(--muted-foreground)"} />
+                <span className="text-xs" style={{ color: likedPosts[post.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
+                  {post.likes + (likedPosts[post.id] ? 1 : 0)}
+                </span>
+              </button>
+              <button className="flex items-center gap-1.5"
+                onClick={() => {
+                  if (!likedPosts[post.id]) {
+                    setDislikedPosts((d) => ({ ...d, [post.id]: !d[post.id] }));
+                  }
+                }}>
                 <ThumbsDown size={16} fill={dislikedPosts[post.id] ? "#d4183d" : "none"}
                   color={dislikedPosts[post.id] ? "#d4183d" : "var(--muted-foreground)"} />
                 <span className="text-xs" style={{ color: dislikedPosts[post.id] ? "#d4183d" : "var(--muted-foreground)" }}>

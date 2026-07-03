@@ -11,6 +11,8 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
   // 단계: info(기본정보) → verify(인증) → password(비밀번호설정)
   const [verified, setVerified] = useState(false);
   const [nicknameChecked, setNicknameChecked] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [studentId, setStudentId] = useState("");
   const [name, setName] = useState("");
@@ -18,10 +20,6 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  
-  // 팀원 추가 기능: 비밀번호 보이기/숨기기 상태
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const checkNickname = async () => {
     if (!name) {
@@ -123,11 +121,7 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
     >
       <div className="w-full rounded-3xl p-6 pb-60 shadow-xl" style={{ background: "var(--card)" }}>
 
-<<<<<<< Updated upstream
         {/* 뒤로가기 버튼 */}
-=======
-        {/* 팀원 추가 기능: 뒤로가기 버튼 */}
->>>>>>> Stashed changes
         <button
           type="button"
           onClick={onSkip}
@@ -188,7 +182,6 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
                   className="flex-1 px-4 py-3 rounded-2xl outline-none text-sm"
                   style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
                 />
-<<<<<<< Updated upstream
 
                 <button
                   type="button"
@@ -325,140 +318,6 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
                 return;
               }
 
-=======
-
-                <button
-                  type="button"
-                  disabled={verified}
-                  onClick={checkNickname}
-                  className="px-4 py-3 rounded-2xl font-semibold text-sm"
-                  style={{ background: "var(--primary)", color: "white", whiteSpace: "nowrap" }}
-                >
-                  중복확인
-                </button>
-              </div>
-            </div>
-
-            {/* 담당 교수 선택 */}
-            <div>
-              <label className="text-xs font-medium mb-1 block" style={{ color: "var(--muted-foreground)" }}>
-                담당 교수
-              </label>
-              <select
-                value={professor}
-                onChange={(e) => setProfessor(e.target.value)}
-                disabled={verified}
-                className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
-                style={{ background: "var(--input-background)", color: professor ? "var(--foreground)" : "var(--muted-foreground)", border: "1.5px solid var(--border)" }}
-              >
-                <option value="">교수님을 선택하세요</option>
-                <option value="유진호">유진호 교수</option>
-                <option value="차대현">차대현 교수</option>
-                <option value="홍진근">홍진근 교수</option>
-              </select>
-            </div>
-
-            {/* 인증번호 */}
-            <div>
-              <label className="text-xs font-medium mb-1 block" style={{ color: "var(--muted-foreground)" }}>
-                인증번호 (교수님께 받은 2자리)
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  disabled={verified}
-                  placeholder="예) 11"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  maxLength={2}
-                  className="flex-1 px-4 py-3 rounded-2xl outline-none text-sm"
-                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-                />
-                {/* 인증 확인 버튼 */}
-                <button
-                  onClick={handleVerify}
-                  disabled={verified}
-                  className="px-4 py-3 rounded-2xl font-semibold text-sm"
-                  style={{
-                    background: verified ? "#999999" : "var(--primary)",
-                    color: "white",
-                    whiteSpace: "nowrap",
-                    cursor: verified ? "not-allowed" : "pointer",
-                  }}
-                >
-                  인증 확인
-                </button>
-              </div>
-            </div>
-          </>
-
-          {/* 비밀번호 (내 신규 버전 placeholder + 팀원의 눈 모양 버튼 추가) */}
-          <div>
-            <label className="text-xs font-medium mb-1 block" style={{ color: "var(--muted-foreground)" }}>
-              비밀번호
-            </label>
-
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder="8자 이상 / 영문 / 숫자 / 특수문자 포함"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 pr-11 rounded-2xl outline-none text-sm"
-                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2"
-                style={{ color: "var(--muted-foreground)" }}
-                tabIndex={-1}
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
-
-          {/* 비밀번호 확인 (내 신규 버전 placeholder + 팀원의 눈 모양 버튼 추가) */}
-          <div>
-            <label className="text-xs font-medium mb-1 block" style={{ color: "var(--muted-foreground)" }}>
-              비밀번호 확인
-            </label>
-
-            <div className="relative">
-              <input
-                type={showConfirmPassword ? "text" : "password"}
-                placeholder="비밀번호를 다시 입력하세요"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full px-4 py-3 pr-11 rounded-2xl outline-none text-sm"
-                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirmPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2"
-                style={{ color: "var(--muted-foreground)" }}
-                tabIndex={-1}
-              >
-                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </div>
-
-          <button
-            onClick={() => {
-              if (!nicknameChecked) {
-                alert("닉네임 중복확인을 먼저 해주세요.");
-                return;
-              }
-
-              if (!verified) {
-                alert("먼저 인증번호 확인을 완료해주세요.");
-                return;
-              }
-
->>>>>>> Stashed changes
               handleRegister();
             }}
             className="w-full py-3.5 rounded-2xl font-semibold text-sm shadow-md mt-1"
