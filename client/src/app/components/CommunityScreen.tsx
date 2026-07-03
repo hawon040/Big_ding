@@ -231,6 +231,8 @@ export function CommunityScreen() {
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [friendSearch, setFriendSearch] = useState("");
   const [friends, setFriends] = useState<Friend[]>(FRIENDS);
+  const [isFriendSelectMode, setIsFriendSelectMode] = useState(false);
+  const [selectedFriendIds, setSelectedFriendIds] = useState<number[]>([]);
 const [showChatMenu, setShowChatMenu] = useState(false);
 const [selectMode, setSelectMode] = useState(false);
 const [selectedMsgs, setSelectedMsgs] = useState<number[]>([]);
@@ -244,6 +246,26 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
         p.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
       )
     : POSTS[activeBoard].filter((p) => !deletedPostIds.includes(p.id));
+
+  const toggleFriendSelectMode = () => {
+  setIsFriendSelectMode((prev) => !prev);
+  setSelectedFriendIds([]);
+};
+
+const toggleFriendSelect = (id: number) => {
+  setSelectedFriendIds((prev) =>
+    prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id]
+  );
+};
+
+const handleDeleteFriends = () => {
+  if (selectedFriendIds.length === 0) return;
+  if (confirm(`선택한 ${selectedFriendIds.length}명의 친구를 삭제하시겠습니까?`)) {
+    setFriends((prev) => prev.filter((f) => !selectedFriendIds.includes(f.id)));
+    setSelectedFriendIds([]);
+    setIsFriendSelectMode(false);
+  }
+};
 
   const sendMessage = () => {
     if (!chatInput.trim() || !activeFriend) return;
@@ -1047,20 +1069,41 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
             </span>
           </div>
           {showChat ? <ChevronDown size={18} color="white" /> : <ChevronUp size={18} color="white" />}
-        </button>
+         </button>
 
         <div className="px-4 py-3 h-160 overflow-y-auto flex flex-col gap-2"
           style={{ background: "var(--background)", borderTop: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>친구 목록</span>
-            <button
-              onClick={() => setShowAddFriend(!showAddFriend)}
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
-              style={{ background: "var(--secondary)", color: "var(--primary)" }}
-            >
-              <UserPlus size={12} /> 친구추가
-            </button>
-          </div>
+  <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>친구 목록</span>
+  <div className="flex items-center gap-2">
+    {!isFriendSelectMode ? (
+      <>
+        <button
+          onClick={() => setShowAddFriend(!showAddFriend)}
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+          style={{ background: "var(--secondary)", color: "var(--primary)" }}
+        >
+          <UserPlus size={12} /> 친구추가
+        </button>
+        <button
+          onClick={toggleFriendSelectMode}
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+          style={{ background: "var(--secondary)", color: "#d4183d" }}
+        >
+          <Trash2 size={12} /> 친구삭제
+        </button>
+      </>
+    ) : (
+      <button
+        onClick={toggleFriendSelectMode}
+        className="text-xs px-2 py-1 rounded-lg font-medium"
+        style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
+      >
+        취소
+      </button>
+    )}
+  </div>
+</div>
 
           {showAddFriend && (
             <div className="flex gap-2 mb-2">
@@ -1087,29 +1130,62 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
             </div>
           )}
 
-          {friends.map((friend) => (
-            <button
-              key={friend.id}
-              onClick={() => {
-                setActiveFriend(friend);
-                setShowChat(false);
-              }}
-              className="flex items-center gap-3 p-2.5 rounded-xl text-left"
-              style={{ background: "var(--card)" }}
-            >
-              <div className="relative">
-                <span className="text-2xl">{friend.avatar}</span>
-                {friend.online && (
-                  <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2"
-                    style={{ borderColor: "var(--card)" }} />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{friend.name}</p>
-                <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{friend.lastMsg}</p>
-              </div>
-            </button>
-          ))}
+         {friends.map((friend) => (
+  <button
+    key={friend.id}
+    onClick={() => {
+      if (isFriendSelectMode) {
+        toggleFriendSelect(friend.id);
+      } else {
+        setActiveFriend(friend);
+        setShowChat(false);
+      }
+    }}
+    className="flex items-center gap-3 p-2.5 rounded-xl text-left"
+    style={{
+      background: "var(--card)",
+      outline: isFriendSelectMode && selectedFriendIds.includes(friend.id)
+        ? "2px solid var(--primary)"
+        : "none",
+    }}
+  >
+    {isFriendSelectMode && (
+      <div
+        className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+        style={{
+          background: selectedFriendIds.includes(friend.id) ? "var(--primary)" : "var(--muted)",
+          border: "1.5px solid var(--border)",
+        }}
+      >
+        {selectedFriendIds.includes(friend.id) && (
+          <span className="text-white text-[10px] font-bold">✓</span>
+        )}
+      </div>
+    )}
+
+    <div className="relative">
+      <span className="text-2xl">{friend.avatar}</span>
+      {friend.online && (
+        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2"
+          style={{ borderColor: "var(--card)" }} />
+      )}
+    </div>
+    <div className="flex-1 min-w-0">
+      <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{friend.name}</p>
+      <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{friend.lastMsg}</p>
+    </div>
+  </button>
+))}
+
+{isFriendSelectMode && selectedFriendIds.length > 0 && (
+  <button
+    onClick={handleDeleteFriends}
+    className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm font-semibold"
+    style={{ background: "#d4183d", color: "white" }}
+  >
+    {selectedFriendIds.length}명 삭제
+  </button>
+)}
         </div>
       </div>
 
