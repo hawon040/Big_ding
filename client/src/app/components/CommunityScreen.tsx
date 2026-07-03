@@ -308,15 +308,15 @@ export function CommunityScreen() {
             </div>
           ))}
         </div>
-        <div className="flex items-center gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
-          <input
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            placeholder="메시지 입력..."
-            className="flex-1 px-4 py-2.5 rounded-2xl text-sm outline-none"
-            style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
-          />
+   <div className="flex items-center gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+  <input
+    value={chatInput}
+    onChange={(e) => setChatInput(e.target.value)}
+    onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+    placeholder="메시지 입력..."
+    className="flex-1 px-4 py-2.5 rounded-2xl text-sm outline-none text-white placeholder:text-white/60"
+    style={{ background: "var(--input-background)", border: "1.5px solid var(--border)" }}
+  /> 
           <button
             onClick={sendMessage}
             className="w-10 h-10 rounded-xl flex items-center justify-center"

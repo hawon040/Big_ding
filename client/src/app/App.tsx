@@ -14,13 +14,13 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [showRegister, setShowRegister] = useState(false); // 회원가입 화면
 
-  // 앱 시작 시 토큰 확인 → 자동 로그인
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      setLoggedIn(true); // 토큰 있으면 바로 메인으로
-    }
-  }, []);
+  // 앱 시작 시 토큰 확인 → 자동 로그인 (잠시 주석 처리)
+  //useEffect(() => {
+    //const token = localStorage.getItem("token");
+    //if (token) {
+      //setLoggedIn(true); // 토큰 있으면 바로 메인으로
+    //}
+  //}, []);
 
   if (typeof document !== "undefined") {
     if (darkMode) {
@@ -73,8 +73,16 @@ export default function App() {
     return phoneFrame(
       <div className="flex-1 overflow-y-auto mt-7">
         <LoginScreen
-          onLogin={() => setLoggedIn(true)} // 로그인 성공 → 메인
-          onRegister={() => setShowRegister(true)} // 회원가입 버튼
+          onLogin={() => setLoggedIn(true)}
+  onRegister={() => {
+    const agree = window.confirm(
+      "개인정보 수집 및 이용에 동의하시겠습니까?"
+    );
+
+    if (agree) {
+      setShowRegister(true);
+    }
+  }}
         />
       </div>
     );

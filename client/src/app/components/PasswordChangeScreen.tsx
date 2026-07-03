@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { GraduationCap } from "lucide-react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
 
 interface RegisterScreenProps {
@@ -9,7 +8,8 @@ interface RegisterScreenProps {
 
 export function PasswordChangeScreen({ onComplete }: RegisterScreenProps) {
   // 단계: info(기본정보) → verify(인증) → password(비밀번호설정)
-  const [step, setStep] = useState<"info" | "verify" | "password">("info");
+  const [verified, setVerified] = useState(false);
+  const [nicknameChecked, setNicknameChecked] = useState(false);
 
   const [studentId, setStudentId] = useState("");
   const [name, setName] = useState("");
@@ -18,12 +18,46 @@ export function PasswordChangeScreen({ onComplete }: RegisterScreenProps) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+const checkNickname = async () => {
+  if (!name) {
+    alert("닉네임을 입력해주세요.");
+    return;
+  }
+
+  try {
+    const res = await fetch("http://localhost:5000/api/auth/check-nickname", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        nickname: name,
+      }),
+    });
+
+    const data = await res.json();
+
+if (res.ok) {
+  setNicknameChecked(true);
+}
+
+alert(data.message);
+  } catch {
+    alert("서버 연결 실패");
+  }
+};
+
   // 인증번호 확인
   const handleVerify = async () => {
     if (!studentId || !name || !professor) {
-      alert("모든 항목을 입력해주세요.");
-      return;
-    }
+    alert("모든 항목을 입력해주세요.");
+    return;
+}
+
+    if (!nicknameChecked) {
+    alert("닉네임 중복확인을 먼저 해주세요.");
+    return;
+}
     try {
       const res = await fetch("http://localhost:5000/api/auth/verify-code", {
         method: "POST",
@@ -32,8 +66,9 @@ export function PasswordChangeScreen({ onComplete }: RegisterScreenProps) {
       });
       const data = await res.json();
       if (!res.ok) { alert(data.message); return; }
-      // 인증 성공 → 비밀번호 설정 단계로
-      setStep("password");
+      // 인증 성공
+      setVerified(true);
+      alert("인증이 완료되었습니다.");
     } catch {
       alert("서버 연결 실패");
     }
@@ -62,6 +97,10 @@ export function PasswordChangeScreen({ onComplete }: RegisterScreenProps) {
       const data = await res.json();
       if (!res.ok) { alert(data.message); return; }
       alert("회원가입이 완료되었습니다! 로그인해주세요.");
+
+      setNicknameChecked(false);
+      setVerified(false);
+
       onComplete(); // 로그인 화면으로
     } catch {
       alert("서버 연결 실패");
@@ -80,18 +119,18 @@ export function PasswordChangeScreen({ onComplete }: RegisterScreenProps) {
          <div className="w-24 h-24 rounded-3xl mb-3 overflow-hidden">
   <img src={bigRoadingIcon} alt="Big Roading" className="w-full h-full object-cover" />
 </div>
-          <h2 className="text-lg font-bold" style={{ color: "var(--foreground)" }}>
-            {step === "password" ? "비밀번호 설정" : "회원가입"}
+          <h2
+            className="text-lg font-bold"
+            style={{ color: "var(--foreground)" }}
+          >
+            회원가입
           </h2>
-          <p className="text-xs mt-1 text-center" style={{ color: "var(--muted-foreground)" }}>
-            {step === "password" ? "사용할 비밀번호를 설정하세요" : "정보를 입력하고 인증을 완료하세요"}
-          </p>
+        
         </div>
 
         <div className="flex flex-col gap-3">
 
-          {/* 1단계: 기본 정보 + 인증번호 */}
-          {step !== "password" && (
+            {/* 회원가입 정보 */}
             <>
               {/* 학번 */}
               <div>
@@ -103,26 +142,57 @@ export function PasswordChangeScreen({ onComplete }: RegisterScreenProps) {
                   placeholder="예) 20210001"
                   value={studentId}
                   onChange={(e) => setStudentId(e.target.value)}
+                  disabled={verified}
                   maxLength={8}
                   className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
                   style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
                 />
               </div>
 
-              {/* 이름 */}
-              <div>
-                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--muted-foreground)" }}>
-                  이름
-                </label>
-                <input
-                  type="text"
-                  placeholder="실명을 입력하세요"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
-                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-                />
-              </div>
+              {/* 닉네임 */}
+<div>
+  <label
+    className="text-xs font-medium mb-1 block"
+    style={{ color: "var(--muted-foreground)" }}
+  >
+    닉네임
+  </label>
+
+  <div className="flex gap-2">
+
+    <input
+      type="text"
+      placeholder="닉네임을 입력하세요 (예: sdfsdf#1253)"
+      value={name}
+      disabled={verified}
+      onChange={(e) => {
+  setName(e.target.value);
+  setNicknameChecked(false);
+}}
+      className="flex-1 px-4 py-3 rounded-2xl outline-none text-sm"
+      style={{
+        background: "var(--input-background)",
+        color: "var(--foreground)",
+        border: "1.5px solid var(--border)"
+      }}
+    />
+
+    <button
+      type="button"
+      disabled={verified}
+      onClick={checkNickname}
+      className="px-4 py-3 rounded-2xl font-semibold text-sm"
+      style={{
+        background: "var(--primary)",
+        color: "white",
+        whiteSpace: "nowrap"
+      }}
+    >
+      중복확인
+    </button>
+
+  </div>
+</div>
 
               {/* 담당 교수 선택 */}
               <div>
@@ -132,6 +202,7 @@ export function PasswordChangeScreen({ onComplete }: RegisterScreenProps) {
                 <select
                   value={professor}
                   onChange={(e) => setProfessor(e.target.value)}
+                  disabled={verified}
                   className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
                   style={{ background: "var(--input-background)", color: professor ? "var(--foreground)" : "var(--muted-foreground)", border: "1.5px solid var(--border)" }}
                 >
@@ -150,6 +221,7 @@ export function PasswordChangeScreen({ onComplete }: RegisterScreenProps) {
                 <div className="flex gap-2">
                   <input
                     type="text"
+                    disabled={verified}
                     placeholder="예) 11"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
@@ -160,55 +232,90 @@ export function PasswordChangeScreen({ onComplete }: RegisterScreenProps) {
                   {/* 인증 확인 버튼 */}
                   <button
                     onClick={handleVerify}
+                    disabled={verified}
                     className="px-4 py-3 rounded-2xl font-semibold text-sm"
-                    style={{ background: "var(--primary)", color: "white", whiteSpace: "nowrap" }}
+                    style={{
+                    background: verified ? "#999999" : "var(--primary)",
+                    color: "white",
+                    whiteSpace: "nowrap",
+                    cursor: verified ? "not-allowed" : "pointer",
+                  }}
                   >
                     인증 확인
                   </button>
                 </div>
               </div>
             </>
-          )}
 
-          {/* 2단계: 비밀번호 설정 */}
-          {step === "password" && (
-            <>
-              <div>
-                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--muted-foreground)" }}>
-                  새 비밀번호
-                </label>
-                <input
-                  type="password"
-                  placeholder="8자 이상 영문, 숫자, 특수문자 조합"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
-                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium mb-1 block" style={{ color: "var(--muted-foreground)" }}>
-                  비밀번호 확인
-                </label>
-                <input
-                  type="password"
-                  placeholder="비밀번호를 다시 입력하세요"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
-                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-                />
-              </div>
-              {/* 가입 완료 버튼 */}
-              <button
-                onClick={handleRegister}
-                className="w-full py-3.5 rounded-2xl font-semibold text-sm shadow-md mt-1"
-                style={{ background: "var(--primary)", color: "white" }}
-              >
-                가입 완료
-              </button>
-            </>
-          )}
+{/* 비밀번호 */}
+<div>
+  <label
+    className="text-xs font-medium mb-1 block"
+    style={{ color: "var(--muted-foreground)" }}
+  >
+    비밀번호
+  </label>
+
+  <input
+    type="password"
+    placeholder="8자 이상 입력하세요"
+    value={password}
+    onChange={(e) => setPassword(e.target.value)}
+    className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
+    style={{
+      background: "var(--input-background)",
+      color: "var(--foreground)",
+      border: "1.5px solid var(--border)"
+    }}
+  />
+</div>
+
+{/* 비밀번호 확인 */}
+<div>
+  <label
+    className="text-xs font-medium mb-1 block"
+    style={{ color: "var(--muted-foreground)" }}
+  >
+    비밀번호 확인
+  </label>
+
+  <input
+    type="password"
+    placeholder="비밀번호를 다시 입력하세요"
+    value={confirmPassword}
+    onChange={(e) => setConfirmPassword(e.target.value)}
+    className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
+    style={{
+      background: "var(--input-background)",
+      color: "var(--foreground)",
+      border: "1.5px solid var(--border)"
+    }}
+  />
+</div>
+
+<button
+  onClick={() => {
+  if (!nicknameChecked) {
+    alert("닉네임 중복확인을 먼저 해주세요.");
+    return;
+  }
+
+  if (!verified) {
+    alert("먼저 인증번호 확인을 완료해주세요.");
+    return;
+  }
+
+  handleRegister();
+}}
+  className="w-full py-3.5 rounded-2xl font-semibold text-sm shadow-md mt-1"
+  style={{
+    background: "var(--primary)",
+    color: "white"
+  }}
+>
+  가입 완료
+</button>
+
         </div>
       </div>
     </div>

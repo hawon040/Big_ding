@@ -159,56 +159,64 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout }: SettingsScr
   }
 
   if (activeSection === "inquiry") {
-    return (
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setActiveSection(null)}>
-            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
-          </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>문의/건의사항</h2>
-        </div>
-        <div className="px-4 py-4 flex flex-col gap-4">
-          <div>
-            <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
-              제목
-            </label>
-            <input
-              type="text"
-              placeholder="문의 제목을 입력하세요"
-              value={inquiryTitle}
-              onChange={(e) => setInquiryTitle(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-              style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
-            />
-          </div>
-          <div>
-            <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
-              내용
-            </label>
-            <textarea
-              placeholder="문의 내용을 입력하세요"
-              value={inquiryContent}
-              onChange={(e) => setInquiryContent(e.target.value)}
-              rows={8}
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
-              style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
-            />
-          </div>
-          <button
-            onClick={() => {
-              alert("문의가 접수되었습니다. 빠른 시일 내에 답변드리겠습니다.");
-              setInquiryTitle("");
-              setInquiryContent("");
-              setActiveSection(null);
-            }}
-            className="w-full py-3 rounded-xl font-semibold text-sm"
-            style={{ background: "var(--primary)", color: "white" }}
-          >
-            제출하기
-          </button>
-        </div>
+  return (
+  <div className="flex flex-col flex-1 overflow-hidden">
+    <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
+      <button onClick={() => setActiveSection(null)}>
+        <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
+      </button>
+      <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>문의/건의사항</h2>
+    </div>
+
+    <div className="px-4 py-4 flex flex-col gap-4">
+
+      {/* 제목 */}
+      <div>
+        <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
+          제목
+        </label>
+        <input
+          type="text"
+          placeholder="문의 제목을 입력하세요"
+          value={inquiryTitle}
+          onChange={(e) => setInquiryTitle(e.target.value)}
+          className="w-full px-4 py-3 rounded-xl text-sm outline-none text-white placeholder:text-white/60"
+          style={{ background: "var(--input-background)", border: "1.5px solid var(--border)" }}
+        />
       </div>
-    );
+
+      {/* 내용 */}
+      <div>
+        <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
+          내용
+        </label>
+        <textarea
+          placeholder="문의 내용을 입력하세요"
+          value={inquiryContent}
+          onChange={(e) => setInquiryContent(e.target.value)}
+          rows={8}
+          className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none text-white placeholder:text-white/60"
+          style={{ background: "var(--input-background)", border: "1.5px solid var(--border)" }}
+        />
+      </div>
+
+      {/* 제출 버튼 */}
+      <button
+        onClick={() => {
+          alert("문의가 접수되었습니다. 빠른 시일 내에 답변드리겠습니다.");
+          setInquiryTitle("");
+          setInquiryContent("");
+          setActiveSection(null);
+        }}
+        className="w-full py-3 rounded-xl font-semibold text-sm"
+        style={{ background: "var(--primary)", color: "white" }}
+      >
+        제출하기
+      </button>
+
+    </div>
+  </div>
+);
   }
 
   if (activeSection === "guidelines") {
@@ -218,11 +226,11 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout }: SettingsScr
           <button onClick={() => setActiveSection(null)}>
             <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
           </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>가이드 및 규칙</h2>
+          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>커뮤니티 이용 규칙</h2>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-4">
           <div className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)" }}>
-            <h3 className="font-semibold mb-2" style={{ color: "var(--foreground)" }}>커뮤니티 이용 규칙</h3>
+            <h3 className="font-semibold mb-2" style={{ color: "var(--foreground)" }}>가이드 및 규칙</h3>
             <ul className="text-sm space-y-2" style={{ color: "var(--muted-foreground)" }}>
               <li>• 타인을 존중하고 예의 바르게 소통하세요.</li>
               <li>• 욕설, 비방, 차별적 발언은 금지됩니다.</li>
@@ -343,119 +351,107 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout }: SettingsScr
   }
 
   return (
-    <div className="flex flex-col flex-1 overflow-y-auto">
-      <div className="px-4 pt-5 pb-3">
-        <h1 className="font-bold text-xl" style={{ color: "var(--foreground)" }}>설정</h1>
-      </div>
+<div className="flex flex-col flex-1 overflow-y-auto">
+  <div className="px-4 pt-5 pb-3">
+    <h1 className="font-bold text-xl text-white">설정</h1>
+  </div>
 
-      <div className="px-4 flex flex-col gap-4 pb-6">
-        {/* Account */}
-        <Section title="계정">
-          <SettingRow
-            icon={<User size={18} style={{ color: "var(--primary)" }} />}
-            label="계정 관리"
-            onPress={() => setActiveSection("account")}
-          />
-        </Section>
+  <div className="px-4 flex flex-col gap-4 pb-6">
+    {/* Account */}
+    <Section title="계정">
+      <SettingRow
+        icon={<User size={18} style={{ color: "var(--primary)" }} />}
+        label="계정 관리"
+        onPress={() => setActiveSection("account")}
+      />
+    </Section>
 
-        {/* Notifications */}
-        <Section title="알림 설정">
-          <ToggleRow
-            icon={<Bell size={18} style={{ color: "#5bc0de" }} />}
-            label="채팅 알림"
-            value={notifications.chat}
-            onChange={() => setNotifications(n => ({ ...n, chat: !n.chat }))}
-          />
-          <ToggleRow
-            icon={<Bell size={18} style={{ color: "#5cb85c" }} />}
-            label="커뮤니티 알림"
-            value={notifications.community}
-            onChange={() => setNotifications(n => ({ ...n, community: !n.community }))}
-          />
-          <ToggleRow
-            icon={<Bell size={18} style={{ color: "#fd7e14" }} />}
-            label="근처 친구 알림"
-            value={notifications.nearby}
-            onChange={() => setNotifications(n => ({ ...n, nearby: !n.nearby }))}
-          />
-          <ToggleRow
-            icon={<Bell size={18} style={{ color: "var(--muted-foreground)" }} />}
-            label="마케팅 알림"
-            value={notifications.marketing}
-            onChange={() => setNotifications(n => ({ ...n, marketing: !n.marketing }))}
-            last
-          />
-        </Section>
+    {/* Notifications */}
+    <Section title="알림 설정">
+      <ToggleRow
+        icon={<Bell size={18} style={{ color: "#5bc0de" }} />}
+        label="채팅 알림"
+        value={notifications.chat}
+        onChange={() => setNotifications(n => ({ ...n, chat: !n.chat }))}
+      />
+      <ToggleRow
+        icon={<Bell size={18} style={{ color: "#5cb85c" }} />}
+        label="커뮤니티 알림"
+        value={notifications.community}
+        onChange={() => setNotifications(n => ({ ...n, community: !n.community }))}
+      />
+      <ToggleRow
+        icon={<Bell size={18} style={{ color: "#fd7e14" }} />}
+        label="근처 친구 알림"
+        value={notifications.nearby}
+        onChange={() => setNotifications(n => ({ ...n, nearby: !n.nearby }))}
+      />
+      <ToggleRow
+        icon={<Bell size={18} style={{ color: "var(--muted-foreground)" }} />}
+        label="마케팅 알림"
+        value={notifications.marketing}
+        onChange={() => setNotifications(n => ({ ...n, marketing: !n.marketing }))}
+        last
+      />
+    </Section>
 
-        {/* Display */}
-        <Section title="화면">
-          <ToggleRow
-            icon={<Moon size={18} style={{ color: "#6f42c1" }} />}
-            label="다크 모드"
-            value={darkMode}
-            onChange={onToggleDark}
-            last
-          />
-        </Section>
+    {/* Display */}
+    <Section title="화면">
+      <ToggleRow
+        icon={<Moon size={18} style={{ color: "#6f42c1" }} />}
+        label="다크 모드"
+        value={darkMode}
+        onChange={onToggleDark}
+        last
+      />
+    </Section>
 
-        {/* Support */}
-        <Section title="고객 지원">
-          <SettingRow
-            icon={<MessageSquare size={18} style={{ color: "#5bc0de" }} />}
-            label="문의/건의사항"
-            onPress={() => setActiveSection("inquiry")}
-          />
-          <SettingRow
-            icon={<BookOpen size={18} style={{ color: "#5cb85c" }} />}
-            label="가이드 및 규칙"
-            onPress={() => setActiveSection("guidelines")}
-            last
-          />
-        </Section>
+    {/* Support */}
+    <Section title="고객 지원">
+      <SettingRow
+        icon={<MessageSquare size={18} style={{ color: "#5bc0de" }} />}
+        label="문의/건의사항"
+        onPress={() => setActiveSection("inquiry")}
+      />
+      <SettingRow
+        icon={<BookOpen size={18} style={{ color: "#5cb85c" }} />}
+        label="가이드 및 규칙"
+        onPress={() => setActiveSection("guidelines")}
+        last
+      />
+    </Section>
 
-        {/* Safety */}
-        <Section title="안전">
-          <SettingRow
-            icon={<AlertTriangle size={18} style={{ color: "#d4183d" }} />}
-            label="신고 내역"
-            onPress={() => setActiveSection("reports")}
-          />
-          <SettingRow
-            icon={<UserX size={18} style={{ color: "#d4183d" }} />}
-            label="차단 내역"
-            onPress={() => setActiveSection("blocked")}
-          />
-          <SettingRow
-            icon={<Shield size={18} style={{ color: "var(--muted-foreground)" }} />}
-            label="개인정보 처리방침"
-            onPress={() => {}}
-          />
-          <SettingRow
-            icon={<FileText size={18} style={{ color: "var(--muted-foreground)" }} />}
-            label="이용약관"
-            onPress={() => {}}
-            last
-          />
-        </Section>
+    {/* Safety */}
+    <Section title="안전">
+      <SettingRow
+        icon={<AlertTriangle size={18} style={{ color: "#d4183d" }} />}
+        label="신고 내역"
+        onPress={() => setActiveSection("reports")}
+      />
+      <SettingRow
+        icon={<UserX size={18} style={{ color: "#d4183d" }} />}
+        label="차단 내역"
+        onPress={() => setActiveSection("blocked")}
+      />
+    </Section>
 
-        {/* Logout */}
-        <button
-          onClick={onLogout}
-          className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-semibold text-sm shadow-sm transition-all active:scale-98"
-          style={{ background: "var(--card)", color: "#d4183d", border: "1.5px solid #d4183d30" }}
-        >
-          <LogOut size={16} />
-          로그아웃
-        </button>
-      </div>
-    </div>
+    {/* Logout */}
+    <button
+      onClick={onLogout}
+      className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-semibold text-sm shadow-sm transition-all active:scale-98"
+      style={{ background: "var(--card)", color: "#d4183d", border: "1.5px solid #d4183d30" }}
+    >
+      <LogOut size={16} />
+      로그아웃
+    </button>
+  </div>
+</div>
   );
 }
-
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs font-semibold mb-2 px-1" style={{ color: "var(--muted-foreground)" }}>{title}</p>
+      <p className="text-xs font-semibold mb-2 px-1 text-white">{title}</p>
       <div className="rounded-2xl overflow-hidden shadow-sm" style={{ background: "var(--card)" }}>
         {children}
       </div>
@@ -478,7 +474,7 @@ function SettingRow({
       style={{ borderColor: last ? "transparent" : "var(--border)" }}
     >
       {icon}
-      <span className="flex-1 text-sm text-left" style={{ color: "var(--foreground)" }}>{label}</span>
+      <span className="flex-1 text-sm text-left text-white">{label}</span>
       <ChevronRight size={16} style={{ color: "var(--muted-foreground)" }} />
     </button>
   );
@@ -499,7 +495,7 @@ function ToggleRow({
       style={{ borderColor: last ? "transparent" : "var(--border)" }}
     >
       {icon}
-      <span className="flex-1 text-sm" style={{ color: "var(--foreground)" }}>{label}</span>
+      <span className="flex-1 text-sm text-white">{label}</span>
       <button
         onClick={onChange}
         className="relative w-12 h-6 rounded-full transition-all duration-300"
