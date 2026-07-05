@@ -6,11 +6,26 @@ import { SettingsScreen } from "./components/SettingsScreen";
 import { BottomNav } from "./components/BottomNav";
 import { PasswordChangeScreen } from "./components/PasswordChangeScreen";
 
-type Tab = "community" | "profile" | "settings";
+type Tab = "community" | "chat" | "profile" | "settings";
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("community");
+  const [showChatPanel, setShowChatPanel] = useState(false);
+
+  const handleTabChange = (tab: Tab) => {
+    if (tab === "chat") {
+      if (activeTab === "chat") {
+        setShowChatPanel((prev) => !prev);
+      } else {
+        setActiveTab("chat");
+        setShowChatPanel(true);
+      }
+    } else {
+      setActiveTab(tab);
+      setShowChatPanel(false); // + 채팅 탭 벗어나면 패널도 닫기
+    }
+  };
   const [darkMode, setDarkMode] = useState(false);
   const [showRegister, setShowRegister] = useState(false); // 회원가입 화면
   const [showConsentModal, setShowConsentModal] = useState(false); // 개인정보 동의 팝업
@@ -165,19 +180,34 @@ const [currentTime, setCurrentTime] = useState("");
       </div>
 
       {/* Screen content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {activeTab === "community" && (
-          <div className="relative flex flex-col flex-1 overflow-hidden">
-            <CommunityScreen />
-          </div>
-        )}
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* + CommunityScreen은 항상 마운트, 탭이 다를 땐 display:none으로만 숨김 */}
+        <div
+          className="relative flex flex-col flex-1 overflow-hidden"
+          style={{
+            display: activeTab === "community" || activeTab === "chat" ? "flex" : "none",
+          }}
+        >
+          <CommunityScreen
+            showChat={showChatPanel}
+            setShowChat={setShowChatPanel}
+          />
+        </div>
+
+        {/* + 프로필/설정은 위에 덮어씌우는 방식으로 렌더링 */}
         {activeTab === "profile" && (
-          <div className="flex-1 overflow-hidden">
+          <div
+            className="absolute inset-0 overflow-hidden"
+            style={{ background: "var(--background)" }}
+          >
             <ProfileScreen nickname={nickname} setNickname={setNickname} />
           </div>
         )}
         {activeTab === "settings" && (
-          <div className="flex-1 overflow-y-auto">
+          <div
+            className="absolute inset-0 overflow-y-auto"
+            style={{ background: "var(--background)" }}
+          >
             <SettingsScreen
               darkMode={darkMode}
               onToggleDark={() => setDarkMode(!darkMode)}
@@ -197,7 +227,10 @@ const [currentTime, setCurrentTime] = useState("");
       </div>
 
       {/* Bottom navigation */}
-      <BottomNav active={activeTab} onChange={setActiveTab} />
+      <BottomNav
+        active={activeTab}
+        onChange={handleTabChange}
+      />
 
       {/* Home indicator */}
       <div className="flex justify-center pb-2 pt-1 shrink-0">
