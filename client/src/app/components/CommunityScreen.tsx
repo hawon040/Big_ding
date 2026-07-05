@@ -213,6 +213,7 @@ interface ReportHistoryItem {
   target: string;
   status: string;
   date: string;
+  postId: number;
 }
 
 const addReportToHistory = (report: ReportHistoryItem) => {
@@ -288,7 +289,7 @@ export const BOARDS = [
   { id: "meeting" as BoardType, label: "공강모임", emoji: "☕", icon: Coffee },
 ];
 
-export function CommunityScreen() {
+export function CommunityScreen({ selectedPostId }: { selectedPostId?: number | null }) {
   // 좋아요/싫어요/댓글/스크랩/새 글 등은 로컬 저장소에서 초기값을 불러와
   // 새로고침해도 그대로 유지되도록 한다.
   const [storedInit] = useState(loadStoredInteractions);
@@ -378,8 +379,17 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
 
  // 게시물의 실제 댓글 수 = 원래 댓글 수 + 내가 새로 등록한 댓글 수
  const getCommentCount = (post: Post) => post.comments + (extraComments[post.id]?.length || 0);
-const allPosts = [...createdPosts, ...Object.values(POSTS).flat()].filter((p) => !deletedPostIds.includes(p.id));
-  const posts = showSearch && searchQuery
+ const allPosts = [...createdPosts, ...Object.values(POSTS).flat()].filter((p) => !deletedPostIds.includes(p.id));
+  useEffect(() => {
+  if (selectedPostId != null) {
+    const target = allPosts.find((p) => p.id === selectedPostId);
+    if (target) {
+      setActiveBoard(target.board || activeBoard);
+      setSelectedPost(target);
+    }
+  }
+}, [selectedPostId]);
+ const posts = showSearch && searchQuery
     ? allPosts.filter((p) =>
         p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -1751,6 +1761,7 @@ const handleDeleteFriends = () => {
                     target: targetPost ? targetPost.title : "게시물",
                     status: "처리 중",
                     date,
+                    postId: showReport as number,
                   });
                   setShowReport(null);
                   showAlert(`신고가 접수되었습니다: ${reason}`);

@@ -15,6 +15,7 @@ export default function App() {
   const [showRegister, setShowRegister] = useState(false); // 회원가입 화면
   const [showConsentModal, setShowConsentModal] = useState(false); // 개인정보 동의 팝업
   const [nickname, setNickname] = useState("데이터새내기");
+  const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
 
 const [currentTime, setCurrentTime] = useState("");
 
@@ -168,7 +169,7 @@ const [currentTime, setCurrentTime] = useState("");
       <div className="flex-1 flex flex-col overflow-hidden">
         {activeTab === "community" && (
           <div className="relative flex flex-col flex-1 overflow-hidden">
-            <CommunityScreen />
+            <CommunityScreen selectedPostId={selectedPostId} />
           </div>
         )}
         {activeTab === "profile" && (
@@ -177,7 +178,7 @@ const [currentTime, setCurrentTime] = useState("");
           </div>
         )}
         {activeTab === "settings" && (
-          <div className="flex-1 overflow-y-auto">
+           <div className="flex-1 overflow-hidden">
             <SettingsScreen
               darkMode={darkMode}
               onToggleDark={() => setDarkMode(!darkMode)}
@@ -191,6 +192,10 @@ const [currentTime, setCurrentTime] = useState("");
               }}
               nickname={nickname}
               setNickname={setNickname}
+              onNavigateToPost={(postId) => {
+                setSelectedPostId(postId);
+                setActiveTab("community");
+              }}
             />
           </div>
         )}
