@@ -57,7 +57,7 @@ interface Message {
 
 const PROFANITY_LIST = ["욕설", "비속어", "씨발", "개새끼", "병신", "지랄", "꺼져", "죽어"];
 
-const filterProfanity = (text: string) => {
+export const filterProfanity = (text: string) => {
   let filtered = text;
   PROFANITY_LIST.forEach((word) => {
     const regex = new RegExp(word, "gi");
