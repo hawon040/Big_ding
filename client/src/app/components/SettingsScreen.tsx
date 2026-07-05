@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X } from "lucide-react";
+import { REPORTS_STORAGE_KEY, REPORTS_UPDATED_EVENT, loadReportHistory, type ReportHistoryItem } from "./CommunityScreen";
 
 interface SettingsScreenProps {
   darkMode: boolean;
@@ -10,32 +11,44 @@ interface SettingsScreenProps {
   onNavigateToPost?: (postId: number) => void;
 }
 
-const REPORTS_STORAGE_KEY = "bigding_report_history_v1";
-const REPORTS_UPDATED_EVENT = "bigding-report-added";
+const BLOCKED_USERS = [
+  { id: 1, name: "차단된유저1", reason: "욕설/비방", date: "2026.05.25" },
+  { id: 2, name: "차단된유저2", reason: "스팸", date: "2026.05.15" },
+];
 
-interface StoredReport {
+const INQUIRY_STORAGE_KEY = "bigding_inquiry_history_v1";
+const INQUIRY_UPDATED_EVENT = "bigding-inquiry-added";
+
+interface InquiryHistoryItem {
   id: number;
-  type: string;
-  target: string;
-  status: string;
+  title: string;
+  content: string;
   date: string;
-  postId: number;
-  sanction?: string | null;
 }
 
-const loadStoredReports = (): StoredReport[] => {
+const loadInquiryHistory = (): InquiryHistoryItem[] => {
   try {
-    const raw = localStorage.getItem(REPORTS_STORAGE_KEY);
+    const raw = localStorage.getItem(INQUIRY_STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
   }
 };
 
-const BLOCKED_USERS = [
-  { id: 1, name: "차단된유저1", reason: "욕설/비방", date: "2026.05.25" },
-  { id: 2, name: "차단된유저2", reason: "스팸", date: "2026.05.15" },
-];
+const addInquiryToHistory = (inquiry: InquiryHistoryItem) => {
+  try {
+    const updated = [inquiry, ...loadInquiryHistory()];
+    localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent(INQUIRY_UPDATED_EVENT, { detail: updated }));
+  } catch {
+    // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
+  }
+};
+
+const formatToday = () => {
+  const now = new Date();
+  return `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
+};
 
 export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, setNickname, onNavigateToPost }: SettingsScreenProps) {
   const [notifications, setNotifications] = useState({
@@ -49,16 +62,112 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [confirmPassword, setConfirmPassword] = useState("");
   const [inquiryTitle, setInquiryTitle] = useState("");
   const [inquiryContent, setInquiryContent] = useState("");
-  const [reportHistory, setReportHistory] = useState<StoredReport[]>(loadStoredReports);
+  const [reportHistory, setReportHistory] = useState<ReportHistoryItem[]>([]);
+  const [inquiryHistory, setInquiryHistory] = useState<InquiryHistoryItem[]>([]);
+  const [blockedUsers, setBlockedUsers] = useState(BLOCKED_USERS);
 
   useEffect(() => {
-    const handler = () => setReportHistory(loadStoredReports());
-    window.addEventListener(REPORTS_UPDATED_EVENT, handler as EventListener);
-    return () => window.removeEventListener(REPORTS_UPDATED_EVENT, handler as EventListener);
+    setReportHistory(loadReportHistory());
+    setInquiryHistory(loadInquiryHistory());
+
+    const handleReportsUpdated = (e: Event) => {
+      const detail = (e as CustomEvent<ReportHistoryItem[]>).detail;
+      setReportHistory(detail ?? loadReportHistory());
+    };
+    const handleInquiryUpdated = (e: Event) => {
+      const detail = (e as CustomEvent<InquiryHistoryItem[]>).detail;
+      setInquiryHistory(detail ?? loadInquiryHistory());
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === REPORTS_STORAGE_KEY) setReportHistory(loadReportHistory());
+      if (e.key === INQUIRY_STORAGE_KEY) setInquiryHistory(loadInquiryHistory());
+    };
+
+    window.addEventListener(REPORTS_UPDATED_EVENT, handleReportsUpdated);
+    window.addEventListener(INQUIRY_UPDATED_EVENT, handleInquiryUpdated);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(REPORTS_UPDATED_EVENT, handleReportsUpdated);
+      window.removeEventListener(INQUIRY_UPDATED_EVENT, handleInquiryUpdated);
+      window.removeEventListener("storage", handleStorage);
+    };
   }, []);
+
+  // 커스텀 알림/확인 팝업 상태
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
+  const [alertCallback, setAlertCallback] = useState<(() => void) | null>(null);
+  const [confirmState, setConfirmState] = useState<{ message: string; onConfirm: () => void } | null>(null);
+
+  const showAlert = (message: string, callback?: () => void) => {
+    setAlertMessage(message);
+    setAlertCallback(() => callback || null);
+  };
+  const closeAlert = () => {
+    setAlertMessage(null);
+    if (alertCallback) alertCallback();
+    setAlertCallback(null);
+  };
+  const showConfirm = (message: string, onConfirm: () => void) => {
+    setConfirmState({ message, onConfirm });
+  };
+  const closeConfirm = () => setConfirmState(null);
+
+  const AlertModal = alertMessage && (
+    <div className="absolute inset-0 z-[70] flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.6)" }}>
+      <div className="w-full rounded-2xl overflow-hidden shadow-2xl" style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}>
+        <div className="flex items-center justify-between px-5 py-4 text-base font-semibold" style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}>
+          알림
+          <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+          {alertMessage}
+        </div>
+        <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+          <button className="w-full py-3 text-sm font-medium" style={{ color: "var(--foreground)" }} onClick={closeAlert}>
+            확인
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const ConfirmModal = confirmState && (
+    <div className="absolute inset-0 z-[70] flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.6)" }}>
+      <div className="w-full rounded-2xl overflow-hidden shadow-2xl" style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}>
+        <div className="flex items-center justify-between px-5 py-4 text-base font-semibold" style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}>
+          확인
+          <button onClick={closeConfirm} style={{ color: "var(--muted-foreground)" }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+          {confirmState.message}
+        </div>
+        <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+          <button
+            className="flex-1 py-3 text-sm font-medium"
+            style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
+            onClick={() => {
+              const action = confirmState.onConfirm;
+              setConfirmState(null);
+              action();
+            }}
+          >
+            확인
+          </button>
+          <button className="flex-1 py-3 text-sm font-medium" style={{ color: "var(--foreground)" }} onClick={closeConfirm}>
+            취소
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   if (activeSection === "blocked") {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="relative flex flex-col flex-1 overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
           <button onClick={() => setActiveSection(null)}>
             <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
@@ -66,7 +175,12 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>차단 내역</h2>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-          {BLOCKED_USERS.map((user) => (
+          {blockedUsers.length === 0 && (
+            <p className="text-sm text-center mt-8" style={{ color: "var(--muted-foreground)" }}>
+              차단한 사용자가 없습니다.
+            </p>
+          )}
+          {blockedUsers.map((user) => (
             <div key={user.id} className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -79,9 +193,10 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 </div>
                 <button
                   onClick={() => {
-                    if (confirm(`${user.name}님의 차단을 해제하시겠습니까?`)) {
-                      alert("차단이 해제되었습니다.");
-                    }
+                    showConfirm(`${user.name}님의 차단을 해제하시겠습니까?`, () => {
+                      setBlockedUsers((users) => users.filter((u) => u.id !== user.id));
+                      showAlert("차단이 해제되었습니다.");
+                    });
                   }}
                   className="text-xs px-3 py-1 rounded-full font-medium"
                   style={{ background: "var(--primary)", color: "white" }}
@@ -92,13 +207,15 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             </div>
           ))}
         </div>
+        {AlertModal}
+        {ConfirmModal}
       </div>
     );
   }
 
   if (activeSection === "password") {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="relative flex flex-col flex-1 overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
           <button onClick={() => setActiveSection(null)}>
             <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
@@ -163,13 +280,14 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           <button
             onClick={() => {
               if (newPassword === confirmPassword) {
-                alert("비밀번호가 변경되었습니다.");
-                setCurrentPassword("");
-                setNewPassword("");
-                setConfirmPassword("");
-                setActiveSection(null);
+                showAlert("비밀번호가 변경되었습니다.", () => {
+                  setCurrentPassword("");
+                  setNewPassword("");
+                  setConfirmPassword("");
+                  setActiveSection(null);
+                });
               } else {
-                alert("새 비밀번호가 일치하지 않습니다.");
+                showAlert("새 비밀번호가 일치하지 않습니다.");
               }
             }}
             className="w-full py-3 rounded-xl font-semibold text-sm mt-2"
@@ -178,13 +296,15 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             변경하기
           </button>
         </div>
+        {AlertModal}
+        {ConfirmModal}
       </div>
     );
   }
 
   if (activeSection === "inquiry") {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="relative flex flex-col flex-1 overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
           <button onClick={() => setActiveSection(null)}>
             <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
@@ -223,10 +343,21 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
           <button
             onClick={() => {
-              alert("문의가 접수되었습니다. 빠른 시일 내에 답변드리겠습니다.");
-              setInquiryTitle("");
-              setInquiryContent("");
-              setActiveSection(null);
+              if (!inquiryTitle.trim() || !inquiryContent.trim()) {
+                showAlert("제목과 내용을 입력해주세요.");
+                return;
+              }
+              addInquiryToHistory({
+                id: Date.now(),
+                title: inquiryTitle,
+                content: inquiryContent,
+                date: formatToday(),
+              });
+              showAlert("문의가 접수되었습니다. 빠른 시일 내에 답변드리겠습니다.", () => {
+                setInquiryTitle("");
+                setInquiryContent("");
+                setActiveSection(null);
+              });
             }}
             className="w-full py-3 rounded-xl font-semibold text-sm"
             style={{ background: "var(--primary)", color: "white" }}
@@ -234,6 +365,8 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             제출하기
           </button>
         </div>
+        {AlertModal}
+        {ConfirmModal}
       </div>
     );
   }
@@ -276,24 +409,24 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           <button onClick={() => setActiveSection(null)}>
             <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
           </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>신고 내역</h2>
+          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>신고 및 건의사항 내역</h2>
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-          {reportHistory.length === 0 && (
-            <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
-              신고 내역이 없어요
+          {reportHistory.length === 0 && inquiryHistory.length === 0 && (
+            <p className="text-sm text-center mt-8" style={{ color: "var(--muted-foreground)" }}>
+              신고 및 건의사항 내역이 없습니다.
             </p>
           )}
           {reportHistory.map((r) => (
             <div
-              key={r.id}
+              key={`report-${r.id}`}
               className="rounded-2xl p-4 shadow-sm cursor-pointer transition-all active:scale-98"
               style={{ background: "var(--card)" }}
               onClick={() => {
                 if (onNavigateToPost) {
                   onNavigateToPost(r.postId);
                 } else {
-                  alert("게시물로 이동합니다: " + r.target);
+                  showAlert("게시물로 이동합니다: " + r.target);
                 }
               }}
             >
@@ -312,7 +445,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      alert(r.sanction || "현재 검토 중이며, 아직 확정된 제재 내용이 없습니다.");
+                      showAlert(r.sanction || "현재 검토 중이며, 아직 확정된 제재 내용이 없습니다.");
                     }}
                     className="text-xs px-2 py-1 rounded-full font-medium"
                     style={{ background: "#5cb85c22", color: "#5cb85c" }}
@@ -330,6 +463,22 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               </div>
             </div>
           ))}
+          {inquiryHistory.map((item) => (
+            <div key={`inquiry-${item.id}`} className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <MessageSquare size={14} style={{ color: "#1e88e5" }} />
+                    <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                      건의사항: {item.title}
+                    </span>
+                  </div>
+                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{item.content}</p>
+                  <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>{item.date}</p>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -337,7 +486,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
   if (activeSection === "account") {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="relative flex flex-col flex-1 overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
           <button onClick={() => setActiveSection(null)}>
             <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
@@ -366,12 +515,13 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                   if (action === "password") {
                     setActiveSection("password");
                   } else if (action === "delete") {
-                    if (confirm("정말로 계정을 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
-                      if (confirm("탈퇴하시면 모든 데이터가 삭제됩니다. 계속하시겠습니까?")) {
-                        alert("계정이 탈퇴되었습니다.");
-                        onLogout();
-                      }
-                    }
+                    showConfirm("정말로 계정을 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.", () => {
+                      showConfirm("탈퇴하시면 모든 데이터가 삭제됩니다. 계속하시겠습니까?", () => {
+                        showAlert("계정이 탈퇴되었습니다.", () => {
+                          onLogout();
+                        });
+                      });
+                    });
                   }
                 }}
                 className="w-full flex items-center justify-between px-4 py-4 border-b last:border-b-0 transition-all"
@@ -383,6 +533,8 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             ))}
           </div>
         </div>
+        {AlertModal}
+        {ConfirmModal}
       </div>
     );
   }
@@ -428,7 +580,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           />
         </Section>
 
-               <Section title="고객 지원">
+        <Section title="고객 지원">
           <SettingRow
             icon={<MessageSquare size={18} style={{ color: "#5bc0de" }} />}
             label="문의/건의사항"
@@ -445,7 +597,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
         <Section title="안전">
           <SettingRow
             icon={<AlertTriangle size={18} style={{ color: "#d4183d" }} />}
-            label="신고 내역"
+            label="신고 및 건의사항 내역"
             onPress={() => setActiveSection("reports")}
           />
           <SettingRow

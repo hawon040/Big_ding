@@ -204,23 +204,31 @@ export const POSTS: Record<BoardType, Post[]> = {
 
 // 좋아요/싫어요/댓글 등 사용자 상호작용을 새로고침해도 유지하기 위한 로컬 저장소 헬퍼
 export const STORAGE_KEY = "bigding_community_interactions_v1";
-const REPORTS_STORAGE_KEY = "bigding_report_history_v1";
-const REPORTS_UPDATED_EVENT = "bigding-report-added";
+export const REPORTS_STORAGE_KEY = "bigding_report_history_v1";
+export const REPORTS_UPDATED_EVENT = "bigding-report-added";
 
-interface ReportHistoryItem {
+export interface ReportHistoryItem {
   id: number;
   type: string;
   target: string;
   status: string;
   date: string;
   postId: number;
+  sanction?: string | null;
 }
+
+export const loadReportHistory = (): ReportHistoryItem[] => {
+  try {
+    const raw = localStorage.getItem(REPORTS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
 
 const addReportToHistory = (report: ReportHistoryItem) => {
   try {
-    const raw = localStorage.getItem(REPORTS_STORAGE_KEY);
-    const list: ReportHistoryItem[] = raw ? JSON.parse(raw) : [];
-    const updated = [report, ...list];
+    const updated = [report, ...loadReportHistory()];
     localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(updated));
     // 같은 탭 안에서도 설정 화면이 즉시 반영할 수 있도록 커스텀 이벤트 전파
     window.dispatchEvent(new CustomEvent(REPORTS_UPDATED_EVENT, { detail: updated }));
@@ -875,10 +883,12 @@ const endDrag = () => {
 
             <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h3>
 
-            {selectedPost.id % 3 === 1 && (
-              <div className="mt-2 h-32 rounded-xl flex items-center justify-center" style={{ background: "var(--muted)" }}>
-                <Image size={28} style={{ color: "var(--muted-foreground)" }} />
-              </div>
+            {selectedPost.image && (
+              <img
+                src={selectedPost.image}
+                alt="첨부 이미지"
+                className="mt-2 w-full max-h-72 object-cover rounded-xl"
+              />
             )}
 
             {selectedPost.rating && (
@@ -1261,10 +1271,12 @@ const endDrag = () => {
             <div onClick={() => setSelectedPost(post)} className="cursor-pointer">
               <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{post.title}</h3>
 
-              {post.id % 3 === 1 && (
-                <div className="mt-2 h-32 rounded-xl flex items-center justify-center" style={{ background: "var(--muted)" }}>
-                  <Image size={28} style={{ color: "var(--muted-foreground)" }} />
-                </div>
+              {post.image && (
+                <img
+                  src={post.image}
+                  alt="첨부 이미지"
+                  className="mt-2 w-full max-h-48 object-cover rounded-xl"
+                />
               )}
 
               {post.rating && (
@@ -1821,6 +1833,7 @@ const endDrag = () => {
                     status: "처리 중",
                     date,
                     postId: showReport as number,
+                    sanction: null,
                   });
                   setShowReport(null);
                   showAlert(`신고가 접수되었습니다: ${reason}`);
