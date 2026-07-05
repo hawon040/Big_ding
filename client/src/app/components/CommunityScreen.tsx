@@ -288,20 +288,18 @@ export const BOARDS = [
   { id: "lecture" as BoardType, label: "전공 강의평가", emoji: "⭐", icon: BookOpen },
   { id: "meeting" as BoardType, label: "공강모임", emoji: "☕", icon: Coffee },
 ];
-
-<<<<<<< HEAD
-export function CommunityScreen({ selectedPostId }: { selectedPostId?: number | null }) {
-=======
 interface CommunityScreenProps {
   showChat: boolean;
   setShowChat: React.Dispatch<React.SetStateAction<boolean>>;
+  selectedPostId?: number | null;
 }
 
 export function CommunityScreen({
   showChat,
   setShowChat,
+  selectedPostId,
 }: CommunityScreenProps) {
->>>>>>> eba623241899abf46b6795ff46087ec4dd13f018
+
   // 좋아요/싫어요/댓글/스크랩/새 글 등은 로컬 저장소에서 초기값을 불러와
   // 새로고침해도 그대로 유지되도록 한다.
   const [storedInit] = useState(loadStoredInteractions);

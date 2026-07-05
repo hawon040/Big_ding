@@ -181,16 +181,8 @@ const [currentTime, setCurrentTime] = useState("");
       </div>
 
       {/* Screen content */}
-<<<<<<< HEAD
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {activeTab === "community" && (
-          <div className="relative flex flex-col flex-1 overflow-hidden">
-            <CommunityScreen selectedPostId={selectedPostId} />
-          </div>
-        )}
-=======
-      <div className="flex-1 flex flex-col overflow-hidden relative">
-        {/* + CommunityScreen은 항상 마운트, 탭이 다를 땐 display:none으로만 숨김 */}
+     <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* CommunityScreen은 항상 마운트, 탭이 다를 땐 display:none으로만 숨김 */}
         <div
           className="relative flex flex-col flex-1 overflow-hidden"
           style={{
@@ -200,11 +192,11 @@ const [currentTime, setCurrentTime] = useState("");
           <CommunityScreen
             showChat={showChatPanel}
             setShowChat={setShowChatPanel}
+            selectedPostId={selectedPostId}
           />
         </div>
 
-        {/* + 프로필/설정은 위에 덮어씌우는 방식으로 렌더링 */}
->>>>>>> eba623241899abf46b6795ff46087ec4dd13f018
+        {/* 프로필/설정은 위에 덮어씌우는 방식으로 렌더링 */}
         {activeTab === "profile" && (
           <div
             className="absolute inset-0 overflow-hidden"
@@ -214,14 +206,10 @@ const [currentTime, setCurrentTime] = useState("");
           </div>
         )}
         {activeTab === "settings" && (
-<<<<<<< HEAD
-           <div className="flex-1 overflow-hidden">
-=======
           <div
-            className="absolute inset-0 overflow-y-auto"
+            className="absolute inset-0 overflow-hidden"
             style={{ background: "var(--background)" }}
           >
->>>>>>> eba623241899abf46b6795ff46087ec4dd13f018
             <SettingsScreen
               darkMode={darkMode}
               onToggleDark={() => setDarkMode(!darkMode)}
