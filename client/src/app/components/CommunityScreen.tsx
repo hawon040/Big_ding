@@ -733,7 +733,7 @@ const endDrag = () => {
         {/* 메시지 목록 */}
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
           {(chatMessages[activeFriend.id] || []).map((msg) => (
-            <div key={msg.id} className={`flex items-center gap-2 ${msg.mine ? "justify-end" : "justify-start"}`}>
+            <div key={msg.id} className={`flex items-end gap-2 ${msg.mine ? "justify-end" : "justify-start"}`}>
               {selectMode && msg.mine && (
                 <input
                   type="checkbox"
@@ -746,19 +746,31 @@ const endDrag = () => {
                   className="w-4 h-4 accent-orange-400"
                 />
               )}
-              <div
-                className="max-w-[70%] px-3 py-2 rounded-2xl text-sm"
-                style={{
-                  background: msg.mine ? "var(--primary)" : "var(--card)",
-                  color: msg.mine ? "white" : "var(--foreground)",
-                  outline: selectedMsgs.includes(msg.id) ? "2px solid var(--primary)" : "none",
-                }}
-              >
-                <p>{msg.content}</p>
-                {msg.image && (
-                  <img src={msg.image} alt="사진" className="rounded-xl mt-1 max-w-full" style={{ maxHeight: "200px" }} />
+              <div className={`max-w-[70%] flex flex-col gap-1 ${msg.mine ? "items-end" : "items-start"}`}>
+                {msg.content && (
+                  <div
+                    className="px-3 py-2 rounded-2xl text-sm"
+                    style={{
+                      background: msg.mine ? "var(--primary)" : "var(--card)",
+                      color: msg.mine ? "white" : "var(--foreground)",
+                      outline: selectedMsgs.includes(msg.id) ? "2px solid var(--primary)" : "none",
+                    }}
+                  >
+                    <p>{msg.content}</p>
+                  </div>
                 )}
-                <p className="text-[10px] mt-0.5 opacity-70 text-right">{msg.time}</p>
+                {msg.image && (
+                  <img
+                    src={msg.image}
+                    alt="사진"
+                    className="rounded-xl max-w-full"
+                    style={{
+                      maxHeight: "200px",
+                      outline: selectedMsgs.includes(msg.id) ? "2px solid var(--primary)" : "none",
+                    }}
+                  />
+                )}
+                <p className="text-[10px] mt-1 opacity-70" style={{ color: "var(--muted-foreground)" }}>{msg.time}</p>
               </div>
             </div>
           ))}
