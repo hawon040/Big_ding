@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, Eye, EyeOff } from "lucide-react";
+import { ChevronRight, Eye, EyeOff, X } from "lucide-react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import api from "@/api";
 
@@ -14,10 +14,11 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
   const [password, setPassword] = useState("");
   const [autoLogin, setAutoLogin] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [alertMessage, setAlertMessage] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     if (!studentId || !password) {
-      alert("모든 항목을 입력해주세요.");
+      setAlertMessage("모든 항목을 입력해주세요.");
       return;
     }
     try {
@@ -28,13 +29,13 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
       localStorage.setItem("autoLogin", autoLogin ? "true" : "false");
       onLogin(data.isFirstLogin);
     } catch (err: any) {
-      alert(err.response?.data?.message || "서버 연결 실패");
+      setAlertMessage(err.response?.data?.message || "서버 연결 실패");
     }
   };
 
   return (
     <div
-      className="flex flex-col items-center justify-center min-h-full px-6 py-10"
+      className="relative flex flex-col items-center justify-center min-h-full px-6 py-10"
       style={{ background: "linear-gradient(160deg, #0a0f1f 0%, #0d1426 60%, #111a30 100%)" }}
     >
       <div className="flex flex-col items-center mb-8">
@@ -134,6 +135,40 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
         </div>
       </div>
 
+      {/* 커스텀 알림 팝업 */}
+      {alertMessage && (
+        <div
+          className="absolute inset-0 z-[70] flex items-center justify-center px-6"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+        >
+          <div
+            className="w-full rounded-2xl overflow-hidden shadow-2xl"
+            style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+              style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+            >
+              Code
+              <button onClick={() => setAlertMessage(null)} style={{ color: "var(--muted-foreground)" }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+              {alertMessage}
+            </div>
+            <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+              <button
+                className="w-full py-3 text-sm font-medium"
+                style={{ color: "var(--foreground)" }}
+                onClick={() => setAlertMessage(null)}
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

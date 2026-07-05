@@ -13,7 +13,30 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("community");
   const [darkMode, setDarkMode] = useState(false);
   const [showRegister, setShowRegister] = useState(false); // 회원가입 화면
+  const [showConsentModal, setShowConsentModal] = useState(false); // 개인정보 동의 팝업
   const [nickname, setNickname] = useState("데이터새내기");
+
+const [currentTime, setCurrentTime] = useState("");
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const formatted = now.toLocaleTimeString("ko-KR", {
+        timeZone: "Asia/Seoul",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      setCurrentTime(formatted);
+    };
+
+    updateTime();
+    const timer = setInterval(updateTime, 1000 * 10);
+
+    return () => clearInterval(timer);
+  }, []);
+
+
   // 앱 시작 시 토큰 확인 → 자동 로그인
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -56,6 +79,48 @@ export default function App() {
           style={{ width: "126px", height: "30px", background: "#05070f", borderRadius: "0 0 20px 20px" }}
         />
         {children}
+
+        {/* 개인정보 수집 동의 팝업 */}
+        {showConsentModal && (
+          <div
+            className="absolute inset-0 z-[60] flex items-center justify-center px-6"
+            style={{ background: "rgba(0,0,0,0.6)" }}
+          >
+            <div
+              className="w-full rounded-2xl overflow-hidden shadow-2xl"
+              style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+            >
+              <div
+                className="px-5 py-4 text-base font-semibold"
+                style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+              >
+                Code
+              </div>
+              <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+                이름, 학번에 대한 개인 정보 수집 및 이용에 동의하시겠습니까?
+              </div>
+              <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+                <button
+                  className="flex-1 py-3 text-sm font-medium"
+                  style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
+                  onClick={() => {
+                    setShowConsentModal(false);
+                    setShowRegister(true);
+                  }}
+                >
+                  확인
+                </button>
+                <button
+                  className="flex-1 py-3 text-sm font-medium"
+                  style={{ color: "var(--foreground)" }}
+                  onClick={() => setShowConsentModal(false)}
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -63,7 +128,7 @@ export default function App() {
   // 회원가입 화면
   if (showRegister) {
     return phoneFrame(
-      <div className="flex-1 overflow-y-auto mt-7">
+      <div className="flex-1 mt-7">
         <PasswordChangeScreen
           onComplete={() => setShowRegister(false)} // 완료 → 로그인 화면
           onSkip={() => setShowRegister(false)}
@@ -78,15 +143,7 @@ export default function App() {
       <div className="flex-1 overflow-y-auto mt-7">
         <LoginScreen
           onLogin={() => setLoggedIn(true)}
-  onRegister={() => {
-    const agree = window.confirm(
-      "개인정보 수집 및 이용에 동의하시겠습니까?"
-    );
-
-    if (agree) {
-      setShowRegister(true);
-    }
-  }}
+          onRegister={() => setShowConsentModal(true)}
         />
       </div>
     );
@@ -99,7 +156,7 @@ export default function App() {
         className="flex items-center justify-between px-8 pt-2 pb-1 mt-8 text-xs font-semibold shrink-0"
         style={{ color: "var(--foreground)" }}
       >
-        <span>9:41</span>
+       <span>{currentTime}</span>
         <div className="flex items-center gap-1">
           <span>●●●</span>
           <span>WiFi</span>

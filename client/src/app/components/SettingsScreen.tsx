@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff } from "lucide-react";
-import { Flag } from "lucide-react";
 
 interface SettingsScreenProps {
   darkMode: boolean;
@@ -34,179 +33,46 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [confirmPassword, setConfirmPassword] = useState("");
   const [inquiryTitle, setInquiryTitle] = useState("");
   const [inquiryContent, setInquiryContent] = useState("");
-  
-// 차단 내역 상태 관리
-const [blockedUsers, setBlockedUsers] = useState(BLOCKED_USERS);
 
-const [INQUIRY_HISTORY, setInquiryHistory] = useState<any[]>([]);
-
-// 팝업 상태
-const [showPopup, setShowPopup] = useState(false);
-const [confirmTarget, setConfirmTarget] = useState<any>(null);
-
-if (activeSection === "blocked") {
-  return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-
-      {/* 헤더 */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-        <button onClick={() => setActiveSection(null)}>
-          <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
-        </button>
-        <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>차단 내역</h2>
-      </div>
-
-      {/* 차단 목록 */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-        {blockedUsers.map((user) => (
-          <div key={user.id} className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <UserX size={14} style={{ color: "#d4183d" }} />
-                  <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{user.name}</span>
+  if (activeSection === "blocked") {
+    return (
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
+          <button onClick={() => setActiveSection(null)}>
+            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
+          </button>
+          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>차단 내역</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+          {BLOCKED_USERS.map((user) => (
+            <div key={user.id} className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <UserX size={14} style={{ color: "#d4183d" }} />
+                    <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{user.name}</span>
+                  </div>
+                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>사유: {user.reason}</p>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>{user.date}</p>
                 </div>
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>사유: {user.reason}</p>
-                <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>{user.date}</p>
-              </div>
-
-              {/* 차단 해제 버튼 */}
-              <button
-                onClick={() => {
-                  setConfirmTarget(user);   // 어떤 유저를 해제할지 저장
-                  setShowPopup(true);       // 팝업 띄우기
-                }}
-                className="text-xs px-3 py-1 rounded-full font-medium"
-                style={{ background: "var(--primary)", color: "white" }}
-              >
-                차단 해제
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* 모바일 팝업 */}
-      {showPopup && (
-        <>
-          {/* 배경 */}
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              width: "100%",
-              height: "100%",
-              background: "rgba(0,0,0,0.4)",
-              zIndex: 9998,
-            }}
-          />
-
-          {/* 팝업 박스 */}
-          <div
-            style={{
-              position: "fixed",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              width: "85%",
-              maxWidth: "360px",
-              background: "white",
-              padding: "20px",
-              borderRadius: "12px",
-              textAlign: "center",
-              zIndex: 9999,
-            }}
-          >
-            <p className="font-medium mb-4"style={{ color: "#000" }}>
-              {confirmTarget.name}님의 차단을 해제하시겠습니까?
-            </p>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  // 실제 삭제 처리
-                  setBlockedUsers(users => users.filter(u => u.id !== confirmTarget.id));
-                  setShowPopup(false);
-                }}
-                className="flex-1 py-2 rounded-lg"
-                style={{ background: "var(--primary)", color: "white" }}
-              >
-                확인
-              </button>
-
-              <button
-                onClick={() => setShowPopup(false)}
-                className="flex-1 py-2 rounded-lg"
-                style={{ background: "var(--muted)", color: "var(--foreground)" }}
-              >
-                취소
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-if (activeSection === "reports") {
-  return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-
-      {/* 헤더 */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-        <button onClick={() => setActiveSection(null)}>
-          <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
-        </button>
-        <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>
-          신고 및 건의사항 내역
-        </h2>
-      </div>
-
-      {/* 통합 내역 목록 */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-
-        {/* 신고 내역 */}
-        {REPORT_HISTORY.map((item) => (
-          <div key={item.id} className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <Flag size={14} style={{ color: "#d4183d" }} />
-                  <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                    신고: {item.target}
-                  </span>
-                </div>
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>사유: {item.type}</p>
-                <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>{item.date}</p>
+                <button
+                  onClick={() => {
+                    if (confirm(`${user.name}님의 차단을 해제하시겠습니까?`)) {
+                      alert("차단이 해제되었습니다.");
+                    }
+                  }}
+                  className="text-xs px-3 py-1 rounded-full font-medium"
+                  style={{ background: "var(--primary)", color: "white" }}
+                >
+                  차단 해제
+                </button>
               </div>
             </div>
-          </div>
-        ))}
-
-        {/* 건의사항 내역 */}
-        {INQUIRY_HISTORY.map((item) => (
-          <div key={item.id} className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <MessageSquare size={14} style={{ color: "#1e88e5" }} />
-                  <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                    건의사항: {item.title}
-                  </span>
-                </div>
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{item.content}</p>
-                <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>{item.date}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-
+          ))}
+        </div>
       </div>
-    </div>
-  );
-}
-
+    );
+  }
 
   if (activeSection === "password") {
     return (
@@ -301,7 +167,7 @@ if (activeSection === "reports") {
       <button onClick={() => setActiveSection(null)}>
         <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
       </button>
-      <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>건의사항</h2>
+      <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>문의/건의사항</h2>
     </div>
 
     <div className="px-4 py-4 flex flex-col gap-4">
@@ -515,7 +381,19 @@ if (activeSection === "reports") {
         value={notifications.community}
         onChange={() => setNotifications(n => ({ ...n, community: !n.community }))}
       />
-    
+      <ToggleRow
+        icon={<Bell size={18} style={{ color: "#fd7e14" }} />}
+        label="근처 모임 알림"
+        value={notifications.nearby}
+        onChange={() => setNotifications(n => ({ ...n, nearby: !n.nearby }))}
+      />
+      <ToggleRow
+        icon={<Bell size={18} style={{ color: "var(--muted-foreground)" }} />}
+        label="마케팅 알림"
+        value={notifications.marketing}
+        onChange={() => setNotifications(n => ({ ...n, marketing: !n.marketing }))}
+        last
+      />
     </Section>
 
     {/* Display */}
@@ -533,7 +411,7 @@ if (activeSection === "reports") {
     <Section title="고객 지원">
       <SettingRow
         icon={<MessageSquare size={18} style={{ color: "#5bc0de" }} />}
-        label="건의사항"
+        label="문의/건의사항"
         onPress={() => setActiveSection("inquiry")}
       />
       <SettingRow
@@ -548,7 +426,7 @@ if (activeSection === "reports") {
     <Section title="안전">
       <SettingRow
         icon={<AlertTriangle size={18} style={{ color: "#d4183d" }} />}
-        label="신고 및 건의사항 내역"
+        label="신고 내역"
         onPress={() => setActiveSection("reports")}
       />
       <SettingRow
