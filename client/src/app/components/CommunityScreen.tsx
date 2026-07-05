@@ -43,7 +43,6 @@ interface Friend {
   id: number;
   name: string;
   avatar: string;
-  online: boolean;
   lastMsg: string;
 }
 
@@ -68,10 +67,10 @@ const filterProfanity = (text: string) => {
 };
 
 const FRIENDS: Friend[] = [
-  { id: 1, name: "데이터킹", avatar: "👑", online: true, lastMsg: "오늘 수업 어때?" },
-  { id: 2, name: "AI빅데이터27", avatar: "🐱", online: true, lastMsg: "공모전 같이 나가자!" },
-  { id: 3, name: "분석마스터", avatar: "📊", online: false, lastMsg: "족보 공유해줘서 고마워" },
-  { id: 4, name: "파이썬고수", avatar: "🐍", online: true, lastMsg: "스터디 언제 할래?" },
+  { id: 1, name: "데이터킹", avatar: "👑", lastMsg: "오늘 수업 어때?" },
+  { id: 2, name: "AI빅데이터27", avatar: "🐱", lastMsg: "공모전 같이 나가자!" },
+  { id: 3, name: "분석마스터", avatar: "📊", lastMsg: "족보 공유해줘서 고마워" },
+  { id: 4, name: "파이썬고수", avatar: "🐍", lastMsg: "스터디 언제 할래?" },
 ];
 
 const CHAT_MESSAGES: Record<number, Message[]> = {
@@ -428,9 +427,6 @@ const handleDeleteFriends = () => {
           <span className="text-2xl">{activeFriend.avatar}</span>
           <div className="flex-1">
             <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>{activeFriend.name}</p>
-            <p className="text-xs" style={{ color: activeFriend.online ? "#5cb85c" : "var(--muted-foreground)" }}>
-              {activeFriend.online ? "● 온라인" : "오프라인"}
-            </p>
           </div>
           {selectMode ? (
             <div className="flex gap-2">
@@ -474,6 +470,33 @@ const handleDeleteFriends = () => {
             >
               ☑️ 메시지 선택
             </button>
+            <button
+              onClick={() => {
+              setShowChatMenu(false);
+
+              showConfirm(
+                `${activeFriend?.name}님을 차단하면
+                더 이상 채팅을 주고받을 수 없습니다.
+
+                차단하시겠습니까?`,
+                () => {
+                  setFriends((prev) =>
+                    prev.filter((f) => f.id !== activeFriend?.id)
+                  );
+
+                  setActiveFriend(null);
+
+                  showAlert("차단되었습니다.");
+                }
+              );
+            }}
+            className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left"
+            style={{
+              color: "#d4183d"
+            }}
+          >
+            🚫 차단
+          </button>
           </div>
         )}
 
@@ -515,7 +538,7 @@ const handleDeleteFriends = () => {
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
           {(chatMessages[activeFriend.id] || []).map((msg) => (
             <div key={msg.id} className={`flex items-center gap-2 ${msg.mine ? "justify-end" : "justify-start"}`}>
-              {selectMode && (
+              {selectMode && msg.mine && (
                 <input
                   type="checkbox"
                   checked={selectedMsgs.includes(msg.id)}
@@ -584,7 +607,7 @@ const handleDeleteFriends = () => {
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
             placeholder="메시지 입력..."
             className="flex-1 px-4 py-2.5 rounded-2xl text-sm outline-none"
-            style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
+            style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
           />
           <button
             onClick={sendMessage}
@@ -1252,9 +1275,8 @@ const handleDeleteFriends = () => {
         >
           <div className="flex items-center gap-2">
             <MessageCircle size={16} color="white" />
-            <span className="text-sm font-semibold text-white">친구 채팅</span>
-            <span className="text-xs text-white opacity-80">
-              ({friends.filter((f) => f.online).length}명 온라인)
+            <span className="text-sm font-semibold text-white">
+              친구 채팅
             </span>
           </div>
           {showChat ? <ChevronDown size={18} color="white" /> : <ChevronUp size={18} color="white" />}
@@ -1355,10 +1377,6 @@ const handleDeleteFriends = () => {
 
     <div className="relative">
       <span className="text-2xl">{friend.avatar}</span>
-      {friend.online && (
-        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-green-500 border-2"
-          style={{ borderColor: "var(--card)" }} />
-      )}
     </div>
     <div className="flex-1 min-w-0">
       <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{friend.name}</p>
