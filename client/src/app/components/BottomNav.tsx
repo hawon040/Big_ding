@@ -1,19 +1,24 @@
-import { Users, User, Settings } from "lucide-react";
+import { Users, MessageCircle, User, Settings } from "lucide-react";
 
-type Tab = "community" | "profile" | "settings";
+type Tab = "community" | "chat" | "profile" | "settings";
 
 interface BottomNavProps {
   active: Tab;
   onChange: (tab: Tab) => void;
+  onTabClick?: (tab: Tab) => void;
 }
 
 const tabs = [
   { id: "community" as Tab, icon: Users, label: "커뮤니티" },
+  { id: "chat" as Tab, icon: MessageCircle, label: "채팅" },
   { id: "profile" as Tab, icon: User, label: "프로필" },
   { id: "settings" as Tab, icon: Settings, label: "설정" },
 ];
 
-export function BottomNav({ active, onChange }: BottomNavProps) {
+export function BottomNav({
+  active,
+  onChange,
+}: BottomNavProps) {
   return (
     <nav className="flex items-center justify-around bg-card border-t border-border px-2 py-2 safe-area-bottom">
       {tabs.map(({ id, icon: Icon, label }) => {
@@ -33,10 +38,7 @@ export function BottomNav({ active, onChange }: BottomNavProps) {
               fill={isActive ? "var(--primary)" : "none"}
               style={{ color: isActive ? "var(--primary)" : "var(--muted-foreground)" }}
             />
-            <span
-              className="text-[10px]"
-              style={{ fontWeight: isActive ? 700 : 400 }}
-            >
+            <span className="text-[10px]" style={{ fontWeight: isActive ? 700 : 400 }}>
               {label}
             </span>
           </button>

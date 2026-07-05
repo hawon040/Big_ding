@@ -289,7 +289,19 @@ export const BOARDS = [
   { id: "meeting" as BoardType, label: "공강모임", emoji: "☕", icon: Coffee },
 ];
 
+<<<<<<< HEAD
 export function CommunityScreen({ selectedPostId }: { selectedPostId?: number | null }) {
+=======
+interface CommunityScreenProps {
+  showChat: boolean;
+  setShowChat: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+export function CommunityScreen({
+  showChat,
+  setShowChat,
+}: CommunityScreenProps) {
+>>>>>>> eba623241899abf46b6795ff46087ec4dd13f018
   // 좋아요/싫어요/댓글/스크랩/새 글 등은 로컬 저장소에서 초기값을 불러와
   // 새로고침해도 그대로 유지되도록 한다.
   const [storedInit] = useState(loadStoredInteractions);
@@ -342,9 +354,10 @@ export function CommunityScreen({ selectedPostId }: { selectedPostId?: number | 
       // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
     }
   }, [likedPosts, dislikedPosts, savedPosts, extraComments, createdPosts, deletedPostIds, nextPostId]);
-  
 
-  const [showChat, setShowChat] = useState(false);
+  const [chatHeight, setChatHeight] = useState(44);
+  const [dragStartY, setDragStartY] = useState<number | null>(null);
+
   const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
   const [chatMessages, setChatMessages] = useState<Record<number, Message[]>>(CHAT_MESSAGES);
   const [chatInput, setChatInput] = useState("");
@@ -443,6 +456,45 @@ const handleDeleteFriends = () => {
   }));
   setCommentInput("");
 };
+const startDrag = (y: number) => {
+  setDragStartY(y);
+};
+
+const onDrag = (y: number) => {
+  if (dragStartY === null) return;
+
+  const diff = dragStartY - y;
+
+  let nextHeight = 44 + diff;
+
+  if (nextHeight < 44) nextHeight = 44;
+  if (nextHeight > 640) nextHeight = 640;
+
+  setChatHeight(nextHeight);
+};
+
+const endDrag = () => {
+  // 거의 움직이지 않았다면(클릭으로 간주) 현재 열림 상태를 반전
+  const dragDistance = Math.abs(chatHeight - (showChat ? 640 : 44));
+  if (dragDistance < 10) {
+    if (showChat) {
+      setChatHeight(44);
+      setShowChat(false);
+    } else {
+      setChatHeight(640);
+      setShowChat(true);
+    }
+  } else if (chatHeight > 350) {
+    setChatHeight(640);
+    setShowChat(true);
+  } else {
+    setChatHeight(44);
+    setShowChat(false);
+  }
+
+  setDragStartY(null);
+};
+
 // 내가 작성한 댓글 삭제 (extraComments에서 해당 인덱스만 제거)
   const handleDeleteComment = (postId: number, index: number) => {
     setOpenCommentMenu(null);
@@ -1370,14 +1422,24 @@ const handleDeleteFriends = () => {
       </div>
 
       {/* 친구/채팅 패널 */}
-      <div
-        className="absolute bottom-0 left-0 right-0 z-30 transition-all duration-300"
-        style={{ transform: showChat ? "translateY(0)" : "translateY(calc(100% - 44px))" }}
-      >
+        <div
+          className="absolute bottom-0 left-0 right-0 z-30 transition-all duration-300"
+          style={{
+            transform: showChat
+              ? "translateY(0)"
+              : "translateY(calc(100% - 44px))",
+          }}
+        >
         <button
-          onClick={() => setShowChat(!showChat)}
+          onMouseDown={(e) => startDrag(e.clientY)}
+          onMouseMove={(e) => dragStartY !== null && onDrag(e.clientY)}
+          onMouseUp={endDrag}
+          onMouseLeave={() => dragStartY !== null && endDrag()}
+          onTouchStart={(e) => startDrag(e.touches[0].clientY)}
+          onTouchMove={(e) => onDrag(e.touches[0].clientY)}
+          onTouchEnd={endDrag}
           className="w-full flex items-center justify-between px-5 py-3 rounded-t-2xl shadow-lg"
-          style={{ background: "var(--primary)" }}
+          style={{ background: "var(--primary)", touchAction: "none", cursor: "grab" }}
         >
           <div className="flex items-center gap-2">
             <MessageCircle size={16} color="white" />
@@ -1456,7 +1518,6 @@ const handleDeleteFriends = () => {
         toggleFriendSelect(friend.id);
       } else {
         setActiveFriend(friend);
-        setShowChat(false);
       }
     }}
     className="flex items-center gap-3 p-2.5 rounded-xl text-left"
