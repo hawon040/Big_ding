@@ -1353,8 +1353,9 @@ const handleDeleteFriends = () => {
               >
                 {reason}
               </button>
+              
             ))}
-            <button
+          <button
               onClick={() => {
                 if (confirm("이 사용자를 차단하시겠습니까?")) {
                   alert("사용자가 차단되었습니다.");
@@ -1365,7 +1366,7 @@ const handleDeleteFriends = () => {
               style={{ background: "#d4183d22", color: "#d4183d" }}
             >
               사용자 차단
-            </button>
+              </button>
           </div>
         </div>
       )}
