@@ -191,6 +191,8 @@ const [currentTime, setCurrentTime] = useState("");
           <CommunityScreen
             showChat={showChatPanel}
             setShowChat={setShowChatPanel}
+            isActive={activeTab === "community" || activeTab === "chat"}
+            onViewOwnProfile={() => handleTabChange("profile")}
           />
         </div>
 

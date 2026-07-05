@@ -1,25 +1,15 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import {
   Camera, ChevronRight, Heart, FileText, Edit3, MessageCircle, Bookmark,
   Lock, Users, Globe, X, ThumbsDown, Star, MoreVertical, Trash2,
 } from "lucide-react";
 import {
   POSTS, BOARDS, loadStoredInteractions, getDummyComments, filterProfanity,
-  STORAGE_KEY, type Post, type StoredInteractions,
+  STORAGE_KEY, INTERACTIONS_UPDATED_EVENT,
+  AVATAR_STORAGE_KEY, AVATAR_UPDATED_EVENT, loadAvatar,
+  type Post, type StoredInteractions,
 } from "./CommunityScreen";
 
-const SCRAPPED = [
-  { id: 1, title: "AI빅데이터 분석 공모전 팀원 모집", board: "공모전/자격증", emoji: "🏆" },
-  { id: 2, title: "데이터마이닝 강의 추천합니다", board: "강의평가", emoji: "⭐" },
-  { id: 3, title: "학교 도서관 이용 시간 문의", board: "선후배 Q&A", emoji: "🙋" },
-];
-
-const MY_COMMENTS = [
-  { id: 1, postTitle: "ADsP 자격증 체감 난이도 후기", content: "저도 다음달에 시험 보는데 도움이 많이 됐어요!", time: "1일 전" },
-  { id: 2, postTitle: "학교 카페테리아 신메뉴 AI빅데이터전공 27학번후기", content: "저도 어제 먹어봤는데 맛있더라구요", time: "3일 전" },
-];
-
-const AVATAR_STORAGE_KEY = "bigding_profile_avatar_v1";
 const VISIBILITY_STORAGE_KEY = "bigding_post_visibility_v1";
 
 type Visibility = "all" | "friends" | "private";
@@ -28,14 +18,6 @@ const VISIBILITY_META: Record<Visibility, { label: string; Icon: React.Component
   all: { label: "전체 공개", Icon: Globe },
   friends: { label: "친구만 공개", Icon: Users },
   private: { label: "나만 보기", Icon: Lock },
-};
-
-const loadAvatar = (): string | null => {
-  try {
-    return localStorage.getItem(AVATAR_STORAGE_KEY);
-  } catch {
-    return null;
-  }
 };
 
 const loadPostVisibility = (): Record<number, Visibility> => {
@@ -72,10 +54,6 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
   const [avatar, setAvatar] = useState<string | null>(loadAvatar);
   const [postVisibility, setPostVisibility] = useState<Record<number, Visibility>>(loadPostVisibility);
 
-  // 삭제/취소가 실제로 반영되도록 상태로 관리
-  const [myComments, setMyComments] = useState(MY_COMMENTS);
-  const [scrapped, setScrapped] = useState(SCRAPPED);
-
   // CommunityScreen과 동일한 로컬 저장소(STORAGE_KEY)를 공유해서
   // 좋아요/싫어요/스크랩/댓글/삭제 상태가 두 화면에서 항상 일치하도록 한다.
   const [storedInit] = useState(loadStoredInteractions);
@@ -83,26 +61,62 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
   const [dislikedPosts, setDislikedPosts] = useState<Record<number, boolean>>(storedInit.dislikedPosts);
   const [savedPosts, setSavedPosts] = useState<Record<number, boolean>>(storedInit.savedPosts);
   const [extraComments, setExtraComments] = useState<Record<number, { user: string; text: string; emoji: string }[]>>(storedInit.extraComments);
+  const [createdPosts, setCreatedPosts] = useState<Post[]>(storedInit.createdPosts);
   const [deletedPostIds, setDeletedPostIds] = useState<number[]>(storedInit.deletedPostIds);
+  const [nextPostId, setNextPostId] = useState(storedInit.nextPostId);
   const [commentInput, setCommentInput] = useState("");
+  const commentInputRef = useRef<HTMLInputElement>(null);
   const [openCommentMenu, setOpenCommentMenu] = useState<number | null>(null);
 
+  // 이 화면에서 좋아요/싫어요/스크랩/댓글/삭제가 바뀌면 저장하고, CommunityScreen에도
+  // 즉시 알려서(같은 탭: 커스텀 이벤트, 다른 탭: storage 이벤트) 서로 어긋나지 않게 한다.
+  // 이미 저장된 내용과 같으면 다시 쓰지 않아, CommunityScreen이 보낸 갱신을 반영할 때
+  // 다시 이벤트를 쏘는 무한 루프가 생기지 않는다.
   useEffect(() => {
     const toStore: StoredInteractions = {
       likedPosts,
       dislikedPosts,
       savedPosts,
       extraComments,
-      createdPosts: storedInit.createdPosts,
+      createdPosts,
       deletedPostIds,
-      nextPostId: storedInit.nextPostId,
+      nextPostId,
     };
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
+      const json = JSON.stringify(toStore);
+      if (localStorage.getItem(STORAGE_KEY) !== json) {
+        localStorage.setItem(STORAGE_KEY, json);
+        window.dispatchEvent(new CustomEvent(INTERACTIONS_UPDATED_EVENT, { detail: toStore }));
+      }
     } catch {
       // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
     }
-  }, [likedPosts, dislikedPosts, savedPosts, extraComments, deletedPostIds, storedInit.createdPosts, storedInit.nextPostId]);
+  }, [likedPosts, dislikedPosts, savedPosts, extraComments, createdPosts, deletedPostIds, nextPostId]);
+
+  useEffect(() => {
+    const applyExternalUpdate = (next: StoredInteractions) => {
+      setLikedPosts(next.likedPosts);
+      setDislikedPosts(next.dislikedPosts);
+      setSavedPosts(next.savedPosts);
+      setExtraComments(next.extraComments);
+      setCreatedPosts(next.createdPosts);
+      setDeletedPostIds(next.deletedPostIds);
+      setNextPostId(next.nextPostId);
+    };
+    const handleInteractionsUpdated = (e: Event) => {
+      const detail = (e as CustomEvent<StoredInteractions>).detail;
+      applyExternalUpdate(detail ?? loadStoredInteractions());
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY) applyExternalUpdate(loadStoredInteractions());
+    };
+    window.addEventListener(INTERACTIONS_UPDATED_EVENT, handleInteractionsUpdated);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(INTERACTIONS_UPDATED_EVENT, handleInteractionsUpdated);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -112,10 +126,36 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
     }
   }, [postVisibility]);
 
-  const myPosts: Post[] = useMemo(() => {
-    const allPosts = [...storedInit.createdPosts, ...Object.values(POSTS).flat()];
-    return allPosts.filter((p) => !deletedPostIds.includes(p.id) && p.author === "나");
-  }, [storedInit.createdPosts, deletedPostIds]);
+  const allKnownPosts: Post[] = useMemo(() => {
+    const allPosts = [...createdPosts, ...Object.values(POSTS).flat()];
+    return allPosts.filter((p) => !deletedPostIds.includes(p.id));
+  }, [createdPosts, deletedPostIds]);
+
+  const myPosts: Post[] = useMemo(
+    () => allKnownPosts.filter((p) => p.author === "나"),
+    [allKnownPosts]
+  );
+
+  // CommunityScreen에서 스크랩(북마크)한 게시물을 실제로 불러온다.
+  const scrappedPosts: Post[] = useMemo(
+    () => allKnownPosts.filter((p) => savedPosts[p.id]),
+    [allKnownPosts, savedPosts]
+  );
+
+  // 내가 실제로 작성한 댓글을 게시물별 extraComments에서 뽑아온다.
+  const myWrittenComments = useMemo(() => {
+    const list: { postId: number; index: number; text: string; emoji: string; postTitle: string }[] = [];
+    Object.entries(extraComments).forEach(([postIdStr, comments]) => {
+      const postId = Number(postIdStr);
+      const post = allKnownPosts.find((p) => p.id === postId);
+      if (!post) return;
+      comments.forEach((c, index) => {
+        if (c.user !== "나") return;
+        list.push({ postId, index, text: c.text, emoji: c.emoji, postTitle: post.title });
+      });
+    });
+    return list;
+  }, [extraComments, allKnownPosts]);
 
   const getBoardLabel = (board?: string) => BOARDS.find((b) => b.id === board)?.label ?? board ?? "";
   const getCommentCount = (post: Post) => post.comments + (extraComments[post.id]?.length || 0);
@@ -151,6 +191,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
       setAvatar(result);
       try {
         localStorage.setItem(AVATAR_STORAGE_KEY, result);
+        window.dispatchEvent(new CustomEvent(AVATAR_UPDATED_EVENT, { detail: result }));
       } catch {
         // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
       }
@@ -329,54 +370,78 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
     );
   })
 )}
-        {activeTab === "comments" && myComments.map((comment) => (
-          <div key={comment.id} className="p-3.5 rounded-2xl shadow-sm" style={{ background: "var(--card)" }}>
-            <div className="flex items-start justify-between mb-1">
-              <p className="text-xs font-semibold" style={{ color: "var(--primary)" }}>
-                {comment.postTitle}
-              </p>
-              <button
-                onClick={() => {
-                  showConfirm("댓글을 삭제하시겠습니까?", () => {
-                    setMyComments((prev) => prev.filter((c) => c.id !== comment.id));
-                  });
-                }}
-              >
-                <X size={14} style={{ color: "#d4183d" }} />
-              </button>
-            </div>
-            <p className="text-sm" style={{ color: "var(--foreground)" }}>{comment.content}</p>
-            <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>{comment.time}</p>
-          </div>
-        ))}
-
-        {activeTab === "scrapped" && scrapped.map((item) => (
-          <div key={item.id} className="p-3.5 rounded-2xl shadow-sm" style={{ background: "var(--card)" }}>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xl">{item.emoji}</span>
-                  <span
-                    className="text-xs px-2 py-0.5 rounded-full font-medium"
-                    style={{ background: "var(--secondary)", color: "var(--primary)" }}
-                  >
-                    {item.board}
-                  </span>
-                </div>
-                <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>{item.title}</p>
+        {activeTab === "comments" && (
+          myWrittenComments.length === 0 ? (
+            <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
+              작성한 댓글이 없어요.
+            </p>
+          ) : myWrittenComments.map((comment) => (
+            <div
+              key={`${comment.postId}-${comment.index}`}
+              className="p-3.5 rounded-2xl shadow-sm cursor-pointer"
+              style={{ background: "var(--card)" }}
+              onClick={() => {
+                const post = allKnownPosts.find((p) => p.id === comment.postId);
+                if (post) setSelectedPost(post);
+              }}
+            >
+              <div className="flex items-start justify-between mb-1">
+                <p className="text-xs font-semibold" style={{ color: "var(--primary)" }}>
+                  {comment.postTitle}
+                </p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteComment(comment.postId, comment.index);
+                  }}
+                >
+                  <X size={14} style={{ color: "#d4183d" }} />
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  showConfirm("스크랩을 취소하시겠습니까?", () => {
-                    setScrapped((prev) => prev.filter((s) => s.id !== item.id));
-                  });
-                }}
-              >
-                <Bookmark size={18} fill="var(--primary)" color="var(--primary)" />
-              </button>
+              <p className="text-sm" style={{ color: "var(--foreground)" }}>{comment.emoji} {comment.text}</p>
             </div>
-          </div>
-        ))}
+          ))
+        )}
+
+        {activeTab === "scrapped" && (
+          scrappedPosts.length === 0 ? (
+            <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
+              스크랩한 게시물이 없어요.
+            </p>
+          ) : scrappedPosts.map((post) => (
+            <div
+              key={post.id}
+              className="p-3.5 rounded-2xl shadow-sm cursor-pointer"
+              style={{ background: "var(--card)" }}
+              onClick={() => setSelectedPost(post)}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xl">{post.avatar}</span>
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full font-medium"
+                      style={{ background: "var(--secondary)", color: "var(--primary)" }}
+                    >
+                      {getBoardLabel(post.board)}
+                    </span>
+                  </div>
+                  <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>{post.title}</p>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    showConfirm("스크랩을 취소하시겠습니까?", () => {
+                      setSavedPosts((prev) => ({ ...prev, [post.id]: false }));
+                    });
+                  }}
+                >
+                  <Bookmark size={18} fill="var(--primary)" color="var(--primary)" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
     {selectedPost && (
@@ -385,7 +450,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
       <button onClick={() => setSelectedPost(null)} className="text-lg">←</button>
       <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
     </div>
-    <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 scrollbar-hide">
+    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 scrollbar-hide">
       {/* 게시물 카드 */}
       <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
         <div className="flex items-center gap-2 mb-3">
@@ -488,10 +553,14 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
               {getDislikeCount(selectedPost)}
             </span>
           </button>
-          <div className="flex items-center gap-1.5">
+          <button className="flex items-center gap-1.5"
+            onClick={() => {
+              commentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+              commentInputRef.current?.focus();
+            }}>
             <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
             <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(selectedPost)}</span>
-          </div>
+          </button>
           <button className="flex items-center gap-1.5"
             onClick={() => setSavedPosts((s) => ({ ...s, [selectedPost!.id]: !s[selectedPost!.id] }))}>
             <Bookmark size={16} fill={savedPosts[selectedPost.id] ? "var(--primary)" : "none"}
@@ -555,6 +624,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
     {/* 댓글 입력 */}
     <div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
       <input
+        ref={commentInputRef}
         value={commentInput}
         onChange={(e) => setCommentInput(e.target.value)}
         onKeyDown={(e) => {
