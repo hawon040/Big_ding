@@ -6,7 +6,7 @@ import {
   Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, Edit2, Trash2, AlertTriangle
 } from "lucide-react";
 
-type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting";
+export type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting";
 
 interface PollOption {
   id: number;
@@ -19,7 +19,7 @@ interface Poll {
   options: PollOption[];
 }
 
-interface Post {
+export interface Post {
   id: number;
   author: string;
   avatar: string;
@@ -85,7 +85,7 @@ const CHAT_MESSAGES: Record<number, Message[]> = {
   ],
 };
 
-const POSTS: Record<BoardType, Post[]> = {
+export const POSTS: Record<BoardType, Post[]> = {
   free: [
     {
       id: 1, author: "AI빅데이터21", avatar: "📊", time: "10분 전",
@@ -203,7 +203,7 @@ const POSTS: Record<BoardType, Post[]> = {
 };
 
 // 좋아요/싫어요/댓글 등 사용자 상호작용을 새로고침해도 유지하기 위한 로컬 저장소 헬퍼
-const STORAGE_KEY = "bigding_community_interactions_v1";
+export const STORAGE_KEY = "bigding_community_interactions_v1";
 const REPORTS_STORAGE_KEY = "bigding_report_history_v1";
 const REPORTS_UPDATED_EVENT = "bigding-report-added";
 
@@ -227,7 +227,7 @@ const addReportToHistory = (report: ReportHistoryItem) => {
     // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
   }
 };
-interface StoredInteractions {
+export interface StoredInteractions {
   likedPosts: Record<number, boolean>;
   dislikedPosts: Record<number, boolean>;
   savedPosts: Record<number, boolean>;
@@ -237,7 +237,7 @@ interface StoredInteractions {
   nextPostId: number;
 }
  
-const loadStoredInteractions = (): StoredInteractions => {
+export const loadStoredInteractions = (): StoredInteractions => {
   const fallback: StoredInteractions = {
     likedPosts: {},
     dislikedPosts: {},
@@ -256,8 +256,30 @@ const loadStoredInteractions = (): StoredInteractions => {
     return fallback;
   }
 };
- 
-const BOARDS = [
+ const DUMMY_COMMENT_TEMPLATES: { user: string; text: string; emoji: string }[] = [
+  { user: "익명1", text: "좋은 정보 감사해요!", emoji: "😊" },
+  { user: "익명2", text: "저도 궁금했는데 도움됐어요!", emoji: "🐱" },
+  { user: "익명3", text: "공유 감사합니다 👍", emoji: "📊" },
+  { user: "익명4", text: "완전 유용하네요!", emoji: "🔥" },
+  { user: "익명5", text: "저장해두고 봐야겠어요", emoji: "📌" },
+  { user: "익명6", text: "덕분에 잘 알아갑니다", emoji: "🙏" },
+  { user: "익명7", text: "저랑 상황이 똑같아서 공감돼요", emoji: "🐰" },
+  { user: "익명8", text: "이거 진짜 궁금했던 내용이에요", emoji: "🤔" },
+  { user: "익명9", text: "글 잘 읽었습니다!", emoji: "📚" },
+  { user: "익명10", text: "다음 글도 기대할게요", emoji: "✨" },
+  { user: "익명11", text: "이런 정보 자주 올려주세요", emoji: "🙌" },
+  { user: "익명12", text: "저도 참고할게요~", emoji: "🐶" },
+];
+
+export const getDummyComments = (post: Post) => {
+  const count = Math.max(0, post.comments);
+  return Array.from({ length: count }, (_, i) => {
+    const template = DUMMY_COMMENT_TEMPLATES[i % DUMMY_COMMENT_TEMPLATES.length];
+    const user = i < DUMMY_COMMENT_TEMPLATES.length ? template.user : `익명${i + 1}`;
+    return { user, text: template.text, emoji: template.emoji };
+  });
+};
+export const BOARDS = [
   { id: "free" as BoardType, label: "생활Q&A", emoji: "💬", icon: MessageCircle },
   { id: "qna" as BoardType, label: "선배들 작품 전시 공간", emoji: "🏆", icon: Users },
   { id: "contest" as BoardType, label: "학업", emoji: "📖", icon: Trophy },
@@ -278,6 +300,7 @@ export function CommunityScreen() {
   const [openComments, setOpenComments] = useState<Record<number, boolean>>({});
   const [extraComments, setExtraComments] = useState<Record<number, { user: string; text: string; emoji: string }[]>>(storedInit.extraComments);
   const [commentInput, setCommentInput] = useState("");
+  const [openCommentMenu, setOpenCommentMenu] = useState<number | null>(null);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [viewedAuthor, setViewedAuthor] = useState<{ name: string; avatar: string } | null>(null);
   const [showWrite, setShowWrite] = useState(false);
@@ -355,8 +378,7 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
 
  // 게시물의 실제 댓글 수 = 원래 댓글 수 + 내가 새로 등록한 댓글 수
  const getCommentCount = (post: Post) => post.comments + (extraComments[post.id]?.length || 0);
- 
- const allPosts = [...createdPosts, ...Object.values(POSTS).flat()].filter((p) => !deletedPostIds.includes(p.id));
+const allPosts = [...createdPosts, ...Object.values(POSTS).flat()].filter((p) => !deletedPostIds.includes(p.id));
   const posts = showSearch && searchQuery
     ? allPosts.filter((p) =>
         p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -411,7 +433,16 @@ const handleDeleteFriends = () => {
   }));
   setCommentInput("");
 };
-
+// 내가 작성한 댓글 삭제 (extraComments에서 해당 인덱스만 제거)
+  const handleDeleteComment = (postId: number, index: number) => {
+    setOpenCommentMenu(null);
+    showConfirm("댓글을 삭제하시겠습니까?", () => {
+      setExtraComments((prev) => ({
+        ...prev,
+        [postId]: (prev[postId] || []).filter((_, i) => i !== index),
+      }));
+    });
+  };
   // ── 채팅 창 ──────────────────────────────────────────────────────────────
   if (activeFriend) {
     return (
@@ -747,7 +778,7 @@ const handleDeleteFriends = () => {
   // ── 게시물 상세 화면 ──────────────────────────────────────────────────────
   if (selectedPost) {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1 overflow-hidden relative">
         <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
           <button onClick={() => setSelectedPost(null)} className="text-lg">←</button>
           <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
@@ -874,11 +905,7 @@ const handleDeleteFriends = () => {
             <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
               댓글 {getCommentCount(selectedPost)}개
             </p>
-            {[
-              { user: "익명1", text: "좋은 정보 감사해요!", emoji: "😊" },
-              { user: "익명2", text: "저도 궁금했는데 도움됐어요!", emoji: "🐱" },
-              { user: "익명3", text: "공유 감사합니다 👍", emoji: "📊" },
-            ].slice(0, selectedPost!.comments ?? 3).map((c, i) => (
+            {getDummyComments(selectedPost).map((c, i) => (
               <div key={i} className="flex gap-2 items-start">
                 <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
                   style={{ background: "var(--muted)" }}>{c.emoji}</div>
@@ -890,15 +917,38 @@ const handleDeleteFriends = () => {
             ))}
 
            {(extraComments[selectedPost.id] || []).map((c, i) => (
-              <div key={`new-${i}`} className="flex gap-2 items-start">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
-                  style={{ background: "var(--muted)" }}>{c.emoji}</div>
-                <div className="flex-1 px-3 py-2 rounded-xl text-xs"
-                  style={{ color: "var(--foreground)" }}>
-                  <span className="font-semibold">{c.user} </span>{c.text}
-                </div>
-              </div>
-            ))}
+  <div key={`new-${i}`} className="flex gap-2 items-start relative">
+    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
+      style={{ background: "var(--muted)" }}>{c.emoji}</div>
+    <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
+      style={{ color: "var(--foreground)" }}>
+      <span><span className="font-semibold">{c.user} </span>{c.text}</span>
+      <div className="relative shrink-0">
+        <button
+          onClick={() => setOpenCommentMenu(openCommentMenu === i ? null : i)}
+          style={{ color: "var(--muted-foreground)" }}
+          aria-label="댓글 더보기"
+        >
+          <MoreVertical size={14} />
+        </button>
+        {openCommentMenu === i && (
+          <div
+            className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
+            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+          >
+            <button
+              onClick={() => handleDeleteComment(selectedPost.id, i)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
+              style={{ color: "#d4183d" }}
+            >
+              <Trash2 size={13} /> 삭제
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  </div>
+))}
           </div>
         </div>
 
@@ -927,6 +977,52 @@ const handleDeleteFriends = () => {
     등록
   </button>
   </div>
+
+      {/* 커스텀 확인 팝업 (댓글 삭제 등) - 게시물 상세 화면에서도 뜨도록 여기에도 렌더링 */}
+      {confirmState && (
+        <div
+          className="absolute inset-0 z-[70] flex items-center justify-center px-6"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+        >
+          <div
+            className="w-full rounded-2xl overflow-hidden shadow-2xl"
+            style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+              style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+            >
+              알림
+              <button onClick={closeConfirm} style={{ color: "var(--muted-foreground)" }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+              {confirmState.message}
+            </div>
+            <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+              <button
+                className="flex-1 py-3 text-sm font-medium"
+                style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
+                onClick={() => {
+                  const action = confirmState.onConfirm;
+                  setConfirmState(null);
+                  action();
+                }}
+              >
+                확인
+              </button>
+              <button
+                className="flex-1 py-3 text-sm font-medium"
+                style={{ color: "var(--foreground)" }}
+                onClick={closeConfirm}
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 </div>
     );
   }
