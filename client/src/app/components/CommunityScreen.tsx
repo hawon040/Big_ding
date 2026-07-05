@@ -870,10 +870,12 @@ const endDrag = () => {
 
             <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h3>
 
-            {selectedPost.id % 3 === 1 && (
-              <div className="mt-2 h-32 rounded-xl flex items-center justify-center" style={{ background: "var(--muted)" }}>
-                <Image size={28} style={{ color: "var(--muted-foreground)" }} />
-              </div>
+            {selectedPost.image && (
+              <img
+                src={selectedPost.image}
+                alt="첨부 이미지"
+                className="mt-2 w-full max-h-72 object-cover rounded-xl"
+              />
             )}
 
             {selectedPost.rating && (
@@ -1256,10 +1258,12 @@ const endDrag = () => {
             <div onClick={() => setSelectedPost(post)} className="cursor-pointer">
               <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{post.title}</h3>
 
-              {post.id % 3 === 1 && (
-                <div className="mt-2 h-32 rounded-xl flex items-center justify-center" style={{ background: "var(--muted)" }}>
-                  <Image size={28} style={{ color: "var(--muted-foreground)" }} />
-                </div>
+              {post.image && (
+                <img
+                  src={post.image}
+                  alt="첨부 이미지"
+                  className="mt-2 w-full max-h-48 object-cover rounded-xl"
+                />
               )}
 
               {post.rating && (
