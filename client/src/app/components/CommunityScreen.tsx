@@ -1628,19 +1628,19 @@ const handleDeleteFriends = () => {
               <button
                 key={reason}
                 onClick={() => {
-  const targetPost = allPosts.find((p) => p.id === showReport);
-  const now = new Date();
-  const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
-  addReportToHistory({
-    id: Date.now(),
-    type: reason,
-    target: targetPost ? targetPost.title : "게시물",
-    status: "처리 중",
-    date,
-  });
-  alert(`신고가 접수되었습니다: ${reason}`);
-  setShowReport(null);
-}}
+                  const targetPost = allPosts.find((p) => p.id === showReport);
+                  const now = new Date();
+                  const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
+                  addReportToHistory({
+                    id: Date.now(),
+                    type: reason,
+                    target: targetPost ? targetPost.title : "게시물",
+                    status: "처리 중",
+                    date,
+                  });
+                  setShowReport(null);
+                  showAlert(`신고가 접수되었습니다: ${reason}`);
+                }}
                 className="w-full px-4 py-3 rounded-xl text-left text-sm"
                 style={{ background: "var(--card)", color: "var(--foreground)" }}
               >
