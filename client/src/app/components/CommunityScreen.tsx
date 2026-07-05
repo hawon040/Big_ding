@@ -43,7 +43,6 @@ interface Friend {
   id: number;
   name: string;
   avatar: string;
-  lastMsg: string;
 }
 
 interface Message {
@@ -53,6 +52,8 @@ interface Message {
   image?: string;
   time: string;
   mine: boolean;
+  // 안 읽음 표시. 생략 시 읽은 것으로 취급(기본값 true), 내가 보낸 메시지는 항상 true.
+  read?: boolean;
 }
 
 const PROFANITY_LIST = ["욕설", "비속어", "씨발", "개새끼", "병신", "지랄", "꺼져", "죽어"];
@@ -67,22 +68,34 @@ export const filterProfanity = (text: string) => {
 };
 
 const FRIENDS: Friend[] = [
-  { id: 1, name: "데이터킹", avatar: "👑", lastMsg: "오늘 수업 어때?" },
-  { id: 2, name: "AI빅데이터27", avatar: "🐱", lastMsg: "공모전 같이 나가자!" },
-  { id: 3, name: "분석마스터", avatar: "📊", lastMsg: "족보 공유해줘서 고마워" },
-  { id: 4, name: "파이썬고수", avatar: "🐍", lastMsg: "스터디 언제 할래?" },
+  { id: 1, name: "데이터킹", avatar: "👑" },
+  { id: 2, name: "AI빅데이터27", avatar: "🐱" },
+  { id: 3, name: "분석마스터", avatar: "📊" },
+  { id: 4, name: "파이썬고수", avatar: "🐍" },
 ];
 
 const CHAT_MESSAGES: Record<number, Message[]> = {
   1: [
-    { id: 1, from: "데이터킹", content: "오늘 수업 어때?", time: "10:30", mine: false },
-    { id: 2, from: "나", content: "괜찮아! 발표 잘 됐어", time: "10:31", mine: true },
-    { id: 3, from: "데이터킹", content: "다행이다 ㅎㅎ 점심 같이?", time: "10:32", mine: false },
+    { id: 1, from: "데이터킹", content: "오늘 수업 어때?", time: "10:30", mine: false, read: true },
+    { id: 2, from: "나", content: "괜찮아! 발표 잘 됐어", time: "10:31", mine: true, read: true },
+    { id: 3, from: "데이터킹", content: "다행이다 ㅎㅎ 점심 같이?", time: "10:32", mine: false, read: false },
   ],
   2: [
-    { id: 1, from: "AI빅데이터27", content: "공모전 같이 나가자!", time: "09:15", mine: false },
-    { id: 2, from: "나", content: "어떤 공모전?", time: "09:20", mine: true },
+    { id: 1, from: "AI빅데이터27", content: "공모전 같이 나가자!", time: "09:15", mine: false, read: true },
+    { id: 2, from: "나", content: "어떤 공모전?", time: "09:20", mine: true, read: true },
   ],
+};
+
+// 채팅 메시지도 새로고침 후 유지되도록 로컬 저장소에 보관한다.
+const CHAT_STORAGE_KEY = "bigding_chat_messages_v1";
+
+const loadChatMessages = (): Record<number, Message[]> => {
+  try {
+    const raw = localStorage.getItem(CHAT_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : CHAT_MESSAGES;
+  } catch {
+    return CHAT_MESSAGES;
+  }
 };
 
 export const POSTS: Record<BoardType, Post[]> = {
@@ -461,7 +474,7 @@ export function CommunityScreen({
   const [dragStartY, setDragStartY] = useState<number | null>(null);
 
   const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
-  const [chatMessages, setChatMessages] = useState<Record<number, Message[]>>(CHAT_MESSAGES);
+  const [chatMessages, setChatMessages] = useState<Record<number, Message[]>>(loadChatMessages);
   const [chatInput, setChatInput] = useState("");
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [friendSearch, setFriendSearch] = useState("");
@@ -472,6 +485,46 @@ const [showChatMenu, setShowChatMenu] = useState(false);
 const [selectMode, setSelectMode] = useState(false);
 const [selectedMsgs, setSelectedMsgs] = useState<number[]>([]);
 const [showReportConfirm, setShowReportConfirm] = useState(false);
+
+  // chatMessages가 바뀔 때마다 저장해서 새로고침해도 대화 내용과 안 읽음 상태가 유지되게 한다.
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(chatMessages));
+    } catch {
+      // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
+    }
+  }, [chatMessages]);
+
+  // 친구 목록 카드에 보여줄 마지막 메시지 미리보기/시간/안 읽은 개수
+  const getFriendPreview = (friend: Friend) => {
+    const msgs = chatMessages[friend.id] || [];
+    if (msgs.length === 0) {
+      return { text: "", time: "", unreadCount: 0 };
+    }
+    const last = msgs[msgs.length - 1];
+    const text = last.image && !last.content ? "사진을 보냈습니다" : last.content;
+    const unreadCount = msgs.filter((m) => m.read === false).length;
+    return { text, time: last.time, unreadCount };
+  };
+
+  // 새 메시지는 id를 Date.now()로 부여하므로, 마지막 메시지 id가 클수록 최근에
+  // 주고받은 대화다. 메시지가 없는 친구는 가장 아래로 내려간다.
+  const getLastMessageSortKey = (friend: Friend) => {
+    const msgs = chatMessages[friend.id] || [];
+    return msgs.length === 0 ? 0 : msgs[msgs.length - 1].id;
+  };
+  const sortedFriends = [...friends].sort(
+    (a, b) => getLastMessageSortKey(b) - getLastMessageSortKey(a)
+  );
+
+  // 친구와의 채팅방에 들어가면 그 친구가 보낸 메시지를 전부 읽음 처리한다.
+  const openFriendChat = (friend: Friend) => {
+    setActiveFriend(friend);
+    setChatMessages((prev) => ({
+      ...prev,
+      [friend.id]: (prev[friend.id] || []).map((m) => (m.read === false ? { ...m, read: true } : m)),
+    }));
+  };
 
   // 커스텀 알림/확인 팝업 상태
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -542,6 +595,7 @@ const handleDeleteFriends = () => {
       content: filtered,
       time: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
       mine: true,
+      read: true,
     };
     setChatMessages((prev) => ({
       ...prev,
@@ -799,6 +853,7 @@ const endDrag = () => {
                     image: reader.result as string,
                     time: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
                     mine: true,
+                    read: true,
                   };
                   setChatMessages((prev) => ({
                     ...prev,
@@ -1674,14 +1729,16 @@ const endDrag = () => {
             </div>
           )}
 
-         {friends.map((friend) => (
+         {sortedFriends.map((friend) => {
+  const { text, time, unreadCount } = getFriendPreview(friend);
+  return (
   <button
     key={friend.id}
     onClick={() => {
       if (isFriendSelectMode) {
         toggleFriendSelect(friend.id);
       } else {
-        setActiveFriend(friend);
+        openFriendChat(friend);
       }
     }}
     className="flex items-center gap-3 p-2.5 rounded-xl text-left"
@@ -1710,11 +1767,37 @@ const endDrag = () => {
       <span className="text-2xl">{friend.avatar}</span>
     </div>
     <div className="flex-1 min-w-0">
-      <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{friend.name}</p>
-      <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{friend.lastMsg}</p>
+      <div className="flex items-center gap-1.5">
+        <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{friend.name}</p>
+        {unreadCount > 0 && (
+          <span
+            className="text-[10px] font-bold text-white rounded-full px-1.5 py-0.5 shrink-0"
+            style={{ background: "#d4183d", minWidth: "16px", textAlign: "center", lineHeight: 1.2 }}
+          >
+            {unreadCount}
+          </span>
+        )}
+      </div>
+      {text && (
+        <p
+          className="text-xs truncate mt-1"
+          style={{
+            color: unreadCount > 0 ? "var(--foreground)" : "var(--muted-foreground)",
+            fontWeight: unreadCount > 0 ? 700 : 400,
+          }}
+        >
+          {text}
+        </p>
+      )}
     </div>
+    {time && (
+      <span className="text-[10px] shrink-0 self-start pt-1" style={{ color: "var(--muted-foreground)" }}>
+        {time}
+      </span>
+    )}
   </button>
-))}
+  );
+})}
 
 {isFriendSelectMode && selectedFriendIds.length > 0 && (
   <button
