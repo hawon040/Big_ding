@@ -204,10 +204,10 @@ export const POSTS: Record<BoardType, Post[]> = {
 
 // 좋아요/싫어요/댓글 등 사용자 상호작용을 새로고침해도 유지하기 위한 로컬 저장소 헬퍼
 export const STORAGE_KEY = "bigding_community_interactions_v1";
-const REPORTS_STORAGE_KEY = "bigding_report_history_v1";
-const REPORTS_UPDATED_EVENT = "bigding-report-added";
+export const REPORTS_STORAGE_KEY = "bigding_report_history_v1";
+export const REPORTS_UPDATED_EVENT = "bigding-report-added";
 
-interface ReportHistoryItem {
+export interface ReportHistoryItem {
   id: number;
   type: string;
   target: string;
@@ -215,11 +215,18 @@ interface ReportHistoryItem {
   date: string;
 }
 
-const addReportToHistory = (report: ReportHistoryItem) => {
+export const loadReportHistory = (): ReportHistoryItem[] => {
   try {
     const raw = localStorage.getItem(REPORTS_STORAGE_KEY);
-    const list: ReportHistoryItem[] = raw ? JSON.parse(raw) : [];
-    const updated = [report, ...list];
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const addReportToHistory = (report: ReportHistoryItem) => {
+  try {
+    const updated = [report, ...loadReportHistory()];
     localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(updated));
     // 같은 탭 안에서도 설정 화면이 즉시 반영할 수 있도록 커스텀 이벤트 전파
     window.dispatchEvent(new CustomEvent(REPORTS_UPDATED_EVENT, { detail: updated }));
