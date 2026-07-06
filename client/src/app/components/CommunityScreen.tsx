@@ -511,13 +511,19 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
 const [viewingImage, setViewingImage] = useState<string | null>(null);
 
   // 친구 목록 / 받은 친구 신청은 실제 DB(GET /api/friends, /api/friends/requests)에서 불러온다.
+  // 친구 신청이 오거나 수락되는 것도 새로고침 없이 보이도록 몇 초마다 다시 불러온다(폴링).
   useEffect(() => {
     if (!isActive) return;
     let cancelled = false;
-    api.get("/friends").then((res) => { if (!cancelled) setFriends(res.data); }).catch(() => {});
-    api.get("/friends/requests").then((res) => { if (!cancelled) setFriendRequests(res.data); }).catch(() => {});
+    const fetchFriendsData = () => {
+      api.get("/friends").then((res) => { if (!cancelled) setFriends(res.data); }).catch(() => {});
+      api.get("/friends/requests").then((res) => { if (!cancelled) setFriendRequests(res.data); }).catch(() => {});
+    };
+    fetchFriendsData();
+    const interval = setInterval(fetchFriendsData, 5000);
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, [isActive]);
 
