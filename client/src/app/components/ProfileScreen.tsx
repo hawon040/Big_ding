@@ -40,6 +40,33 @@ const loadStudentId = (): string => {
   }
 };
 
+// 24시간이 지난 게시물의 날짜를 "M월 D일" 형식으로 표시한다. (연도는 표시하지 않음)
+const formatPostDate = (createdAt: number): string => {
+  const date = new Date(createdAt);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return `${month}월 ${day}일`;
+};
+
+// createdAt(작성 시각, epoch ms)이 있으면 그걸 기준으로 "N분 전" 같은 상대 시간을
+// 실시간으로 계산해서 보여준다. 24시간이 지나면 "N일 전" 대신 실제 날짜로 표시한다.
+// createdAt이 없는 더미 게시물은 기존 문자열(fallback)을 그대로 쓴다.
+const formatRelativeTime = (createdAt?: number, fallback?: string): string => {
+  if (!createdAt) return fallback ?? "";
+
+  const diffSec = Math.floor((Date.now() - createdAt) / 1000);
+  if (diffSec < 5) return "방금 전";
+  if (diffSec < 60) return `${diffSec}초 전`;
+
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}분 전`;
+
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}시간 전`;
+
+  return formatPostDate(createdAt);
+};
+
 interface ProfileScreenProps {
   nickname: string;
   setNickname: (name: string) => void;
@@ -66,6 +93,14 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
   const [commentInput, setCommentInput] = useState("");
   const commentInputRef = useRef<HTMLInputElement>(null);
   const [openCommentMenu, setOpenCommentMenu] = useState<number | null>(null);
+
+  // 상대 시간("N분 전") 표시를 실시간으로 갱신하기 위한 tick.
+  // 값 자체는 쓰지 않고, 1분마다 리렌더를 강제로 일으켜 formatRelativeTime이 다시 계산되게 한다.
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const interval = setInterval(() => forceTick((t) => t + 1), 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // 이 화면에서 좋아요/싫어요/스크랩/댓글/삭제가 바뀌면 저장하고, CommunityScreen에도
   // 즉시 알려서(같은 탭: 커스텀 이벤트, 다른 탭: storage 이벤트) 서로 어긋나지 않게 한다.
@@ -318,285 +353,302 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-6 flex flex-col gap-3">
+        {activeTab === "posts" && (
+          myPosts.length === 0 ? (
+            <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
+              아직 작성한 글이 없어요.
+            </p>
+          ) : myPosts.map((post) => {
+            const visibility = postVisibility[post.id] ?? "all";
+            const VisibilityIcon = VISIBILITY_META[visibility].Icon;
+            return (
+              <div key={post.id} className="p-3.5 rounded-2xl shadow-sm cursor-pointer" style={{ background: "var(--card)" }} onClick={() => setSelectedPost(post)}>
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1">
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full font-medium"
+                      style={{ background: "var(--secondary)", color: "var(--primary)" }}
+                    >
+                      {getBoardLabel(post.board)}
+                    </span>
+                    <p className="font-semibold text-sm mt-1.5" style={{ color: "var(--foreground)" }}>{post.title}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+                      {formatRelativeTime(post.createdAt, post.time)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button onClick={(e) => { e.stopPropagation(); setShowVisibilityModal(post.id); }}>
+                      <VisibilityIcon size={16} style={{ color: "var(--muted-foreground)" }} />
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        showConfirm("이 게시물을 삭제하시겠습니까?", () => {
+                          setDeletedPostIds((prev) => [...prev, post.id]);
+                        });
+                      }}
+                    >
+                      <Trash2 size={16} style={{ color: "#d4183d" }} />
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+                  <div className="flex items-center gap-1">
+                    <Heart size={13} fill="var(--primary)" color="var(--primary)" />
+                    <span className="text-xs" style={{ color: "var(--primary)" }}>{getLikeCount(post)}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <MessageCircle size={13} style={{ color: "var(--muted-foreground)" }} />
+                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(post)}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
 
-  {/* POSTS TAB */}
-  {activeTab === "posts" && (
-    myPosts.length === 0 ? (
-      <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
-        아직 작성한 글이 없어요.
-      </p>
-    ) : myPosts.map((post) => {
-      const visibility = postVisibility[post.id] ?? "all";
-      const VisibilityIcon = VISIBILITY_META[visibility].Icon;
+        {activeTab === "comments" && (
+          myWrittenComments.length === 0 ? (
+            <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
+              작성한 댓글이 없어요.
+            </p>
+          ) : myWrittenComments.map((comment) => (
+            <div
+              key={`${comment.postId}-${comment.index}`}
+              className="p-3.5 rounded-2xl shadow-sm cursor-pointer"
+              style={{ background: "var(--card)" }}
+              onClick={() => {
+                const post = allKnownPosts.find((p) => p.id === comment.postId);
+                if (post) setSelectedPost(post);
+              }}
+            >
+              <div className="flex items-start justify-between mb-1">
+                <p className="text-xs font-semibold" style={{ color: "var(--primary)" }}>
+                  {comment.postTitle}
+                </p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteComment(comment.postId, comment.index);
+                  }}
+                >
+                  <X size={14} style={{ color: "#d4183d" }} />
+                </button>
+              </div>
+              <p className="text-sm" style={{ color: "var(--foreground)" }}>{comment.emoji} {comment.text}</p>
+            </div>
+          ))
+        )}
 
-      const isLiked = likedPosts[post.id] ?? false;
-      const isDisliked = dislikedPosts[post.id] ?? false;
-
-      return (
-        <div
-          key={post.id}
-          className="p-3.5 rounded-2xl shadow-sm cursor-pointer"
-          style={{ background: "var(--card)" }}
-          onClick={() => setSelectedPost(post)}
-        >
-          {/* 상단 정보 */}
-          <div className="flex items-start justify-between mb-2">
-            <div className="flex-1">
+        {activeTab === "scrapped" && (
+          scrappedPosts.length === 0 ? (
+            <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
+              스크랩한 게시물이 없어요.
+            </p>
+          ) : scrappedPosts.map((post) => (
+            <div
+              key={post.id}
+              className="p-3.5 rounded-2xl shadow-sm cursor-pointer"
+              style={{ background: "var(--card)" }}
+              onClick={() => setSelectedPost(post)}
+            >
               <span
                 className="text-xs px-2 py-0.5 rounded-full font-medium"
                 style={{ background: "var(--secondary)", color: "var(--primary)" }}
               >
                 {getBoardLabel(post.board)}
               </span>
-              <p className="font-semibold text-sm mt-1.5" style={{ color: "var(--foreground)" }}>
-                {post.title}
-              </p>
+              <p className="font-semibold text-sm mt-1.5" style={{ color: "var(--foreground)" }}>{post.title}</p>
               <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
-                {post.time}
+                {formatRelativeTime(post.createdAt, post.time)}
               </p>
             </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button onClick={(e) => { e.stopPropagation(); setShowVisibilityModal(post.id); }}>
-                <VisibilityIcon size={16} style={{ color: "var(--muted-foreground)" }} />
-              </button>
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  showConfirm("이 게시물을 삭제하시겠습니까?", () => {
-                    setDeletedPostIds((prev) => [...prev, post.id]);
-                  });
-                }}
-              >
-                <Trash2 size={16} style={{ color: "#d4183d" }} />
-              </button>
-            </div>
-          </div>
-
-          {/* 좋아요 / 싫어요 / 댓글 */}
-          <div className="flex items-center gap-3 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
-            
-            {/* 좋아요 */}
-            <div className="flex items-center gap-1">
-              <Heart
-                size={13}
-                fill={isLiked ? "var(--primary)" : "none"}
-                color={isLiked ? "var(--primary)" : "var(--muted-foreground)"}
-              />
-              <span
-                className="text-xs"
-                style={{ color: isLiked ? "var(--primary)" : "var(--muted-foreground)" }}
-              >
-                {getLikeCount(post)}
-              </span>
-            </div>
-
-            {/* 싫어요 */}
-            <div className="flex items-center gap-1">
-              <ThumbsDown
-                size={13}
-                fill={isDisliked ? "var(--primary)" : "none"}
-                color={isDisliked ? "var(--primary)" : "var(--muted-foreground)"}
-              />
-              <span
-                className="text-xs"
-                style={{ color: isDisliked ? "var(--primary)" : "var(--muted-foreground)" }}
-              >
-                {getDislikeCount(post)}
-              </span>
-            </div>
-
-            {/* 댓글 */}
-            <div className="flex items-center gap-1">
-              <MessageCircle size={13} style={{ color: "var(--muted-foreground)" }} />
-              <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                {getCommentCount(post)}
-              </span>
-            </div>
-          </div>
-        </div>
-      );
-    })
-  )}
-
-  {/* 상세 화면 */}
-  {selectedPost && (
-    <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-      
-      {/* 상단 바 */}
-      <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-        <button onClick={() => setSelectedPost(null)} className="text-lg">←</button>
-        <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
-      </div>
-
-      {/* 스크롤 영역 */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-
-        {/* 카드 */}
-        <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-          
-          {/* 아바타 */}
-          <div className="flex items-center gap-2 mb-3">
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0"
-              style={{ background: "var(--muted)" }}
-            >
-              {selectedPost.avatar}
-            </div>
-
-            <div className="flex-1">
-              <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                {selectedPost.author}
-              </p>
-              {selectedPost.rating != null && (
-                <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
-                  {selectedPost.rating.toFixed(1)}
-                </span>
-              )}
-            </div>
-          </div>
-
-        {/* 내용 */}
-        <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
-          {selectedPost.content}
-        </p>
-
-        {/* 태그 */}
-        {selectedPost.tags && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {selectedPost.tags.map((tag, i) => (
-              <span key={i} className="text-xs px-2 py-0.5 rounded-full"
-                style={{ background: "var(--secondary)", color: "var(--primary)" }}>
-                #{tag}
-              </span>
-            ))}
-          </div>
+          ))
         )}
 
-        {/* 모집 인원 */}
-        {selectedPost.maxParticipants && (
-          <div className="mt-2">
-            <span
-              className="text-xs px-2 py-1 rounded-full font-medium"
-              style={{
-                background: selectedPost.currentParticipants === selectedPost.maxParticipants ? "#5cb85c22" : "var(--secondary)",
-                color: selectedPost.currentParticipants === selectedPost.maxParticipants ? "#5cb85c" : "var(--primary)",
-              }}
-            >
-              {selectedPost.currentParticipants}/{selectedPost.maxParticipants}명
-              {selectedPost.currentParticipants === selectedPost.maxParticipants ? " 모집완료" : " 모집중"}
-            </span>
-          </div>
-        )}
-
-        {/* 좋아요 / 싫어요 / 댓글 / 스크랩 */}
-        <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-          {/* 좋아요 */}
-          <button className="flex items-center gap-1.5"
-            onClick={() => {
-              setLikedPosts((l) => ({ ...l, [selectedPost.id]: !l[selectedPost.id] }));
-              setDislikedPosts((d) => ({ ...d, [selectedPost.id]: false }));
-            }}>
-            <Heart size={16} fill={likedPosts[selectedPost.id] ? "#3b82f6" : "none"}
-              color={likedPosts[selectedPost.id] ? "#3b82f6" : "var(--muted-foreground)"} />
-            <span className="text-xs" style={{ color: likedPosts[selectedPost.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
-              {getLikeCount(selectedPost)}
-            </span>
-          </button>
-
-          {/* 싫어요 */}
-          <button className="flex items-center gap-1.5"
-            onClick={() => {
-              if (!likedPosts[selectedPost.id]) {
-                setDislikedPosts((d) => ({ ...d, [selectedPost.id]: !d[selectedPost.id] }));
-              }
-            }}>
-            <ThumbsDown size={16} fill={dislikedPosts[selectedPost.id] ? "#d4183d" : "none"}
-              color={dislikedPosts[selectedPost.id] ? "#d4183d" : "var(--muted-foreground)"} />
-            <span className="text-xs" style={{ color: dislikedPosts[selectedPost.id] ? "#d4183d" : "var(--muted-foreground)" }}>
-              {getDislikeCount(selectedPost)}
-            </span>
-          </button>
-
-          {/* 댓글 */}
-          <button className="flex items-center gap-1.5"
-            onClick={() => {
-              commentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-              commentInputRef.current?.focus();
-            }}>
-            <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
-            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(selectedPost)}</span>
-          </button>
-
-          {/* 스크랩 */}
-          <button className="flex items-center gap-1.5"
-            onClick={() => setSavedPosts((s) => ({ ...s, [selectedPost.id]: !s[selectedPost.id] }))}>
-            <Bookmark size={16} fill={savedPosts[selectedPost.id] ? "var(--primary)" : "none"}
-              color={savedPosts[selectedPost.id] ? "var(--primary)" : "var(--muted-foreground)"} />
-          </button>
-        </div>
-      </div>
-
-      {/* 댓글 목록 */}
-      <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-        <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
-          댓글 {getCommentCount(selectedPost)}개
-        </p>
-
-        {/* 기존 댓글 */}
-        {getDummyComments(selectedPost).map((c, i) => (
-          <div key={i} className="flex gap-2 items-start">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
-              style={{ background: "var(--muted)" }}>{c.emoji}</div>
-            <div className="flex-1 px-3 py-2 rounded-xl text-xs"
-              style={{ color: "var(--foreground)" }}>
-              <span className="font-semibold">{c.user} </span>{c.text}
+        {/* 상세 화면 */}
+        {selectedPost && (
+          <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+              <button onClick={() => setSelectedPost(null)} className="text-lg">←</button>
+              <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
             </div>
-          </div>
-        ))}
 
-        {/* 새 댓글 */}
-        {(extraComments[selectedPost.id] || []).map((c, i) => (
-          <div key={`new-${i}`} className="flex gap-2 items-start relative">
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
-              style={{ background: "var(--muted)" }}>{c.emoji}</div>
-            <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
-              style={{ color: "var(--foreground)" }}>
-              <span><span className="font-semibold">{c.user} </span>{c.text}</span>
-              <div className="relative shrink-0">
-                <button
-                  onClick={() => setOpenCommentMenu(openCommentMenu === i ? null : i)}
-                  style={{ color: "var(--muted-foreground)" }}
-                  aria-label="댓글 더보기"
-                >
-                  <MoreVertical size={14} />
-                </button>
-                {openCommentMenu === i && (
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+              <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
+                <div className="flex items-center gap-2 mb-3">
                   <div
-                    className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
-                    style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0"
+                    style={{ background: "var(--muted)" }}
                   >
-                    <button
-                      onClick={() => handleDeleteComment(selectedPost.id, i)}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
-                      style={{ color: "#d4183d" }}
-                    >
-                      <Trash2 size={13} /> 삭제
-                    </button>
+                    {selectedPost.avatar}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                      {selectedPost.author}
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                      {formatRelativeTime(selectedPost.createdAt, selectedPost.time)}
+                    </p>
+                  </div>
+                  {selectedPost.price && (
+                    <span className="px-2 py-1 rounded-xl text-xs font-bold"
+                      style={{ background: "var(--accent)", color: "var(--foreground)" }}>
+                      {selectedPost.price}원
+                    </span>
+                  )}
+                </div>
+
+                <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h3>
+
+                {selectedPost.image && (
+                  <img
+                    src={selectedPost.image}
+                    alt="첨부 이미지"
+                    className="mt-2 w-full max-h-72 object-cover rounded-xl"
+                  />
+                )}
+
+                {selectedPost.rating && (
+                  <div className="flex items-center gap-1 mb-1.5 mt-2">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} size={14}
+                        fill={i < Math.floor(selectedPost!.rating!) ? "#ffc107" : "none"}
+                        color={i < Math.floor(selectedPost!.rating!) ? "#ffc107" : "var(--muted-foreground)"} />
+                    ))}
+                    <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
+                      {selectedPost.rating.toFixed(1)}
+                    </span>
                   </div>
                 )}
+
+                <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
+                  {selectedPost.content}
+                </p>
+
+                {selectedPost.tags && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {selectedPost.tags.map((tag, i) => (
+                      <span key={i} className="text-xs px-2 py-0.5 rounded-full"
+                        style={{ background: "var(--secondary)", color: "var(--primary)" }}>
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {selectedPost.maxParticipants && (
+                  <div className="mt-2">
+                    <span
+                      className="text-xs px-2 py-1 rounded-full font-medium"
+                      style={{
+                        background: selectedPost.currentParticipants === selectedPost.maxParticipants ? "#5cb85c22" : "var(--secondary)",
+                        color: selectedPost.currentParticipants === selectedPost.maxParticipants ? "#5cb85c" : "var(--primary)",
+                      }}
+                    >
+                      {selectedPost.currentParticipants}/{selectedPost.maxParticipants}명
+                      {selectedPost.currentParticipants === selectedPost.maxParticipants ? " 모집완료" : " 모집중"}
+                    </span>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+                  <button className="flex items-center gap-1.5"
+                    onClick={() => {
+                      setLikedPosts((l) => ({ ...l, [selectedPost.id]: !l[selectedPost.id] }));
+                      setDislikedPosts((d) => ({ ...d, [selectedPost.id]: false }));
+                    }}>
+                    <Heart size={16} fill={likedPosts[selectedPost.id] ? "#3b82f6" : "none"}
+                      color={likedPosts[selectedPost.id] ? "#3b82f6" : "var(--muted-foreground)"} />
+                    <span className="text-xs" style={{ color: likedPosts[selectedPost.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
+                      {getLikeCount(selectedPost)}
+                    </span>
+                  </button>
+
+                  <button className="flex items-center gap-1.5"
+                    onClick={() => {
+                      if (!likedPosts[selectedPost.id]) {
+                        setDislikedPosts((d) => ({ ...d, [selectedPost.id]: !d[selectedPost.id] }));
+                      }
+                    }}>
+                    <ThumbsDown size={16} fill={dislikedPosts[selectedPost.id] ? "#d4183d" : "none"}
+                      color={dislikedPosts[selectedPost.id] ? "#d4183d" : "var(--muted-foreground)"} />
+                    <span className="text-xs" style={{ color: dislikedPosts[selectedPost.id] ? "#d4183d" : "var(--muted-foreground)" }}>
+                      {getDislikeCount(selectedPost)}
+                    </span>
+                  </button>
+
+                  <button className="flex items-center gap-1.5"
+                    onClick={() => {
+                      commentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                      commentInputRef.current?.focus();
+                    }}>
+                    <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
+                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(selectedPost)}</span>
+                  </button>
+
+                  <button className="flex items-center gap-1.5"
+                    onClick={() => setSavedPosts((s) => ({ ...s, [selectedPost.id]: !s[selectedPost.id] }))}>
+                    <Bookmark size={16} fill={savedPosts[selectedPost.id] ? "var(--primary)" : "none"}
+                      color={savedPosts[selectedPost.id] ? "var(--primary)" : "var(--muted-foreground)"} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+                <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                  댓글 {getCommentCount(selectedPost)}개
+                </p>
+
+                {getDummyComments(selectedPost).map((c, i) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
+                      style={{ background: "var(--muted)" }}>{c.emoji}</div>
+                    <div className="flex-1 px-3 py-2 rounded-xl text-xs"
+                      style={{ color: "var(--foreground)" }}>
+                      <span className="font-semibold">{c.user} </span>{c.text}
+                    </div>
+                  </div>
+                ))}
+
+                {(extraComments[selectedPost.id] || []).map((c, i) => (
+                  <div key={`new-${i}`} className="flex gap-2 items-start relative">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
+                      style={{ background: "var(--muted)" }}>{c.emoji}</div>
+                    <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
+                      style={{ color: "var(--foreground)" }}>
+                      <span><span className="font-semibold">{c.user} </span>{c.text}</span>
+                      <div className="relative shrink-0">
+                        <button
+                          onClick={() => setOpenCommentMenu(openCommentMenu === i ? null : i)}
+                          style={{ color: "var(--muted-foreground)" }}
+                          aria-label="댓글 더보기"
+                        >
+                          <MoreVertical size={14} />
+                        </button>
+                        {openCommentMenu === i && (
+                          <div
+                            className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
+                            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                          >
+                            <button
+                              onClick={() => handleDeleteComment(selectedPost.id, i)}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
+                              style={{ color: "#d4183d" }}
+                            >
+                              <Trash2 size={13} /> 삭제
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
-        ))}
+        )}
       </div>
-    </div>
-  </div>
-)}
-
-  
-  </div>
       {/* Visibility modal */}
       {showVisibilityModal && (
         <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>

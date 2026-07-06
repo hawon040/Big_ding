@@ -37,6 +37,52 @@ interface Poll {
   options: PollOption[];
 }
 
+// "N분 전" / "N시간 전" / "N일 전" / "방금 전" 문자열을,
+// 게시물이 실제로 만들어진 시각(createdAt)과 현재 시각(now)의 차이로부터 계산한다.
+// createdAt이 없는(더미) 게시물은 기존에 박아둔 time 문자열을 그대로 보여준다.
+// 24시간이 지난 게시물의 날짜를 "M월 D일" 형식으로 표시한다.
+const formatPostDate = (createdAt: number): string => {
+  const date = new Date(createdAt);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return `${month}월 ${day}일`;
+};
+
+// "N분 전" / "N시간 전" / "방금 전"까지는 상대 시간으로, 24시간(하루)이 지나면
+// "N일 전" 대신 실제 날짜(예: "7월 5일")로 표시한다.
+// createdAt이 없는(더미) 게시물은 기존에 박아둔 time 문자열을 그대로 보여준다.
+export const getDisplayTime = (post: Post, now: number = Date.now()): string => {
+  if (!post.createdAt) return post.time;
+  const diffMinutes = Math.max(0, Math.floor((now - post.createdAt) / 60000));
+  if (diffMinutes < 1) return "방금 전";
+  if (diffMinutes < 60) return `${diffMinutes}분 전`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}시간 전`;
+  return formatPostDate(post.createdAt);
+};
+
+// 더미로 미리 넣어둔 채팅 메시지(id: 1, 2, 3...)는 실제 타임스탬프가 아니므로,
+// 2001년 이후로 보이는 큰 숫자(=Date.now()로 생성된 진짜 전송 시각)일 때만
+// id를 실제 시간으로 취급한다. 더미 메시지는 항상 기존 time 문자열("10:30")을 그대로 보여준다.
+const isRealTimestamp = (id: number): boolean => id > 1000000000000;
+
+// 24시간이 지난 메시지의 날짜를 "M월 D일" 형식으로 표시한다.
+const formatMessageDate = (timestamp: number): string => {
+  const date = new Date(timestamp);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  return `${month}월 ${day}일`;
+};
+
+// 24시간 이내면 전송 당시 저장해둔 "HH:MM" 문자열을, 24시간이 지나면
+// 실제 날짜("7월 5일")를 보여준다.
+const formatMessageTime = (msg: Message, now: number = Date.now()): string => {
+  if (!isRealTimestamp(msg.id)) return msg.time;
+  const diffHours = (now - msg.id) / (1000 * 60 * 60);
+  if (diffHours < 24) return msg.time;
+  return formatMessageDate(msg.id);
+};
+
 export interface Post {
   id: number;
   author: string;
@@ -55,6 +101,7 @@ export interface Post {
   price?: number;
   poll?: Poll;
   board?: BoardType;
+  createdAt?: number;
 }
 
 interface Friend {
@@ -409,7 +456,7 @@ export const getDummyComments = (post: Post) => {
   });
 };
 export const BOARDS = [
-  { id: "free" as BoardType, label: "생활Q&A", emoji: "💬", icon: MessageCircle },
+  { id: "free" as BoardType, label: "전체 게시판", emoji: "💬", icon: MessageCircle },
   { id: "qna" as BoardType, label: "선배들 작품 전시 공간", emoji: "🏆", icon: Users },
   { id: "contest" as BoardType, label: "학업", emoji: "📖", icon: Trophy },
   { id: "event" as BoardType, label: "행사공지", emoji: "📢", icon: Megaphone },
@@ -447,6 +494,13 @@ export function CommunityScreen({
   const [openDummyCommentMenu, setOpenDummyCommentMenu] = useState<number | null>(null);
   const [reportingCommentAuthor, setReportingCommentAuthor] = useState<string | null>(null);
 
+  // 상대 시간("N분 전") 표시를 실시간으로 갱신하기 위한 tick
+  const [nowTick, setNowTick] = useState(Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNowTick(Date.now()), 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+  
   const handleReportCommentAuthor = (author: string) => {
     const counts = loadCommentReportCounts();
     if ((counts[author] || 0) >= MAX_COMMENT_REPORTS_PER_AUTHOR) {
@@ -609,7 +663,7 @@ const [viewingImage, setViewingImage] = useState<string | null>(null);
     const last = msgs[msgs.length - 1];
     const text = last.image && !last.content ? "사진을 보냈습니다" : last.content;
     const unreadCount = msgs.filter((m) => m.read === false).length;
-    return { text, time: last.time, unreadCount };
+    return { text, time: formatMessageTime(last, nowTick), unreadCount };
   };
 
   // 새 메시지는 id를 Date.now()로 부여하므로, 마지막 메시지 id가 클수록 최근에
@@ -930,7 +984,7 @@ const endDrag = () => {
                     }}
                   />
                 )}
-                <p className="text-[10px] mt-1 opacity-70" style={{ color: "var(--muted-foreground)" }}>{msg.time}</p>
+                <p className="text-[10px] mt-1 opacity-70" style={{ color: "var(--muted-foreground)" }}>{formatMessageTime(msg, nowTick)}</p>
               </div>
             </div>
           ))}
@@ -1114,8 +1168,8 @@ const endDrag = () => {
                         <MessageCircle size={12} /> {getCommentCount(p)}
                       </span>
                       <span className="text-xs ml-auto" style={{ color: "var(--muted-foreground)" }}>
-                        {p.time}
-                      </span>
+  {getDisplayTime(p, nowTick)}
+</span>
                     </div>
                   </div>
                 ))
@@ -1166,8 +1220,8 @@ const endDrag = () => {
                   {selectedPost.author}
                 </p>
                 <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                  {selectedPost.time}
-                </p>
+  {getDisplayTime(selectedPost, nowTick)}
+</p>
               </div>
               {selectedPost.price && (
                 <span className="px-2 py-1 rounded-xl text-xs font-bold"
@@ -1686,7 +1740,7 @@ const endDrag = () => {
               </button>
               <div className="flex-1">
                 <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{post.author}</p>
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{post.time}</p>
+                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(post, nowTick)}</p>
               </div>
               {post.price && (
                 <span className="px-2 py-1 rounded-xl text-xs font-bold"
@@ -2121,6 +2175,7 @@ const endDrag = () => {
                   author: "나",
                   avatar: "🙂",
                   time: "방금 전",
+                  createdAt: Date.now(),
                   title: newTitle,
                   content: newContent,
                   likes: 0,
