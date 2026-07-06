@@ -1356,11 +1356,10 @@ const endDrag = () => {
                 </span>
               </button>
               <button className="flex items-center gap-1.5"
-                onClick={() => {
-                  if (!likedPosts[selectedPost!.id]) {
-                    setDislikedPosts((d) => ({ ...d, [selectedPost!.id]: !d[selectedPost!.id] }));
-                  }
-                }}>
+  onClick={() => {
+    setDislikedPosts((d) => ({ ...d, [selectedPost!.id]: !d[selectedPost!.id] }));
+    setLikedPosts((l) => ({ ...l, [selectedPost!.id]: false }));
+  }}>
                 <ThumbsDown size={16} fill={dislikedPosts[selectedPost.id] ? "#d4183d" : "none"}
                   color={dislikedPosts[selectedPost.id] ? "#d4183d" : "var(--muted-foreground)"} />
                 <span className="text-xs" style={{ color: dislikedPosts[selectedPost.id] ? "#d4183d" : "var(--muted-foreground)" }}>

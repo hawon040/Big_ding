@@ -393,10 +393,40 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
-                  <div className="flex items-center gap-1">
-                    <Heart size={13} fill="var(--primary)" color="var(--primary)" />
-                    <span className="text-xs" style={{ color: "var(--primary)" }}>{getLikeCount(post)}</span>
-                  </div>
+                  <button
+                    className="flex items-center gap-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLikedPosts((l) => ({ ...l, [post.id]: !l[post.id] }));
+                      setDislikedPosts((d) => ({ ...d, [post.id]: false }));
+                    }}
+                  >
+                    <Heart
+                      size={13}
+                      fill={likedPosts[post.id] ? "var(--primary)" : "none"}
+                      color={likedPosts[post.id] ? "var(--primary)" : "var(--muted-foreground)"}
+                    />
+                    <span className="text-xs" style={{ color: likedPosts[post.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
+                      {getLikeCount(post)}
+                    </span>
+                  </button>
+                  <button
+                    className="flex items-center gap-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDislikedPosts((d) => ({ ...d, [post.id]: !d[post.id] }));
+                      setLikedPosts((l) => ({ ...l, [post.id]: false }));
+                    }}
+                  >
+                    <ThumbsDown
+                      size={13}
+                      fill={dislikedPosts[post.id] ? "#d4183d" : "none"}
+                      color={dislikedPosts[post.id] ? "#d4183d" : "var(--muted-foreground)"}
+                    />
+                    <span className="text-xs" style={{ color: dislikedPosts[post.id] ? "#d4183d" : "var(--muted-foreground)" }}>
+                      {getDislikeCount(post)}
+                    </span>
+                  </button>
                   <div className="flex items-center gap-1">
                     <MessageCircle size={13} style={{ color: "var(--muted-foreground)" }} />
                     <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(post)}</span>
@@ -566,11 +596,10 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                   </button>
 
                   <button className="flex items-center gap-1.5"
-                    onClick={() => {
-                      if (!likedPosts[selectedPost.id]) {
-                        setDislikedPosts((d) => ({ ...d, [selectedPost.id]: !d[selectedPost.id] }));
-                      }
-                    }}>
+  onClick={() => {
+    setDislikedPosts((d) => ({ ...d, [selectedPost.id]: !d[selectedPost.id] }));
+    setLikedPosts((l) => ({ ...l, [selectedPost.id]: false }));
+  }}>
                     <ThumbsDown size={16} fill={dislikedPosts[selectedPost.id] ? "#d4183d" : "none"}
                       color={dislikedPosts[selectedPost.id] ? "#d4183d" : "var(--muted-foreground)"} />
                     <span className="text-xs" style={{ color: dislikedPosts[selectedPost.id] ? "#d4183d" : "var(--muted-foreground)" }}>
