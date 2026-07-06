@@ -26,11 +26,20 @@ export default function App() {
       setShowChatPanel(false); // + 채팅 탭 벗어나면 패널도 닫기
     }
   };
+
+  // 하단 네비게이션이 아니라 패널 핸들을 직접 드래그/탭해서 열고 닫을 때도
+  // 하단 네비게이션의 활성 탭 표시가 패널 상태를 그대로 따라가게 한다.
+  useEffect(() => {
+    if (showChatPanel && activeTab !== "chat") {
+      setActiveTab("chat");
+    } else if (!showChatPanel && activeTab === "chat") {
+      setActiveTab("community");
+    }
+  }, [showChatPanel]);
   const [darkMode, setDarkMode] = useState(false);
   const [showRegister, setShowRegister] = useState(false); // 회원가입 화면
   const [showConsentModal, setShowConsentModal] = useState(false); // 개인정보 동의 팝업
   const [nickname, setNickname] = useState("데이터새내기");
-  const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
 
 const [currentTime, setCurrentTime] = useState("");
 
@@ -156,7 +165,7 @@ const [currentTime, setCurrentTime] = useState("");
   // 로그인 화면
   if (!loggedIn) {
     return phoneFrame(
-      <div className="flex-1 overflow-y-auto mt-7">
+      <div className="flex-1 overflow-y-auto mt-7 no-scrollbar">
         <LoginScreen
           onLogin={() => setLoggedIn(true)}
           onRegister={() => setShowConsentModal(true)}
@@ -192,16 +201,15 @@ const [currentTime, setCurrentTime] = useState("");
           <CommunityScreen
             showChat={showChatPanel}
             setShowChat={setShowChatPanel}
-            selectedPostId={selectedPostId}
-            isActive={activeTab === "community" || activeTab === "chat"}
-            onViewOwnProfile={() => handleTabChange("profile")}
+isActive={activeTab === "community" || activeTab === "chat"}
+onViewOwnProfile={() => handleTabChange("profile")}
           />
         </div>
 
         {/* 프로필/설정은 위에 덮어씌우는 방식으로 렌더링 */}
         {activeTab === "profile" && (
           <div
-            className="absolute inset-0 overflow-hidden"
+            className="absolute inset-0 overflow-hidden flex flex-col"
             style={{ background: "var(--background)" }}
           >
             <ProfileScreen nickname={nickname} setNickname={setNickname} />
@@ -209,7 +217,7 @@ const [currentTime, setCurrentTime] = useState("");
         )}
         {activeTab === "settings" && (
           <div
-            className="absolute inset-0 overflow-hidden"
+            className="absolute inset-0 overflow-hidden flex flex-col"
             style={{ background: "var(--background)" }}
           >
             <SettingsScreen
@@ -225,10 +233,6 @@ const [currentTime, setCurrentTime] = useState("");
               }}
               nickname={nickname}
               setNickname={setNickname}
-              onNavigateToPost={(postId) => {
-                setSelectedPostId(postId);
-                setActiveTab("community");
-              }}
             />
           </div>
         )}
