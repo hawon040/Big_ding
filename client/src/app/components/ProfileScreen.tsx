@@ -58,22 +58,28 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
   const [avatar, setAvatar] = useState<string | null>(currentUser?.avatar ?? null);
   const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>(loadPostVisibility);
 
-  // 게시물 목록은 실제 DB(GET /api/posts)에서 불러온다.
+  // 게시물 목록은 실제 DB(GET /api/posts)에서 불러온다. 좋아요/댓글/투표처럼 다른 사람이
+  // 바꾼 내용도 새로고침 없이 보이도록, 이 화면에 머무르는 동안 몇 초마다 다시 불러온다(폴링).
   const [posts, setPosts] = useState<Post[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    setPostsLoading(true);
-    api.get("/posts")
-      .then((res) => {
-        if (!cancelled) setPosts(res.data);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setPostsLoading(false);
-      });
+    const fetchPosts = (isInitial: boolean) => {
+      if (isInitial) setPostsLoading(true);
+      api.get("/posts")
+        .then((res) => {
+          if (!cancelled) setPosts(res.data);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (isInitial && !cancelled) setPostsLoading(false);
+        });
+    };
+    fetchPosts(true);
+    const interval = setInterval(() => fetchPosts(false), 5000);
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, []);
   const selectedPost = selectedPostId ? posts.find((p) => p._id === selectedPostId) ?? null : null;
