@@ -7,10 +7,13 @@ const UPLOAD_ROOT = path.join(__dirname, "..", "uploads");
 
 module.exports = function createUploader(subdir) {
   const dir = path.join(UPLOAD_ROOT, subdir);
-  fs.mkdirSync(dir, { recursive: true });
 
   const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, dir),
+    // 요청마다 폴더 존재를 보장한다(디스크 정리 등으로 폴더가 지워져도 다음 업로드가 실패하지 않도록).
+    destination: (req, file, cb) => {
+      fs.mkdirSync(dir, { recursive: true });
+      cb(null, dir);
+    },
     filename: (req, file, cb) => {
       const ext = path.extname(file.originalname);
       cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
