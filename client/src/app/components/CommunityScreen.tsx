@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
-  Search, Star, Send, UserPlus, ChevronDown, ChevronUp,
+  Search, Star, Send, UserPlus, ChevronDown, ChevronUp, FileText,
   Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, Edit2, Trash2, AlertTriangle
 } from "lucide-react";
 
@@ -43,7 +43,6 @@ interface Friend {
   id: number;
   name: string;
   avatar: string;
-  lastMsg: string;
 }
 
 interface Message {
@@ -53,11 +52,13 @@ interface Message {
   image?: string;
   time: string;
   mine: boolean;
+  // 안 읽음 표시. 생략 시 읽은 것으로 취급(기본값 true), 내가 보낸 메시지는 항상 true.
+  read?: boolean;
 }
 
 const PROFANITY_LIST = ["욕설", "비속어", "씨발", "개새끼", "병신", "지랄", "꺼져", "죽어"];
 
-const filterProfanity = (text: string) => {
+export const filterProfanity = (text: string) => {
   let filtered = text;
   PROFANITY_LIST.forEach((word) => {
     const regex = new RegExp(word, "gi");
@@ -67,22 +68,34 @@ const filterProfanity = (text: string) => {
 };
 
 const FRIENDS: Friend[] = [
-  { id: 1, name: "데이터킹", avatar: "👑", lastMsg: "오늘 수업 어때?" },
-  { id: 2, name: "AI빅데이터27", avatar: "🐱", lastMsg: "공모전 같이 나가자!" },
-  { id: 3, name: "분석마스터", avatar: "📊", lastMsg: "족보 공유해줘서 고마워" },
-  { id: 4, name: "파이썬고수", avatar: "🐍", lastMsg: "스터디 언제 할래?" },
+  { id: 1, name: "데이터킹", avatar: "👑" },
+  { id: 2, name: "AI빅데이터27", avatar: "🐱" },
+  { id: 3, name: "분석마스터", avatar: "📊" },
+  { id: 4, name: "파이썬고수", avatar: "🐍" },
 ];
 
 const CHAT_MESSAGES: Record<number, Message[]> = {
   1: [
-    { id: 1, from: "데이터킹", content: "오늘 수업 어때?", time: "10:30", mine: false },
-    { id: 2, from: "나", content: "괜찮아! 발표 잘 됐어", time: "10:31", mine: true },
-    { id: 3, from: "데이터킹", content: "다행이다 ㅎㅎ 점심 같이?", time: "10:32", mine: false },
+    { id: 1, from: "데이터킹", content: "오늘 수업 어때?", time: "10:30", mine: false, read: true },
+    { id: 2, from: "나", content: "괜찮아! 발표 잘 됐어", time: "10:31", mine: true, read: true },
+    { id: 3, from: "데이터킹", content: "다행이다 ㅎㅎ 점심 같이?", time: "10:32", mine: false, read: false },
   ],
   2: [
-    { id: 1, from: "AI빅데이터27", content: "공모전 같이 나가자!", time: "09:15", mine: false },
-    { id: 2, from: "나", content: "어떤 공모전?", time: "09:20", mine: true },
+    { id: 1, from: "AI빅데이터27", content: "공모전 같이 나가자!", time: "09:15", mine: false, read: true },
+    { id: 2, from: "나", content: "어떤 공모전?", time: "09:20", mine: true, read: true },
   ],
+};
+
+// 채팅 메시지도 새로고침 후 유지되도록 로컬 저장소에 보관한다.
+const CHAT_STORAGE_KEY = "bigding_chat_messages_v1";
+
+const loadChatMessages = (): Record<number, Message[]> => {
+  try {
+    const raw = localStorage.getItem(CHAT_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : CHAT_MESSAGES;
+  } catch {
+    return CHAT_MESSAGES;
+  }
 };
 
 export const POSTS: Record<BoardType, Post[]> = {
@@ -204,8 +217,25 @@ export const POSTS: Record<BoardType, Post[]> = {
 
 // 좋아요/싫어요/댓글 등 사용자 상호작용을 새로고침해도 유지하기 위한 로컬 저장소 헬퍼
 export const STORAGE_KEY = "bigding_community_interactions_v1";
+// CommunityScreen은 항상 마운트된 채로 유지되기 때문에(App.tsx에서 display:none으로만 숨김),
+// ProfileScreen에서 좋아요/싫어요/스크랩/댓글/삭제를 바꿔도 같은 탭 안에서는 storage 이벤트가
+// 발생하지 않아 반영되지 않는다. 커스텀 이벤트로 두 화면이 서로의 변경을 즉시 반영하게 한다.
+export const INTERACTIONS_UPDATED_EVENT = "bigding-interactions-updated";
 export const REPORTS_STORAGE_KEY = "bigding_report_history_v1";
 export const REPORTS_UPDATED_EVENT = "bigding-report-added";
+
+// 프로필 사진: ProfileScreen에서 업로드하면 "나"가 작성한 게시물의 아바타에도
+// 즉시 반영되도록 CommunityScreen과 공유한다.
+export const AVATAR_STORAGE_KEY = "bigding_profile_avatar_v1";
+export const AVATAR_UPDATED_EVENT = "bigding-avatar-updated";
+
+export const loadAvatar = (): string | null => {
+  try {
+    return localStorage.getItem(AVATAR_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+};
 
 export interface ReportHistoryItem {
   id: number;
@@ -300,12 +330,16 @@ interface CommunityScreenProps {
   showChat: boolean;
   setShowChat: React.Dispatch<React.SetStateAction<boolean>>;
   selectedPostId?: number | null;
+  isActive: boolean;
+  onViewOwnProfile: () => void;
 }
 
 export function CommunityScreen({
   showChat,
   setShowChat,
   selectedPostId,
+  isActive,
+  onViewOwnProfile,
 }: CommunityScreenProps) {
 
   // 좋아요/싫어요/댓글/스크랩/새 글 등은 로컬 저장소에서 초기값을 불러와
@@ -319,9 +353,55 @@ export function CommunityScreen({
   const [openComments, setOpenComments] = useState<Record<number, boolean>>({});
   const [extraComments, setExtraComments] = useState<Record<number, { user: string; text: string; emoji: string }[]>>(storedInit.extraComments);
   const [commentInput, setCommentInput] = useState("");
+  const commentInputRef = useRef<HTMLInputElement>(null);
   const [openCommentMenu, setOpenCommentMenu] = useState<number | null>(null);
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [viewedAuthor, setViewedAuthor] = useState<{ name: string; avatar: string } | null>(null);
+  const [authorActiveTab, setAuthorActiveTab] = useState<"posts" | "comments" | "scrapped">("posts");
+
+  // 다른 사용자의 프로필을 새로 열 때마다 "내 글" 탭부터 다시 보이게 한다.
+  useEffect(() => {
+    if (viewedAuthor) setAuthorActiveTab("posts");
+  }, [viewedAuthor]);
+
+  // 게시물 상세/작성자 화면이 열려있으면 친구 채팅 패널(메인 피드에만 있음)이 가려지므로,
+  // 하단 네비게이션에서 채팅 탭을 누르면(showChat이 true가 되면) 상세 화면을 닫아
+  // 채팅 패널로 실제로 이동할 수 있게 한다.
+  useEffect(() => {
+    if (showChat) {
+      setSelectedPost(null);
+      setViewedAuthor(null);
+    }
+  }, [showChat]);
+
+  // ProfileScreen에서 업로드한 프로필 사진을 "나"가 쓴 글의 아바타에도 반영한다.
+  const [myAvatar, setMyAvatar] = useState<string | null>(loadAvatar);
+  useEffect(() => {
+    const handleAvatarUpdated = (e: Event) => {
+      const detail = (e as CustomEvent<string | null>).detail;
+      setMyAvatar(detail ?? loadAvatar());
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === AVATAR_STORAGE_KEY) setMyAvatar(loadAvatar());
+    };
+    window.addEventListener(AVATAR_UPDATED_EVENT, handleAvatarUpdated);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(AVATAR_UPDATED_EVENT, handleAvatarUpdated);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
+  // 커뮤니티 탭은 화면 전환 시에도 마운트가 유지되므로(App.tsx에서 display:none으로만 숨김),
+  // 다른 탭으로 나갔다가 돌아오면 예전에 열어뒀던 게시물 상세/작성자 화면이 아니라
+  // 항상 목록 화면부터 다시 보이도록 탭을 벗어나는 즉시 초기화한다.
+  useEffect(() => {
+    if (!isActive) {
+      setSelectedPost(null);
+      setViewedAuthor(null);
+    }
+  }, [isActive]);
+
   const [showWrite, setShowWrite] = useState(false);
   const [showReport, setShowReport] = useState<number | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<number | null>(null);
@@ -344,6 +424,8 @@ export function CommunityScreen({
 
   // likedPosts/dislikedPosts/savedPosts/extraComments/createdPosts/deletedPostIds/nextPostId가
   // 바뀔 때마다 로컬 저장소에 저장해서 새로고침해도 숫자가 유지되게 한다.
+  // 이미 저장된 내용과 동일하면 다시 쓰지 않아, ProfileScreen이 보낸 갱신을 받아
+  // 그대로 반영할 때 다시 이벤트를 쏘는 무한 루프가 생기지 않는다.
   useEffect(() => {
     const toStore: StoredInteractions = {
       likedPosts,
@@ -355,17 +437,48 @@ export function CommunityScreen({
       nextPostId,
     };
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(toStore));
+      const json = JSON.stringify(toStore);
+      if (localStorage.getItem(STORAGE_KEY) !== json) {
+        localStorage.setItem(STORAGE_KEY, json);
+        window.dispatchEvent(new CustomEvent(INTERACTIONS_UPDATED_EVENT, { detail: toStore }));
+      }
     } catch {
       // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
     }
   }, [likedPosts, dislikedPosts, savedPosts, extraComments, createdPosts, deletedPostIds, nextPostId]);
 
+  // 다른 화면(ProfileScreen)에서 좋아요/싫어요/스크랩/댓글/삭제를 바꾸면
+  // 같은 탭에서는 커스텀 이벤트로, 다른 탭에서는 storage 이벤트로 반영한다.
+  useEffect(() => {
+    const applyExternalUpdate = (next: StoredInteractions) => {
+      setLikedPosts(next.likedPosts);
+      setDislikedPosts(next.dislikedPosts);
+      setSavedPosts(next.savedPosts);
+      setExtraComments(next.extraComments);
+      setCreatedPosts(next.createdPosts);
+      setDeletedPostIds(next.deletedPostIds);
+      setNextPostId(next.nextPostId);
+    };
+    const handleInteractionsUpdated = (e: Event) => {
+      const detail = (e as CustomEvent<StoredInteractions>).detail;
+      applyExternalUpdate(detail ?? loadStoredInteractions());
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY) applyExternalUpdate(loadStoredInteractions());
+    };
+    window.addEventListener(INTERACTIONS_UPDATED_EVENT, handleInteractionsUpdated);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener(INTERACTIONS_UPDATED_EVENT, handleInteractionsUpdated);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
   const [chatHeight, setChatHeight] = useState(44);
   const [dragStartY, setDragStartY] = useState<number | null>(null);
 
   const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
-  const [chatMessages, setChatMessages] = useState<Record<number, Message[]>>(CHAT_MESSAGES);
+  const [chatMessages, setChatMessages] = useState<Record<number, Message[]>>(loadChatMessages);
   const [chatInput, setChatInput] = useState("");
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [friendSearch, setFriendSearch] = useState("");
@@ -376,6 +489,46 @@ const [showChatMenu, setShowChatMenu] = useState(false);
 const [selectMode, setSelectMode] = useState(false);
 const [selectedMsgs, setSelectedMsgs] = useState<number[]>([]);
 const [showReportConfirm, setShowReportConfirm] = useState(false);
+
+  // chatMessages가 바뀔 때마다 저장해서 새로고침해도 대화 내용과 안 읽음 상태가 유지되게 한다.
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(chatMessages));
+    } catch {
+      // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
+    }
+  }, [chatMessages]);
+
+  // 친구 목록 카드에 보여줄 마지막 메시지 미리보기/시간/안 읽은 개수
+  const getFriendPreview = (friend: Friend) => {
+    const msgs = chatMessages[friend.id] || [];
+    if (msgs.length === 0) {
+      return { text: "", time: "", unreadCount: 0 };
+    }
+    const last = msgs[msgs.length - 1];
+    const text = last.image && !last.content ? "사진을 보냈습니다" : last.content;
+    const unreadCount = msgs.filter((m) => m.read === false).length;
+    return { text, time: last.time, unreadCount };
+  };
+
+  // 새 메시지는 id를 Date.now()로 부여하므로, 마지막 메시지 id가 클수록 최근에
+  // 주고받은 대화다. 메시지가 없는 친구는 가장 아래로 내려간다.
+  const getLastMessageSortKey = (friend: Friend) => {
+    const msgs = chatMessages[friend.id] || [];
+    return msgs.length === 0 ? 0 : msgs[msgs.length - 1].id;
+  };
+  const sortedFriends = [...friends].sort(
+    (a, b) => getLastMessageSortKey(b) - getLastMessageSortKey(a)
+  );
+
+  // 친구와의 채팅방에 들어가면 그 친구가 보낸 메시지를 전부 읽음 처리한다.
+  const openFriendChat = (friend: Friend) => {
+    setActiveFriend(friend);
+    setChatMessages((prev) => ({
+      ...prev,
+      [friend.id]: (prev[friend.id] || []).map((m) => (m.read === false ? { ...m, read: true } : m)),
+    }));
+  };
 
   // 커스텀 알림/확인 팝업 상태
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -398,17 +551,27 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
 
  // 게시물의 실제 댓글 수 = 원래 댓글 수 + 내가 새로 등록한 댓글 수
  const getCommentCount = (post: Post) => post.comments + (extraComments[post.id]?.length || 0);
+ // "나"가 쓴 글은 프로필에서 업로드한 실제 프로필 사진을, 그 외에는 기존 이모지 아바타를 보여준다.
+ const getAuthorAvatar = (post: Post): string | null => (post.author === "나" ? myAvatar : null);
+ // 내가 쓴 글의 아바타를 누르면 작성자 보기 화면 대신 실제 내 프로필 탭으로 이동한다.
+ const openAuthor = (author: { name: string; avatar: string }) => {
+   if (author.name === "나") {
+     onViewOwnProfile();
+   } else {
+     setViewedAuthor(author);
+   }
+ };
  const allPosts = [...createdPosts, ...Object.values(POSTS).flat()].filter((p) => !deletedPostIds.includes(p.id));
   useEffect(() => {
-  if (selectedPostId != null) {
-    const target = allPosts.find((p) => p.id === selectedPostId);
-    if (target) {
-      setActiveBoard(target.board || activeBoard);
-      setSelectedPost(target);
+    if (selectedPostId != null) {
+      const target = allPosts.find((p) => p.id === selectedPostId);
+      if (target) {
+        setActiveBoard(target.board || activeBoard);
+        setSelectedPost(target);
+      }
     }
-  }
-}, [selectedPostId]);
- const posts = showSearch && searchQuery
+  }, [selectedPostId]);
+  const posts = showSearch && searchQuery
     ? allPosts.filter((p) =>
         p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -445,6 +608,7 @@ const handleDeleteFriends = () => {
       content: filtered,
       time: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
       mine: true,
+      read: true,
     };
     setChatMessages((prev) => ({
       ...prev,
@@ -636,7 +800,7 @@ const endDrag = () => {
         {/* 메시지 목록 */}
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
           {(chatMessages[activeFriend.id] || []).map((msg) => (
-            <div key={msg.id} className={`flex items-center gap-2 ${msg.mine ? "justify-end" : "justify-start"}`}>
+            <div key={msg.id} className={`flex items-end gap-2 ${msg.mine ? "justify-end" : "justify-start"}`}>
               {selectMode && msg.mine && (
                 <input
                   type="checkbox"
@@ -649,19 +813,31 @@ const endDrag = () => {
                   className="w-4 h-4 accent-orange-400"
                 />
               )}
-              <div
-                className="max-w-[70%] px-3 py-2 rounded-2xl text-sm"
-                style={{
-                  background: msg.mine ? "var(--primary)" : "var(--card)",
-                  color: msg.mine ? "white" : "var(--foreground)",
-                  outline: selectedMsgs.includes(msg.id) ? "2px solid var(--primary)" : "none",
-                }}
-              >
-                <p>{msg.content}</p>
-                {msg.image && (
-                  <img src={msg.image} alt="사진" className="rounded-xl mt-1 max-w-full" style={{ maxHeight: "200px" }} />
+              <div className={`max-w-[70%] flex flex-col gap-1 ${msg.mine ? "items-end" : "items-start"}`}>
+                {msg.content && (
+                  <div
+                    className="px-3 py-2 rounded-2xl text-sm"
+                    style={{
+                      background: msg.mine ? "var(--primary)" : "var(--card)",
+                      color: msg.mine ? "white" : "var(--foreground)",
+                      outline: selectedMsgs.includes(msg.id) ? "2px solid var(--primary)" : "none",
+                    }}
+                  >
+                    <p>{msg.content}</p>
+                  </div>
                 )}
-                <p className="text-[10px] mt-0.5 opacity-70 text-right">{msg.time}</p>
+                {msg.image && (
+                  <img
+                    src={msg.image}
+                    alt="사진"
+                    className="rounded-xl max-w-full"
+                    style={{
+                      maxHeight: "200px",
+                      outline: selectedMsgs.includes(msg.id) ? "2px solid var(--primary)" : "none",
+                    }}
+                  />
+                )}
+                <p className="text-[10px] mt-1 opacity-70" style={{ color: "var(--muted-foreground)" }}>{msg.time}</p>
               </div>
             </div>
           ))}
@@ -690,6 +866,7 @@ const endDrag = () => {
                     image: reader.result as string,
                     time: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
                     mine: true,
+                    read: true,
                   };
                   setChatMessages((prev) => ({
                     ...prev,
@@ -720,9 +897,18 @@ const endDrag = () => {
     );
   }
 
-  // ── 작성자 프로필 화면 ────────────────────────────────────────────────────
+  // ── 작성자 프로필 화면 (내 프로필과 동일한 화면/기능 구성) ──────────────────
   if (viewedAuthor) {
     const authorPosts = allPosts.filter((p) => p.author === viewedAuthor.name);
+    const authorComments: { postId: number; index: number; text: string; emoji: string; postTitle: string }[] = [];
+    allPosts.forEach((p) => {
+      (extraComments[p.id] || []).forEach((c, index) => {
+        if (c.user === viewedAuthor.name) {
+          authorComments.push({ postId: p.id, index, text: c.text, emoji: c.emoji, postTitle: p.title });
+        }
+      });
+    });
+    const getBoardLabel = (board?: BoardType) => BOARDS.find((b) => b.id === board)?.label ?? "";
 
     return (
       <div className="flex flex-col flex-1 overflow-hidden">
@@ -744,98 +930,121 @@ const endDrag = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {/* 프로필 상단 카드 */}
-          <div className="px-4 py-6 flex flex-col items-center gap-2">
-            <div
-              className="w-20 h-20 rounded-full flex items-center justify-center text-4xl"
-              style={{ background: "var(--muted)" }}
-            >
-              {viewedAuthor.avatar}
-            </div>
-            <p className="font-bold text-lg mt-1" style={{ color: "var(--foreground)" }}>
-              {viewedAuthor.name}
-            </p>
-
-            {/* 통계 */}
-            <div className="flex gap-8 mt-2">
-              {[
-                { label: "게시글", value: authorPosts.length },
-                { label: "댓글", value: authorPosts.reduce((s, p) => s + getCommentCount(p), 0) },
-                { label: "좋아요", value: authorPosts.reduce((s, p) => s + p.likes, 0) },
-              ].map(({ label, value }) => (
-                <div key={label} className="flex flex-col items-center">
-                  <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{value}</span>
-                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{label}</span>
-                </div>
-              ))}
+          {/* 프로필 상단 카드: 내 프로필(ProfileScreen)과 동일한 위치 구성 */}
+          <div
+            className="relative px-4 pt-8 pb-6"
+            style={{ background: "linear-gradient(160deg, #111a30 0%, #0a0f1f 100%)" }}
+          >
+            <div className="flex items-start gap-4">
+              <div
+                className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-md overflow-hidden"
+                style={{ background: "var(--accent)", border: "3px solid var(--primary)" }}
+              >
+                {viewedAuthor.avatar}
+              </div>
+              <div className="flex-1 pt-1">
+                <h2 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>
+                  {viewedAuthor.name}
+                </h2>
+              </div>
             </div>
           </div>
 
-          {/* 탭: 내글 / 댓글 / 좋아요 / 스크랩 */}
-          <div
-            className="flex border-b shrink-0"
-            style={{ borderColor: "var(--border)" }}
-          >
+          {/* 탭: 내 프로필과 동일하게 내 글 / 댓글 / 스크랩 */}
+          <div className="grid grid-cols-3 px-4 gap-2 mb-3 mt-3">
             {[
-              { label: "내 글", icon: "📄" },
-              { label: "댓글", icon: "💬" },
-              { label: "좋아요", icon: "🤍" },
-              { label: "스크랩", icon: "🔖" },
-            ].map(({ label, icon }, idx) => (
+              { key: "posts" as const, label: "내 글", Icon: FileText },
+              { key: "comments" as const, label: "댓글", Icon: MessageCircle },
+              { key: "scrapped" as const, label: "스크랩", Icon: Bookmark },
+            ].map(({ key, label, Icon }) => (
               <button
-                key={label}
-                className="flex-1 flex flex-col items-center py-3 text-xs font-medium gap-1"
+                key={key}
+                onClick={() => setAuthorActiveTab(key)}
+                className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all"
                 style={{
-                  color: idx === 0 ? "var(--primary)" : "var(--muted-foreground)",
-                  borderBottom: idx === 0 ? "2px solid var(--primary)" : "2px solid transparent",
+                  background: authorActiveTab === key ? "var(--primary)" : "var(--muted)",
+                  color: authorActiveTab === key ? "white" : "var(--muted-foreground)",
                 }}
               >
-                <span className="text-base">{icon}</span>
-                {label}
+                <Icon size={14} />
+                <span>{label}</span>
               </button>
             ))}
           </div>
 
-          {/* 게시물 목록 */}
-          <div className="px-4 py-3 flex flex-col gap-3">
-            {authorPosts.length === 0 ? (
-              <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
-                작성한 게시물이 없어요
-              </p>
-            ) : (
-              authorPosts.map((p) => (
-                <div
-                  key={p.id}
-                  onClick={() => {
-                    setViewedAuthor(null);
-                    setSelectedPost(p);
-                  }}
-                  className="p-4 rounded-2xl cursor-pointer"
-                  style={{ background: "var(--card)" }}
-                >
-                  {/* 게시판 라벨 */}
-                  <p className="text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>
-                    자유게시판
-                  </p>
-                  <h3 className="font-semibold text-sm mb-1" style={{ color: "var(--foreground)" }}>
-                    {p.title}
-                  </h3>
-                  <p className="text-xs leading-relaxed mb-2" style={{ color: "var(--muted-foreground)" }}>
-                    {p.content}
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
-                      <Heart size={12} /> {p.likes + (likedPosts[p.id] ? 1 : 0)}
-                    </span>
-                    <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
-                      <MessageCircle size={12} /> {getCommentCount(p)}
-                    </span>
-                    <span className="text-xs ml-auto" style={{ color: "var(--muted-foreground)" }}>
-                      {p.time}
-                    </span>
+          {/* 탭 내용 */}
+          <div className="px-4 pb-6 flex flex-col gap-3">
+            {authorActiveTab === "posts" && (
+              authorPosts.length === 0 ? (
+                <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
+                  작성한 게시물이 없어요
+                </p>
+              ) : (
+                authorPosts.map((p) => (
+                  <div
+                    key={p.id}
+                    onClick={() => {
+                      setViewedAuthor(null);
+                      setSelectedPost(p);
+                    }}
+                    className="p-4 rounded-2xl cursor-pointer"
+                    style={{ background: "var(--card)" }}
+                  >
+                    <p className="text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>
+                      {getBoardLabel(p.board)}
+                    </p>
+                    <h3 className="font-semibold text-sm mb-1" style={{ color: "var(--foreground)" }}>
+                      {p.title}
+                    </h3>
+                    <p className="text-xs leading-relaxed mb-2" style={{ color: "var(--muted-foreground)" }}>
+                      {p.content}
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
+                        <Heart size={12} /> {p.likes + (likedPosts[p.id] ? 1 : 0)}
+                      </span>
+                      <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
+                        <MessageCircle size={12} /> {getCommentCount(p)}
+                      </span>
+                      <span className="text-xs ml-auto" style={{ color: "var(--muted-foreground)" }}>
+                        {p.time}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))
+                ))
+              )
+            )}
+
+            {authorActiveTab === "comments" && (
+              authorComments.length === 0 ? (
+                <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
+                  작성한 댓글이 없어요.
+                </p>
+              ) : (
+                authorComments.map((c) => (
+                  <div
+                    key={`${c.postId}-${c.index}`}
+                    className="p-3.5 rounded-2xl shadow-sm cursor-pointer"
+                    style={{ background: "var(--card)" }}
+                    onClick={() => {
+                      const p = allPosts.find((post) => post.id === c.postId);
+                      if (p) {
+                        setViewedAuthor(null);
+                        setSelectedPost(p);
+                      }
+                    }}
+                  >
+                    <p className="text-xs font-semibold mb-1" style={{ color: "var(--primary)" }}>{c.postTitle}</p>
+                    <p className="text-sm" style={{ color: "var(--foreground)" }}>{c.emoji} {c.text}</p>
+                  </div>
+                ))
+              )
+            )}
+
+            {authorActiveTab === "scrapped" && (
+              <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
+                스크랩한 게시물이 없어요.
+              </p>
             )}
           </div>
         </div>
@@ -846,24 +1055,28 @@ const endDrag = () => {
   // ── 게시물 상세 화면 ──────────────────────────────────────────────────────
   if (selectedPost) {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden relative">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
         <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
           <button onClick={() => setSelectedPost(null)} className="text-lg">←</button>
           <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 scrollbar-hide">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 scrollbar-hide">
           {/* 게시물 카드 */}
           <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
             <div className="flex items-center gap-2 mb-3">
               <button
                 onClick={() => {
                   setSelectedPost(null);
-                  setViewedAuthor({ name: selectedPost.author, avatar: selectedPost.avatar });
+                  openAuthor({ name: selectedPost.author, avatar: selectedPost.avatar });
                 }}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0"
+                className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
                 style={{ background: "var(--muted)" }}
               >
-                {selectedPost.avatar}
+                {getAuthorAvatar(selectedPost) ? (
+                  <img src={getAuthorAvatar(selectedPost)!} alt="프로필 사진" className="w-full h-full object-cover" />
+                ) : (
+                  selectedPost.avatar
+                )}
               </button>
               <div className="flex-1">
                 <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
@@ -958,10 +1171,14 @@ const endDrag = () => {
                   {selectedPost.dislikes + (dislikedPosts[selectedPost.id] ? 1 : 0)}
                 </span>
               </button>
-              <div className="flex items-center gap-1.5">
+              <button className="flex items-center gap-1.5"
+                onClick={() => {
+                  commentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  commentInputRef.current?.focus();
+                }}>
                 <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
                 <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(selectedPost)}</span>
-              </div>
+              </button>
               <button className="flex items-center gap-1.5"
                 onClick={() => setSavedPosts((s) => ({ ...s, [selectedPost!.id]: !s[selectedPost!.id] }))}>
                 <Bookmark size={16} fill={savedPosts[selectedPost.id] ? "var(--primary)" : "none"}
@@ -1025,6 +1242,7 @@ const endDrag = () => {
        {/* 댓글 입력 */}
 <div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
   <input
+    ref={commentInputRef}
     value={commentInput}
     onChange={(e) => setCommentInput(e.target.value)}
     onKeyDown={(e) => {
@@ -1188,12 +1406,16 @@ const endDrag = () => {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setViewedAuthor({ name: post.author, avatar: post.avatar });
+                  openAuthor({ name: post.author, avatar: post.avatar });
                 }}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0"
+                className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
                 style={{ background: "var(--muted)" }}
               >
-                {post.avatar}
+                {getAuthorAvatar(post) ? (
+                  <img src={getAuthorAvatar(post)!} alt="프로필 사진" className="w-full h-full object-cover" />
+                ) : (
+                  post.avatar
+                )}
               </button>
               <div className="flex-1">
                 <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{post.author}</p>
@@ -1520,14 +1742,16 @@ const endDrag = () => {
             </div>
           )}
 
-         {friends.map((friend) => (
+         {sortedFriends.map((friend) => {
+  const { text, time, unreadCount } = getFriendPreview(friend);
+  return (
   <button
     key={friend.id}
     onClick={() => {
       if (isFriendSelectMode) {
         toggleFriendSelect(friend.id);
       } else {
-        setActiveFriend(friend);
+        openFriendChat(friend);
       }
     }}
     className="flex items-center gap-3 p-2.5 rounded-xl text-left"
@@ -1556,11 +1780,37 @@ const endDrag = () => {
       <span className="text-2xl">{friend.avatar}</span>
     </div>
     <div className="flex-1 min-w-0">
-      <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{friend.name}</p>
-      <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{friend.lastMsg}</p>
+      <div className="flex items-center gap-1.5">
+        <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{friend.name}</p>
+        {unreadCount > 0 && (
+          <span
+            className="text-[10px] font-bold text-white rounded-full px-1.5 py-0.5 shrink-0"
+            style={{ background: "#d4183d", minWidth: "16px", textAlign: "center", lineHeight: 1.2 }}
+          >
+            {unreadCount}
+          </span>
+        )}
+      </div>
+      {text && (
+        <p
+          className="text-xs truncate mt-1"
+          style={{
+            color: unreadCount > 0 ? "var(--foreground)" : "var(--muted-foreground)",
+            fontWeight: unreadCount > 0 ? 700 : 400,
+          }}
+        >
+          {text}
+        </p>
+      )}
     </div>
+    {time && (
+      <span className="text-[10px] shrink-0 self-start pt-1" style={{ color: "var(--muted-foreground)" }}>
+        {time}
+      </span>
+    )}
   </button>
-))}
+  );
+})}
 
 {isFriendSelectMode && selectedFriendIds.length > 0 && (
   <button
