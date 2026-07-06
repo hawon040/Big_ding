@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
 const auth = require("../middleware/authMiddleware");
+const upload = require("../middleware/upload")("avatars");
 
 // GET /api/users/profile - 내 프로필
 router.get("/profile", auth, async (req, res) => {
@@ -16,14 +17,15 @@ router.get("/profile", auth, async (req, res) => {
 });
 
 // PATCH /api/users/profile - 프로필 수정 (닉네임, 아바타)
-router.patch("/profile", auth, async (req, res) => {
+// 닉네임만 바꿀 땐 JSON body, 프로필 사진을 바꿀 땐 multipart/form-data의 avatar 필드로 보낸다.
+router.patch("/profile", auth, upload.single("avatar"), async (req, res) => {
   try {
-    const { nickname, avatar } = req.body;
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      { nickname, avatar },
-      { new: true }
-    ).select("-password");
+    const update = {};
+    if (req.body.nickname !== undefined) update.nickname = req.body.nickname;
+    if (req.file) {
+      update.avatar = `${req.protocol}://${req.get("host")}/uploads/avatars/${req.file.filename}`;
+    }
+    const user = await User.findByIdAndUpdate(req.user.id, update, { new: true }).select("-password");
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });

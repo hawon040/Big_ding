@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X } from "lucide-react";
 import api from "@/api";
+import defaultAvatar from "@/assets/default-avatar.svg";
 import {
   REPORTS_STORAGE_KEY, REPORTS_UPDATED_EVENT, loadReportHistory, removeReportFromHistory, type ReportHistoryItem,
   BLOCKED_STORAGE_KEY, BLOCKED_UPDATED_EVENT, loadBlockedUsers, removeBlockedUser, type BlockedUserItem,
-  getDisplayTime, type Post, scopedKey,
+  getDisplayTime, type Post, scopedKey, updateStoredUser,
 } from "./CommunityScreen";
 
 interface SettingsScreenProps {
@@ -615,11 +616,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
               <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
                 <div className="flex items-center gap-2 mb-2">
-                  {viewingPost.author.avatar ? (
-                    <img src={viewingPost.author.avatar} alt="프로필 사진" className="w-7 h-7 rounded-full object-cover" />
-                  ) : (
-                    <span className="text-xl">{viewingPost.author.nickname.charAt(0)}</span>
-                  )}
+                  <img src={viewingPost.author.avatar || defaultAvatar} alt="프로필 사진" className="w-7 h-7 rounded-full object-cover" />
                   <div>
                     <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{viewingPost.author.nickname}</p>
                     <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(viewingPost)}</p>
@@ -641,11 +638,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 {viewingPost.comments.map((c) => (
                   <div key={c._id} className="flex gap-2 items-start">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm overflow-hidden" style={{ background: "var(--muted)" }}>
-                      {c.author.avatar ? (
-                        <img src={c.author.avatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                      ) : (
-                        c.author.nickname.charAt(0)
-                      )}
+                      <img src={c.author.avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 px-3 py-2 rounded-xl text-xs" style={{ color: "var(--foreground)" }}>
                       <span className="font-semibold">{c.author.nickname} </span>{c.content}
@@ -718,7 +711,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const error = validateNickname(nicknameInput);
                       if (error) {
                         showAlert(error);
@@ -728,9 +721,15 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                         showAlert("닉네임 중복확인을 먼저 해주세요.");
                         return;
                       }
-                      setNickname(nicknameInput);
-                      setEditingNickname(false);
-                      showAlert("닉네임이 변경되었습니다.");
+                      try {
+                        const res = await api.patch("/users/profile", { nickname: nicknameInput });
+                        setNickname(res.data.nickname);
+                        updateStoredUser({ nickname: res.data.nickname });
+                        setEditingNickname(false);
+                        showAlert("닉네임이 변경되었습니다.");
+                      } catch {
+                        showAlert("닉네임 변경에 실패했습니다.");
+                      }
                     }}
                     className="flex-1 py-2 rounded-xl font-semibold text-xs"
                     style={{ background: "var(--primary)", color: "white" }}

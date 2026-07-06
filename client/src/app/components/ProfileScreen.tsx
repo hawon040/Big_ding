@@ -4,11 +4,12 @@ import {
   Lock, Users, Globe, X, ThumbsDown, Star, MoreVertical, Trash2,
 } from "lucide-react";
 import api from "@/api";
+import defaultAvatar from "@/assets/default-avatar.svg";
 import {
   BOARDS, loadStoredInteractions, filterProfanity,
   STORAGE_KEY, INTERACTIONS_UPDATED_EVENT,
   AVATAR_STORAGE_KEY, AVATAR_UPDATED_EVENT, loadAvatar, scopedKey,
-  getCurrentUser, getDisplayTime,
+  getCurrentUser, getDisplayTime, updateStoredUser,
   type Post, type StoredInteractions,
 } from "./CommunityScreen";
 
@@ -236,21 +237,26 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
     });
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      setAvatar(result);
+    try {
+      const formData = new FormData();
+      formData.append("avatar", file);
+      const res = await api.patch("/users/profile", formData);
+      const url = res.data.avatar as string;
+      setAvatar(url);
+      updateStoredUser({ avatar: url });
       try {
-        localStorage.setItem(scopedKey(AVATAR_STORAGE_KEY), result);
-        window.dispatchEvent(new CustomEvent(AVATAR_UPDATED_EVENT, { detail: result }));
+        localStorage.setItem(scopedKey(AVATAR_STORAGE_KEY), url);
+        window.dispatchEvent(new CustomEvent(AVATAR_UPDATED_EVENT, { detail: url }));
       } catch {
         // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
       }
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      showAlert("프로필 사진 변경에 실패했습니다.");
+    }
   };
 
   // 커스텀 알림/확인 팝업 상태
@@ -285,11 +291,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
               className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-md overflow-hidden"
               style={{ background: "var(--accent)", border: "3px solid var(--primary)" }}
             >
-              {avatar ? (
-                <img src={avatar} alt="프로필 사진" className="w-full h-full object-cover" />
-              ) : (
-                "🐕"
-              )}
+              <img src={avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
             </div>
             <input
               id="avatar-upload"
@@ -325,7 +327,18 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
           </div>
 
           <button
-            onClick={() => setEditMode(!editMode)}
+            onClick={async () => {
+              if (editMode && nickname.trim()) {
+                try {
+                  const res = await api.patch("/users/profile", { nickname: nickname.trim() });
+                  setNickname(res.data.nickname);
+                  updateStoredUser({ nickname: res.data.nickname });
+                } catch {
+                  showAlert("닉네임 변경에 실패했습니다.");
+                }
+              }
+              setEditMode(!editMode);
+            }}
             className="w-9 h-9 rounded-xl flex items-center justify-center"
             style={{ background: "var(--card)" }}
           >
@@ -528,11 +541,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                     className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
                     style={{ background: "var(--muted)" }}
                   >
-                    {selectedPost.author.avatar ? (
-                      <img src={selectedPost.author.avatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                    ) : (
-                      selectedPost.author.nickname.charAt(0)
-                    )}
+                    <img src={selectedPost.author.avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
@@ -646,11 +655,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                   <div key={c._id} className="flex gap-2 items-start relative">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm overflow-hidden"
                       style={{ background: "var(--muted)" }}>
-                      {c.author.avatar ? (
-                        <img src={c.author.avatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                      ) : (
-                        c.author.nickname.charAt(0)
-                      )}
+                      <img src={c.author.avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
                       style={{ color: "var(--foreground)" }}>

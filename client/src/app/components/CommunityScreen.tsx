@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
+import defaultAvatar from "@/assets/default-avatar.svg";
 import api from "@/api";
 import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
@@ -44,6 +45,19 @@ export const getCurrentUser = (): CurrentUser | null => {
     return { _id: user._id, nickname: user.nickname, avatar: user.avatar, studentId: user.studentId };
   } catch {
     return null;
+  }
+};
+
+// 닉네임/아바타를 서버에 저장한 뒤, 다음에 getCurrentUser()를 호출할 때도
+// (새로고침 없이) 최신 값을 돌려주도록 localStorage에 캐시된 "user"도 함께 갱신한다.
+export const updateStoredUser = (updates: Partial<CurrentUser>) => {
+  try {
+    const raw = localStorage.getItem("user");
+    if (!raw) return;
+    const user = JSON.parse(raw);
+    localStorage.setItem("user", JSON.stringify({ ...user, ...updates }));
+  } catch {
+    // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
   }
 };
 
@@ -887,7 +901,9 @@ const endDrag = () => {
           ) : (
             <button onClick={() => setActiveFriend(null)} className="text-lg">←</button>
           )}
-          <span className="text-2xl">{activeFriend.avatar ?? activeFriend.nickname.charAt(0)}</span>
+          <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
+            <img src={activeFriend.avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+          </div>
           <div className="flex-1">
             <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>{activeFriend.nickname}</p>
           </div>
@@ -1154,11 +1170,7 @@ const endDrag = () => {
                 className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-md overflow-hidden"
                 style={{ background: "var(--accent)", border: "3px solid var(--primary)" }}
               >
-                {getAuthorAvatarUrl(viewedAuthor) ? (
-                  <img src={getAuthorAvatarUrl(viewedAuthor)!} alt="프로필 사진" className="w-full h-full object-cover" />
-                ) : (
-                  viewedAuthor.nickname.charAt(0)
-                )}
+                <img src={getAuthorAvatarUrl(viewedAuthor) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
               </div>
               <div className="flex-1 pt-1">
                 <h2 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>
@@ -1265,11 +1277,7 @@ const endDrag = () => {
                 className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
                 style={{ background: "var(--muted)" }}
               >
-                {getAuthorAvatarUrl(selectedPost.author) ? (
-                  <img src={getAuthorAvatarUrl(selectedPost.author)!} alt="프로필 사진" className="w-full h-full object-cover" />
-                ) : (
-                  selectedPost.author.nickname.charAt(0)
-                )}
+                <img src={getAuthorAvatarUrl(selectedPost.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
               </button>
               <div className="flex-1">
                 <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
@@ -1383,11 +1391,7 @@ const endDrag = () => {
                 <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm cursor-pointer overflow-hidden"
                   style={{ background: "var(--muted)" }}
                   onClick={() => openAuthor(c.author)}>
-                  {getAuthorAvatarUrl(c.author) ? (
-                    <img src={getAuthorAvatarUrl(c.author)!} alt="프로필 사진" className="w-full h-full object-cover" />
-                  ) : (
-                    c.author.nickname.charAt(0)
-                  )}
+                  <img src={getAuthorAvatarUrl(c.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
                 </div>
                 <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
                   style={{ color: "var(--foreground)" }}>
@@ -1706,11 +1710,7 @@ const endDrag = () => {
                 className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
                 style={{ background: "var(--muted)" }}
               >
-                {getAuthorAvatarUrl(post.author) ? (
-                  <img src={getAuthorAvatarUrl(post.author)!} alt="프로필 사진" className="w-full h-full object-cover" />
-                ) : (
-                  post.author.nickname.charAt(0)
-                )}
+                <img src={getAuthorAvatarUrl(post.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
               </button>
               <div className="flex-1">
                 <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{post.author.nickname}</p>
@@ -1932,7 +1932,9 @@ const endDrag = () => {
               <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>받은 친구 요청</span>
               {friendRequests.map((r) => (
                 <div key={r._id} className="flex items-center gap-2">
-                  <span className="text-lg">{r.from.avatar ?? r.from.nickname.charAt(0)}</span>
+                  <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
+                    <img src={r.from.avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                  </div>
                   <p className="flex-1 min-w-0 text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
                     {r.from.nickname}
                   </p>
@@ -1969,7 +1971,9 @@ const endDrag = () => {
               )}
               {friendSearchResults.map((u) => (
                 <div key={u._id} className="flex items-center gap-2 px-1">
-                  <span className="text-lg">{u.avatar ?? u.nickname.charAt(0)}</span>
+                  <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
+                    <img src={u.avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                  </div>
                   <p className="flex-1 min-w-0 text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
                     {u.nickname}
                   </p>
@@ -2019,8 +2023,8 @@ const endDrag = () => {
       </div>
     )}
 
-    <div className="relative">
-      <span className="text-2xl">{friend.avatar ?? friend.nickname.charAt(0)}</span>
+    <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0">
+      <img src={friend.avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
     </div>
     <div className="flex-1 min-w-0">
       <div className="flex items-center gap-1.5">

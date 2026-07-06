@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { LoginScreen } from "./components/LoginScreen";
-import { CommunityScreen } from "./components/CommunityScreen";
+import { CommunityScreen, getCurrentUser } from "./components/CommunityScreen";
 import { ProfileScreen } from "./components/ProfileScreen";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { BottomNav } from "./components/BottomNav";
@@ -39,7 +39,8 @@ export default function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [showRegister, setShowRegister] = useState(false); // 회원가입 화면
   const [showConsentModal, setShowConsentModal] = useState(false); // 개인정보 동의 팝업
-  const [nickname, setNickname] = useState("데이터새내기");
+  // 프로필/설정 화면에 보여줄 닉네임은 회원가입 때 설정한 실제 닉네임을 기본값으로 쓴다.
+  const [nickname, setNickname] = useState(() => getCurrentUser()?.nickname ?? "");
 
 const [currentTime, setCurrentTime] = useState("");
 
@@ -167,7 +168,10 @@ const [currentTime, setCurrentTime] = useState("");
     return phoneFrame(
       <div className="flex-1 overflow-y-auto mt-7 no-scrollbar">
         <LoginScreen
-          onLogin={() => setLoggedIn(true)}
+          onLogin={() => {
+            setNickname(getCurrentUser()?.nickname ?? "");
+            setLoggedIn(true);
+          }}
           onRegister={() => setShowConsentModal(true)}
         />
       </div>
