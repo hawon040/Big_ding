@@ -71,26 +71,14 @@ export const getDisplayTime = (post: Post, now: number = Date.now()): string => 
   return formatPostDate(post.createdAt);
 };
 
-// 더미로 미리 넣어둔 채팅 메시지(id: 1, 2, 3...)는 실제 타임스탬프가 아니므로,
-// 2001년 이후로 보이는 큰 숫자(=Date.now()로 생성된 진짜 전송 시각)일 때만
-// id를 실제 시간으로 취급한다. 더미 메시지는 항상 기존 time 문자열("10:30")을 그대로 보여준다.
-const isRealTimestamp = (id: number): boolean => id > 1000000000000;
-
-// 24시간이 지난 메시지의 날짜를 "M월 D일" 형식으로 표시한다.
-const formatMessageDate = (timestamp: number): string => {
-  const date = new Date(timestamp);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  return `${month}월 ${day}일`;
-};
-
-// 24시간 이내면 전송 당시 저장해둔 "HH:MM" 문자열을, 24시간이 지나면
-// 실제 날짜("7월 5일")를 보여준다.
-const formatMessageTime = (msg: Message, now: number = Date.now()): string => {
-  if (!isRealTimestamp(msg.id)) return msg.time;
-  const diffHours = (now - msg.id) / (1000 * 60 * 60);
-  if (diffHours < 24) return msg.time;
-  return formatMessageDate(msg.id);
+// 24시간 이내면 전송 시각을 "HH:MM"으로, 24시간이 지나면 실제 날짜("7월 5일")로 표시한다.
+const formatMessageTime = (createdAt: string, now: number = Date.now()): string => {
+  const created = new Date(createdAt).getTime();
+  const diffHours = (now - created) / (1000 * 60 * 60);
+  if (diffHours < 24) {
+    return new Date(createdAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+  }
+  return formatPostDate(createdAt);
 };
 
 export interface PostAuthor {
@@ -138,14 +126,12 @@ export interface FriendRequestItem {
 }
 
 interface Message {
-  id: number;
-  from: string;
+  _id: string;
   content: string;
   image?: string;
-  time: string;
+  createdAt: string;
   mine: boolean;
-  // 안 읽음 표시. 생략 시 읽은 것으로 취급(기본값 true), 내가 보낸 메시지는 항상 true.
-  read?: boolean;
+  read: boolean;
 }
 
 const PROFANITY_LIST = ["욕설", "비속어", "씨발", "개새끼", "병신", "지랄", "꺼져", "죽어"];
@@ -157,18 +143,6 @@ export const filterProfanity = (text: string) => {
     filtered = filtered.replace(regex, "*".repeat(word.length));
   });
   return filtered;
-};
-
-// 채팅 메시지도 새로고침 후 유지되도록 로컬 저장소에 보관한다.
-const CHAT_STORAGE_KEY = "bigding_chat_messages_v1";
-
-const loadChatMessages = (): Record<string, Message[]> => {
-  try {
-    const raw = localStorage.getItem(scopedKey(CHAT_STORAGE_KEY));
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
 };
 
 // 좋아요/싫어요/댓글 등 사용자 상호작용을 새로고침해도 유지하기 위한 로컬 저장소 헬퍼
@@ -494,7 +468,7 @@ export function CommunityScreen({
   const [dragStartY, setDragStartY] = useState<number | null>(null);
 
   const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
-  const [chatMessages, setChatMessages] = useState<Record<string, Message[]>>(loadChatMessages);
+  const [chatMessages, setChatMessages] = useState<Record<string, Message[]>>({});
   const [chatInput, setChatInput] = useState("");
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [friendSearch, setFriendSearch] = useState("");
@@ -505,7 +479,8 @@ export function CommunityScreen({
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
 const [showChatMenu, setShowChatMenu] = useState(false);
 const [selectMode, setSelectMode] = useState(false);
-const [selectedMsgs, setSelectedMsgs] = useState<number[]>([]);
+const [selectedMsgs, setSelectedMsgs] = useState<string[]>([]);
+const hiddenMessageIdsRef = useRef<Set<string>>(new Set());
 const [showReportConfirm, setShowReportConfirm] = useState(false);
 const [viewingImage, setViewingImage] = useState<string | null>(null);
 
@@ -572,14 +547,56 @@ const [viewingImage, setViewingImage] = useState<string | null>(null);
     }
   };
 
-  // chatMessages가 바뀔 때마다 저장해서 새로고침해도 대화 내용과 안 읽음 상태가 유지되게 한다.
+  // 서버가 내려주는 메시지(from/to가 User로 populate됨)를 채팅 화면에서 쓰는 형태로 변환한다.
+  // 로컬에서 "삭제"한 메시지는 다음 폴링에서 서버 응답에 그대로 남아있어도 다시 보이지 않게 걸러낸다.
+  const mapMessages = (raw: any[]): Message[] =>
+    raw
+      .map((m) => ({
+        _id: m._id,
+        content: m.content || "",
+        image: m.image,
+        createdAt: m.createdAt,
+        mine: !!currentUser && m.from?._id === currentUser._id,
+        read: !!m.read,
+      }))
+      .filter((m) => !hiddenMessageIdsRef.current.has(m._id));
+
+  // 채팅 탭이 열려 있는 동안, 친구 목록 미리보기를 위해 친구별 대화 내역을 불러온다.
   useEffect(() => {
-    try {
-      localStorage.setItem(scopedKey(CHAT_STORAGE_KEY), JSON.stringify(chatMessages));
-    } catch {
-      // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
-    }
-  }, [chatMessages]);
+    if (!isActive || !showChat || friends.length === 0) return;
+    let cancelled = false;
+    friends.forEach((friend) => {
+      api.get(`/chat/${friend._id}`)
+        .then((res) => {
+          if (cancelled) return;
+          setChatMessages((prev) => ({ ...prev, [friend._id]: mapMessages(res.data) }));
+        })
+        .catch(() => {});
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [friends, isActive, showChat]);
+
+  // 1:1 대화창이 열려 있는 동안에는 실시간 소켓 대신, 몇 초마다 새 메시지가 있는지 서버에 확인한다(폴링).
+  useEffect(() => {
+    if (!activeFriend) return;
+    let cancelled = false;
+    const fetchMessages = () => {
+      api.get(`/chat/${activeFriend._id}`)
+        .then((res) => {
+          if (cancelled) return;
+          setChatMessages((prev) => ({ ...prev, [activeFriend._id]: mapMessages(res.data) }));
+        })
+        .catch(() => {});
+    };
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [activeFriend]);
 
   // 친구 목록 카드에 보여줄 마지막 메시지 미리보기/시간/안 읽은 개수
   const getFriendPreview = (friend: Friend) => {
@@ -589,27 +606,24 @@ const [viewingImage, setViewingImage] = useState<string | null>(null);
     }
     const last = msgs[msgs.length - 1];
     const text = last.image && !last.content ? "사진을 보냈습니다" : last.content;
-    const unreadCount = msgs.filter((m) => m.read === false).length;
-    return { text, time: formatMessageTime(last, nowTick), unreadCount };
+    const unreadCount = msgs.filter((m) => !m.mine && !m.read).length;
+    return { text, time: formatMessageTime(last.createdAt, nowTick), unreadCount };
   };
 
-  // 새 메시지는 id를 Date.now()로 부여하므로, 마지막 메시지 id가 클수록 최근에
-  // 주고받은 대화다. 메시지가 없는 친구는 가장 아래로 내려간다.
+  // 대화 내역은 서버가 시간순으로 정렬해 내려주므로, 마지막 메시지 시각이 최신일수록
+  // 최근에 주고받은 대화다. 메시지가 없는 친구는 가장 아래로 내려간다.
   const getLastMessageSortKey = (friend: Friend) => {
     const msgs = chatMessages[friend._id] || [];
-    return msgs.length === 0 ? 0 : msgs[msgs.length - 1].id;
+    return msgs.length === 0 ? 0 : new Date(msgs[msgs.length - 1].createdAt).getTime();
   };
   const sortedFriends = [...friends].sort(
     (a, b) => getLastMessageSortKey(b) - getLastMessageSortKey(a)
   );
 
-  // 친구와의 채팅방에 들어가면 그 친구가 보낸 메시지를 전부 읽음 처리한다.
+  // 친구와의 채팅방에 들어가면 대화 내역을 불러오는데(useEffect 폴링), 그 요청 자체가
+  // 서버에서 상대가 보낸 메시지를 읽음 처리해준다.
   const openFriendChat = (friend: Friend) => {
     setActiveFriend(friend);
-    setChatMessages((prev) => ({
-      ...prev,
-      [friend._id]: (prev[friend._id] || []).map((m) => (m.read === false ? { ...m, read: true } : m)),
-    }));
   };
 
   // 커스텀 알림/확인 팝업 상태
@@ -720,22 +734,21 @@ const handleDeleteFriends = () => {
   });
 };
 
-  const sendMessage = () => {
+  const sendMessage = async () => {
     if (!chatInput.trim() || !activeFriend) return;
-    const filtered = filterProfanity(chatInput);
-    const newMsg: Message = {
-      id: Date.now(),
-      from: "나",
-      content: filtered,
-      time: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
-      mine: true,
-      read: true,
-    };
-    setChatMessages((prev) => ({
-      ...prev,
-      [activeFriend._id]: [...(prev[activeFriend._id] || []), newMsg],
-    }));
+    const content = filterProfanity(chatInput.trim());
+    const friendId = activeFriend._id;
     setChatInput("");
+    try {
+      const res = await api.post(`/chat/${friendId}`, { content });
+      const [newMsg] = mapMessages([res.data]);
+      setChatMessages((prev) => ({
+        ...prev,
+        [friendId]: [...(prev[friendId] || []), newMsg],
+      }));
+    } catch {
+      showAlert("메시지 전송에 실패했습니다.");
+    }
   };
 
   const handleAddComment = async () => {
@@ -821,9 +834,10 @@ const endDrag = () => {
             <div className="flex gap-2">
               <button
                 onClick={() => {
+                  selectedMsgs.forEach((id) => hiddenMessageIdsRef.current.add(id));
                   setChatMessages((prev) => ({
                     ...prev,
-                    [activeFriend._id]: (prev[activeFriend._id] || []).filter((m) => !selectedMsgs.includes(m.id)),
+                    [activeFriend._id]: (prev[activeFriend._id] || []).filter((m) => !selectedMsgs.includes(m._id)),
                   }));
                   setSelectedMsgs([]);
                   setSelectMode(false);
@@ -926,14 +940,14 @@ const endDrag = () => {
         {/* 메시지 목록 */}
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
           {(chatMessages[activeFriend._id] || []).map((msg) => (
-            <div key={msg.id} className={`flex items-end gap-2 ${msg.mine ? "justify-end" : "justify-start"}`}>
+            <div key={msg._id} className={`flex items-end gap-2 ${msg.mine ? "justify-end" : "justify-start"}`}>
               {selectMode && msg.mine && (
                 <input
                   type="checkbox"
-                  checked={selectedMsgs.includes(msg.id)}
+                  checked={selectedMsgs.includes(msg._id)}
                   onChange={() => {
                     setSelectedMsgs((prev) =>
-                      prev.includes(msg.id) ? prev.filter((id) => id !== msg.id) : [...prev, msg.id]
+                      prev.includes(msg._id) ? prev.filter((id) => id !== msg._id) : [...prev, msg._id]
                     );
                   }}
                   className="w-4 h-4 accent-orange-400"
@@ -946,7 +960,7 @@ const endDrag = () => {
                     style={{
                       background: msg.mine ? "var(--primary)" : "var(--card)",
                       color: msg.mine ? "white" : "var(--foreground)",
-                      outline: selectedMsgs.includes(msg.id) ? "2px solid var(--primary)" : "none",
+                      outline: selectedMsgs.includes(msg._id) ? "2px solid var(--primary)" : "none",
                     }}
                   >
                     <p>{msg.content}</p>
@@ -960,11 +974,11 @@ const endDrag = () => {
                     className="rounded-xl max-w-full cursor-pointer"
                     style={{
                       maxHeight: "200px",
-                      outline: selectedMsgs.includes(msg.id) ? "2px solid var(--primary)" : "none",
+                      outline: selectedMsgs.includes(msg._id) ? "2px solid var(--primary)" : "none",
                     }}
                   />
                 )}
-                <p className="text-[10px] mt-1 opacity-70" style={{ color: "var(--muted-foreground)" }}>{formatMessageTime(msg, nowTick)}</p>
+                <p className="text-[10px] mt-1 opacity-70" style={{ color: "var(--muted-foreground)" }}>{formatMessageTime(msg.createdAt, nowTick)}</p>
               </div>
             </div>
           ))}
@@ -981,26 +995,24 @@ const endDrag = () => {
               type="file"
               accept="image/*"
               className="hidden"
-              onChange={(e) => {
+              onChange={async (e) => {
                 const file = e.target.files?.[0];
+                e.target.value = "";
                 if (!file || !activeFriend) return;
-                const reader = new FileReader();
-                reader.onload = () => {
-                  const newMsg: Message = {
-                    id: Date.now(),
-                    from: "나",
-                    content: "",
-                    image: reader.result as string,
-                    time: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
-                    mine: true,
-                    read: true,
-                  };
+                const friendId = activeFriend._id;
+                try {
+                  const imageRef = storageRef(storage, `chat/${getCurrentStudentId()}/${Date.now()}-${file.name}`);
+                  await uploadBytes(imageRef, file);
+                  const url = await getDownloadURL(imageRef);
+                  const res = await api.post(`/chat/${friendId}`, { image: url });
+                  const [newMsg] = mapMessages([res.data]);
                   setChatMessages((prev) => ({
                     ...prev,
-                    [activeFriend._id]: [...(prev[activeFriend._id] || []), newMsg],
+                    [friendId]: [...(prev[friendId] || []), newMsg],
                   }));
-                };
-                reader.readAsDataURL(file);
+                } catch {
+                  showAlert("이미지 전송에 실패했습니다.");
+                }
               }}
             />
           </label>
