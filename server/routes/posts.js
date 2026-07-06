@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Post = require("../models/Post");
 const auth = require("../middleware/authMiddleware");
+const upload = require("../middleware/upload")("posts");
 const profanityFilter = require("../middleware/profanityFilter");
 
 // GET /api/posts?board=free
@@ -26,9 +27,12 @@ router.get("/", auth, async (req, res) => {
 });
 
 // POST /api/posts
-router.post("/", auth, profanityFilter, async (req, res) => {
+router.post("/", auth, upload.single("image"), profanityFilter, async (req, res) => {
   try {
-    const post = await Post.create({ ...req.body, author: req.user.id });
+    const images = req.file
+      ? [`${req.protocol}://${req.get("host")}/uploads/posts/${req.file.filename}`]
+      : [];
+    const post = await Post.create({ ...req.body, images, author: req.user.id });
     await post.populate("author", "nickname avatar");
     res.status(201).json(post);
   } catch (err) {

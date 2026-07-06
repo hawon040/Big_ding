@@ -21,7 +21,7 @@ export interface Post {
   board: BoardType;
   title: string;
   content: string;
-  images: string[];        // Firebase Storage URLs
+  images: string[];        // 서버 업로드 이미지 URL
   tags: string[];
   likes: string[];         // user IDs
   dislikes: string[];

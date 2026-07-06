@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import api from "@/api";
-import { storage } from "@/utils/firebase";
-import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
   Search, Star, Send, UserPlus, ChevronDown, ChevronUp, FileText,
@@ -2025,13 +2023,12 @@ const endDrag = () => {
                 }
                 setIsSubmittingPost(true);
                 try {
-                  let images: string[] = [];
-                  if (newImageFile) {
-                    const imageRef = storageRef(storage, `posts/${getCurrentStudentId()}/${Date.now()}-${newImageFile.name}`);
-                    await uploadBytes(imageRef, newImageFile);
-                    images = [await getDownloadURL(imageRef)];
-                  }
-                  const res = await api.post("/posts", { board: newBoard, title: newTitle, content: newContent, images });
+                  const formData = new FormData();
+                  formData.append("board", newBoard);
+                  formData.append("title", newTitle);
+                  formData.append("content", newContent);
+                  if (newImageFile) formData.append("image", newImageFile);
+                  const res = await api.post("/posts", formData);
                   setPosts((prev) => [res.data, ...prev]);
                   setNewTitle("");
                   setNewContent("");

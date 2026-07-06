@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Message = require("../models/Message");
 const auth = require("../middleware/authMiddleware");
-const upload = require("../middleware/upload");
+const upload = require("../middleware/upload")("chat");
 const { filterProfanity } = require("../middleware/profanityFilter");
 
 const USER_FIELDS = "nickname avatar studentId";
