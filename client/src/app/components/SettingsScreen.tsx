@@ -72,6 +72,10 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [confirmPassword, setConfirmPassword] = useState("");
   const [inquiryTitle, setInquiryTitle] = useState("");
   const [inquiryContent, setInquiryContent] = useState("");
+  // + 닉네임 변경용 상태
+  const [editingNickname, setEditingNickname] = useState(false);
+  const [nicknameInput, setNicknameInput] = useState(nickname);
+  const [nicknameChecked, setNicknameChecked] = useState(false);
   const [reportHistory, setReportHistory] = useState<ReportHistoryItem[]>([]);
   const [inquiryHistory, setInquiryHistory] = useState<InquiryHistoryItem[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUserItem[]>([]);
@@ -129,6 +133,38 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const showAlert = (message: string, callback?: () => void) => {
     setAlertMessage(message);
     setAlertCallback(() => callback || null);
+  };
+  const validateNickname = (value: string): string | null => {
+    if (!value.trim()) {
+      return "닉네임을 작성해주세요.";
+    }
+    const validPattern = /^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9\s]+$/;
+    if (!validPattern.test(value) || value.length > 10) {
+      return "특수문자를 제외한 띄어쓰기 포함 10자 이내로 적어주세요.";
+    }
+    return null;
+  };
+
+  const checkNicknameDuplicate = async () => {
+    const error = validateNickname(nicknameInput);
+    if (error) {
+      showAlert(error);
+      return;
+    }
+    try {
+      const res = await fetch("http://localhost:5000/api/auth/check-nickname", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nickname: nicknameInput }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setNicknameChecked(true);
+      }
+      showAlert(data.message);
+    } catch {
+      showAlert("서버 연결 실패");
+    }
   };
   const closeAlert = () => {
     setAlertMessage(null);
@@ -637,16 +673,87 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>계정 관리</h2>
         </div>
         <div className="px-4 py-4 flex flex-col gap-3">
-          {[
-            { label: "닉네임", value: "AI빅데이터21" },
-            { label: "전공", value: "AI빅데이터전공 27학번" },
-          ].map(({ label, value }) => (
-            <div key={label} className="rounded-2xl p-4 flex items-center justify-between shadow-sm"
-              style={{ background: "var(--card)" }}>
-              <span className="text-sm" style={{ color: "var(--muted-foreground)" }}>{label}</span>
-              <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{value}</span>
+          {/* 닉네임 변경 카드 */}
+          <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm" style={{ color: "var(--muted-foreground)" }}>닉네임</span>
+              {!editingNickname && (
+                <button
+                  onClick={() => {
+                    setNicknameInput(nickname);
+                    setNicknameChecked(false);
+                    setEditingNickname(true);
+                  }}
+                  className="text-xs font-semibold px-3 py-1 rounded-full"
+                  style={{ background: "var(--secondary)", color: "var(--primary)" }}
+                >
+                  변경
+                </button>
+              )}
             </div>
-          ))}
+
+            {!editingNickname ? (
+              <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{nickname}</span>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={nicknameInput}
+                    onChange={(e) => {
+                      setNicknameInput(e.target.value);
+                      setNicknameChecked(false);
+                    }}
+                    maxLength={10}
+                    className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
+                    style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                  />
+                  <button
+                    onClick={checkNicknameDuplicate}
+                    className="px-3 py-2 rounded-xl font-semibold text-xs whitespace-nowrap"
+                    style={{ background: "var(--primary)", color: "white" }}
+                  >
+                    중복확인
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const error = validateNickname(nicknameInput);
+                      if (error) {
+                        showAlert(error);
+                        return;
+                      }
+                      if (!nicknameChecked) {
+                        showAlert("닉네임 중복확인을 먼저 해주세요.");
+                        return;
+                      }
+                      setNickname(nicknameInput);
+                      setEditingNickname(false);
+                      showAlert("닉네임이 변경되었습니다.");
+                    }}
+                    className="flex-1 py-2 rounded-xl font-semibold text-xs"
+                    style={{ background: "var(--primary)", color: "white" }}
+                  >
+                    저장
+                  </button>
+                  <button
+                    onClick={() => setEditingNickname(false)}
+                    className="flex-1 py-2 rounded-xl font-semibold text-xs"
+                    style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 전공 (변경 불가, 기존 그대로) */}
+          <div className="rounded-2xl p-4 flex items-center justify-between shadow-sm" style={{ background: "var(--card)" }}>
+            <span className="text-sm" style={{ color: "var(--muted-foreground)" }}>전공</span>
+            <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>AI빅데이터전공 27학번</span>
+          </div>
           <div className="rounded-2xl overflow-hidden shadow-sm mt-2">
             {[
               { label: "비밀번호 변경", danger: false, action: "password" },

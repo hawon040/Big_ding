@@ -38,9 +38,22 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
     setAlertCallback(null);
   };
 
+  const validateNickname = (value: string): string | null => {
+    if (!value.trim()) {
+      return "닉네임을 작성해주세요.";
+    }
+    // 한글/영문/숫자/띄어쓰기만 허용, 특수문자 및 길이 10자(띄어쓰기 포함) 제한
+    const validPattern = /^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9\s]+$/;
+    if (!validPattern.test(value) || value.length > 10) {
+      return "특수문자를 제외한 띄어쓰기 포함 10자 이내로 적어주세요.";
+    }
+    return null;
+  };
+
   const checkNickname = async () => {
-    if (!name) {
-      showAlert("닉네임을 입력해주세요.");
+    const error = validateNickname(name);
+    if (error) {
+      showAlert(error);
       return;
     }
 
