@@ -178,17 +178,10 @@ export const REPORTS_STORAGE_KEY = "bigding_report_history_v1";
 export const REPORTS_UPDATED_EVENT = "bigding-report-added";
 
 // 프로필 사진: ProfileScreen에서 업로드하면 "나"가 작성한 게시물의 아바타에도
-// 즉시 반영되도록 CommunityScreen과 공유한다.
-export const AVATAR_STORAGE_KEY = "bigding_profile_avatar_v1";
+// 즉시 반영되도록(새로고침 없이) CommunityScreen과 공유한다.
+// 실제 값은 서버(User.avatar)가 기준이며, 이 이벤트는 같은 세션 안에서
+// 이미 렌더된 화면들에 최신 URL을 즉시 알려주는 용도일 뿐이다.
 export const AVATAR_UPDATED_EVENT = "bigding-avatar-updated";
-
-export const loadAvatar = (): string | null => {
-  try {
-    return localStorage.getItem(scopedKey(AVATAR_STORAGE_KEY));
-  } catch {
-    return null;
-  }
-};
 
 export interface ReportHistoryItem {
   id: number;
@@ -408,14 +401,15 @@ export function CommunityScreen({
   }, [showChat]);
 
   // ProfileScreen에서 업로드한 프로필 사진을 "나"가 쓴 글의 아바타에도 반영한다.
-  const [myAvatar, setMyAvatar] = useState<string | null>(loadAvatar);
+  // 서버(User.avatar)가 기준값이고, 이 상태는 같은 세션에서 즉시 반영하기 위한 캐시일 뿐이다.
+  const [myAvatar, setMyAvatar] = useState<string | null>(currentUser?.avatar ?? null);
   useEffect(() => {
     const handleAvatarUpdated = (e: Event) => {
       const detail = (e as CustomEvent<string | null>).detail;
-      setMyAvatar(detail ?? loadAvatar());
+      setMyAvatar(detail ?? getCurrentUser()?.avatar ?? null);
     };
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === scopedKey(AVATAR_STORAGE_KEY)) setMyAvatar(loadAvatar());
+      if (e.key === "user") setMyAvatar(getCurrentUser()?.avatar ?? null);
     };
     window.addEventListener(AVATAR_UPDATED_EVENT, handleAvatarUpdated);
     window.addEventListener("storage", handleStorage);

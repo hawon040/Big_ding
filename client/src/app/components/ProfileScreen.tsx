@@ -8,7 +8,7 @@ import defaultAvatar from "@/assets/default-avatar.svg";
 import {
   BOARDS, loadStoredInteractions, filterProfanity,
   STORAGE_KEY, INTERACTIONS_UPDATED_EVENT,
-  AVATAR_STORAGE_KEY, AVATAR_UPDATED_EVENT, loadAvatar, scopedKey,
+  AVATAR_UPDATED_EVENT, scopedKey,
   getCurrentUser, getDisplayTime, updateStoredUser,
   type Post, type StoredInteractions,
 } from "./CommunityScreen";
@@ -55,7 +55,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
   const [editMode, setEditMode] = useState(false);
   const [studentId] = useState(loadStudentId);
   const [showVisibilityModal, setShowVisibilityModal] = useState<string | null>(null);
-  const [avatar, setAvatar] = useState<string | null>(loadAvatar);
+  const [avatar, setAvatar] = useState<string | null>(currentUser?.avatar ?? null);
   const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>(loadPostVisibility);
 
   // 게시물 목록은 실제 DB(GET /api/posts)에서 불러온다.
@@ -248,12 +248,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
       const url = res.data.avatar as string;
       setAvatar(url);
       updateStoredUser({ avatar: url });
-      try {
-        localStorage.setItem(scopedKey(AVATAR_STORAGE_KEY), url);
-        window.dispatchEvent(new CustomEvent(AVATAR_UPDATED_EVENT, { detail: url }));
-      } catch {
-        // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
-      }
+      window.dispatchEvent(new CustomEvent(AVATAR_UPDATED_EVENT, { detail: url }));
     } catch {
       showAlert("프로필 사진 변경에 실패했습니다.");
     }
