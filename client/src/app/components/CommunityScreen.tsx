@@ -267,6 +267,39 @@ const addReportToHistory = (report: ReportHistoryItem) => {
   }
 };
 
+export const removeReportFromHistory = (id: number) => {
+  try {
+    const updated = loadReportHistory().filter((r) => r.id !== id);
+    localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent(REPORTS_UPDATED_EVENT, { detail: updated }));
+  } catch {
+    // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
+  }
+};
+
+// 댓글 작성자 신고: 하루/게시물 단위가 아니라 "같은 작성자"에 대해 누적 최대 3번까지만 허용한다.
+const COMMENT_REPORT_COUNTS_KEY = "bigding_comment_report_counts_v1";
+const MAX_COMMENT_REPORTS_PER_AUTHOR = 3;
+
+const loadCommentReportCounts = (): Record<string, number> => {
+  try {
+    const raw = localStorage.getItem(COMMENT_REPORT_COUNTS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+const incrementCommentReportCount = (author: string) => {
+  try {
+    const counts = loadCommentReportCounts();
+    counts[author] = (counts[author] || 0) + 1;
+    localStorage.setItem(COMMENT_REPORT_COUNTS_KEY, JSON.stringify(counts));
+  } catch {
+    // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
+  }
+};
+
 export const BLOCKED_STORAGE_KEY = "bigding_blocked_users_v1";
 export const BLOCKED_UPDATED_EVENT = "bigding-blocked-updated";
 
@@ -368,7 +401,6 @@ export const BOARDS = [
 interface CommunityScreenProps {
   showChat: boolean;
   setShowChat: React.Dispatch<React.SetStateAction<boolean>>;
-  selectedPostId?: number | null;
   isActive: boolean;
   onViewOwnProfile: () => void;
 }
@@ -376,7 +408,6 @@ interface CommunityScreenProps {
 export function CommunityScreen({
   showChat,
   setShowChat,
-  selectedPostId,
   isActive,
   onViewOwnProfile,
 }: CommunityScreenProps) {
@@ -394,9 +425,20 @@ export function CommunityScreen({
   const [commentInput, setCommentInput] = useState("");
   const commentInputRef = useRef<HTMLInputElement>(null);
   const [openCommentMenu, setOpenCommentMenu] = useState<number | null>(null);
+  const [openDummyCommentMenu, setOpenDummyCommentMenu] = useState<number | null>(null);
+  const [reportingCommentAuthor, setReportingCommentAuthor] = useState<string | null>(null);
+
+  const handleReportCommentAuthor = (author: string) => {
+    const counts = loadCommentReportCounts();
+    if ((counts[author] || 0) >= MAX_COMMENT_REPORTS_PER_AUTHOR) {
+      showAlert("이미 신고 가능 횟수를 모두 사용했습니다.");
+      return;
+    }
+    setReportingCommentAuthor(author);
+  };
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [viewedAuthor, setViewedAuthor] = useState<{ name: string; avatar: string } | null>(null);
-  const [authorActiveTab, setAuthorActiveTab] = useState<"posts" | "comments" | "scrapped">("posts");
+  const [authorActiveTab, setAuthorActiveTab] = useState<"posts" | "scrapped">("posts");
 
   // 다른 사용자의 프로필을 새로 열 때마다 "내 글" 탭부터 다시 보이게 한다.
   useEffect(() => {
@@ -528,6 +570,7 @@ const [showChatMenu, setShowChatMenu] = useState(false);
 const [selectMode, setSelectMode] = useState(false);
 const [selectedMsgs, setSelectedMsgs] = useState<number[]>([]);
 const [showReportConfirm, setShowReportConfirm] = useState(false);
+const [viewingImage, setViewingImage] = useState<string | null>(null);
 
   // chatMessages가 바뀔 때마다 저장해서 새로고침해도 대화 내용과 안 읽음 상태가 유지되게 한다.
   useEffect(() => {
@@ -601,15 +644,6 @@ const [showReportConfirm, setShowReportConfirm] = useState(false);
    }
  };
  const allPosts = [...createdPosts, ...Object.values(POSTS).flat()].filter((p) => !deletedPostIds.includes(p.id));
-  useEffect(() => {
-    if (selectedPostId != null) {
-      const target = allPosts.find((p) => p.id === selectedPostId);
-      if (target) {
-        setActiveBoard(target.board || activeBoard);
-        setSelectedPost(target);
-      }
-    }
-  }, [selectedPostId]);
   const posts = showSearch && searchQuery
     ? allPosts.filter((p) =>
         p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -837,7 +871,7 @@ const endDrag = () => {
         )}
 
         {/* 메시지 목록 */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
           {(chatMessages[activeFriend.id] || []).map((msg) => (
             <div key={msg.id} className={`flex items-end gap-2 ${msg.mine ? "justify-end" : "justify-start"}`}>
               {selectMode && msg.mine && (
@@ -869,7 +903,8 @@ const endDrag = () => {
                   <img
                     src={msg.image}
                     alt="사진"
-                    className="rounded-xl max-w-full"
+                    onClick={() => setViewingImage(msg.image!)}
+                    className="rounded-xl max-w-full cursor-pointer"
                     style={{
                       maxHeight: "200px",
                       outline: selectedMsgs.includes(msg.id) ? "2px solid var(--primary)" : "none",
@@ -932,6 +967,29 @@ const endDrag = () => {
             <Send size={16} color="white" />
           </button>
         </div>
+
+        {/* 이미지 뷰어 팝업 */}
+        {viewingImage && (
+          <div
+            className="absolute inset-0 z-[80] flex items-center justify-center px-6"
+            style={{ background: "rgba(0,0,0,0.9)" }}
+            onClick={() => setViewingImage(null)}
+          >
+            <button
+              onClick={() => setViewingImage(null)}
+              className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+              style={{ background: "rgba(255,255,255,0.15)" }}
+            >
+              <X size={20} color="white" />
+            </button>
+            <img
+              src={viewingImage}
+              alt="사진 크게 보기"
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-full max-h-full rounded-xl object-contain"
+            />
+          </div>
+        )}
       </div>
     );
   }
@@ -939,14 +997,6 @@ const endDrag = () => {
   // ── 작성자 프로필 화면 (내 프로필과 동일한 화면/기능 구성) ──────────────────
   if (viewedAuthor) {
     const authorPosts = allPosts.filter((p) => p.author === viewedAuthor.name);
-    const authorComments: { postId: number; index: number; text: string; emoji: string; postTitle: string }[] = [];
-    allPosts.forEach((p) => {
-      (extraComments[p.id] || []).forEach((c, index) => {
-        if (c.user === viewedAuthor.name) {
-          authorComments.push({ postId: p.id, index, text: c.text, emoji: c.emoji, postTitle: p.title });
-        }
-      });
-    });
     const getBoardLabel = (board?: BoardType) => BOARDS.find((b) => b.id === board)?.label ?? "";
 
     return (
@@ -968,7 +1018,7 @@ const endDrag = () => {
           </h2>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto no-scrollbar">
           {/* 프로필 상단 카드: 내 프로필(ProfileScreen)과 동일한 위치 구성 */}
           <div
             className="relative px-4 pt-8 pb-6"
@@ -989,11 +1039,10 @@ const endDrag = () => {
             </div>
           </div>
 
-          {/* 탭: 내 프로필과 동일하게 내 글 / 댓글 / 스크랩 */}
-          <div className="grid grid-cols-3 px-4 gap-2 mb-3 mt-3">
+          {/* 탭: 다른 사용자의 프로필에서는 댓글 내역을 노출하지 않는다 */}
+          <div className="grid grid-cols-2 px-4 gap-2 mb-3 mt-3">
             {[
               { key: "posts" as const, label: "내 글", Icon: FileText },
-              { key: "comments" as const, label: "댓글", Icon: MessageCircle },
               { key: "scrapped" as const, label: "스크랩", Icon: Bookmark },
             ].map(({ key, label, Icon }) => (
               <button
@@ -1054,32 +1103,6 @@ const endDrag = () => {
               )
             )}
 
-            {authorActiveTab === "comments" && (
-              authorComments.length === 0 ? (
-                <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
-                  작성한 댓글이 없어요.
-                </p>
-              ) : (
-                authorComments.map((c) => (
-                  <div
-                    key={`${c.postId}-${c.index}`}
-                    className="p-3.5 rounded-2xl shadow-sm cursor-pointer"
-                    style={{ background: "var(--card)" }}
-                    onClick={() => {
-                      const p = allPosts.find((post) => post.id === c.postId);
-                      if (p) {
-                        setViewedAuthor(null);
-                        setSelectedPost(p);
-                      }
-                    }}
-                  >
-                    <p className="text-xs font-semibold mb-1" style={{ color: "var(--primary)" }}>{c.postTitle}</p>
-                    <p className="text-sm" style={{ color: "var(--foreground)" }}>{c.emoji} {c.text}</p>
-                  </div>
-                ))
-              )
-            )}
-
             {authorActiveTab === "scrapped" && (
               <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
                 스크랩한 게시물이 없어요.
@@ -1096,10 +1119,12 @@ const endDrag = () => {
     return (
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
         <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setSelectedPost(null)} className="text-lg">←</button>
+          <button onClick={() => setSelectedPost(null)} className="text-lg">
+            ←
+          </button>
           <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
         </div>
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 scrollbar-hide">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
           {/* 게시물 카드 */}
           <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
             <div className="flex items-center gap-2 mb-3">
@@ -1159,6 +1184,65 @@ const endDrag = () => {
             <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
               {selectedPost.content}
             </p>
+
+            {selectedPost.poll && (() => {
+              const selectedId = pollSelections[selectedPost.id];
+              const totalVotes = selectedPost.poll.options.reduce(
+                (sum, opt) => sum + opt.votes + (selectedId === opt.id ? 1 : 0),
+                0
+              );
+              return (
+                <div
+                  className="mt-3 p-3 rounded-2xl flex flex-col gap-2"
+                  style={{ background: "var(--muted)" }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                    🗳️ {selectedPost.poll.question}
+                  </p>
+                  {selectedPost.poll.options.map((opt) => {
+                    const votes = opt.votes + (selectedId === opt.id ? 1 : 0);
+                    const percent = totalVotes === 0 ? 0 : Math.round((votes / totalVotes) * 100);
+                    const isSelected = selectedId === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        onClick={() =>
+                          setPollSelections((prev) => ({
+                            ...prev,
+                            [selectedPost.id]: prev[selectedPost.id] === opt.id ? undefined : opt.id,
+                          } as Record<number, number>))
+                        }
+                        className="relative w-full text-left rounded-xl overflow-hidden text-xs"
+                        style={{ border: "1.5px solid var(--border)" }}
+                      >
+                        {selectedId !== undefined && (
+                          <div
+                            className="absolute inset-y-0 left-0 transition-all"
+                            style={{
+                              width: `${percent}%`,
+                              background: isSelected ? "var(--primary)" : "var(--secondary)",
+                              opacity: isSelected ? 0.35 : 0.25,
+                            }}
+                          />
+                        )}
+                        <div className="relative flex items-center justify-between px-3 py-2">
+                          <span style={{ color: "var(--foreground)", fontWeight: isSelected ? 600 : 400 }}>
+                            {opt.text}
+                          </span>
+                          {selectedId !== undefined && (
+                            <span style={{ color: "var(--muted-foreground)" }}>{percent}% ({votes})</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    {totalVotes}명 참여{selectedId === undefined ? " · 옵션을 눌러 투표하세요" : ""}
+                  </p>
+                </div>
+              );
+            })()}
 
             {selectedPost.tags && (
               <div className="flex flex-wrap gap-1.5 mt-2">
@@ -1232,23 +1316,67 @@ const endDrag = () => {
               댓글 {getCommentCount(selectedPost)}개
             </p>
             {getDummyComments(selectedPost).map((c, i) => (
-              <div key={i} className="flex gap-2 items-start">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
-                  style={{ background: "var(--muted)" }}>{c.emoji}</div>
-                <div className="flex-1 px-3 py-2 rounded-xl text-xs"
+              <div key={i} className="flex gap-2 items-start relative">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm cursor-pointer"
+                  style={{ background: "var(--muted)" }}
+                  onClick={() => setViewedAuthor({ name: c.user, avatar: c.emoji })}>{c.emoji}</div>
+                <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
                   style={{ color: "var(--foreground)" }}>
-                  <span className="font-semibold">{c.user} </span>{c.text}
+                  <span>
+                    <span
+                      className="font-semibold cursor-pointer"
+                      onClick={() => setViewedAuthor({ name: c.user, avatar: c.emoji })}
+                    >
+                      {c.user}{" "}
+                    </span>
+                    {c.text}
+                  </span>
+                  <div className="relative shrink-0">
+                    <button
+                      onClick={() => setOpenDummyCommentMenu(openDummyCommentMenu === i ? null : i)}
+                      style={{ color: "var(--muted-foreground)" }}
+                      aria-label="댓글 더보기"
+                    >
+                      <MoreVertical size={14} />
+                    </button>
+                    {openDummyCommentMenu === i && (
+                      <div
+                        className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
+                        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                      >
+                        <button
+                          onClick={() => {
+                            setOpenDummyCommentMenu(null);
+                            handleReportCommentAuthor(c.user);
+                          }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
+                          style={{ color: "#d4183d" }}
+                        >
+                          <AlertTriangle size={13} /> 신고
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
 
            {(extraComments[selectedPost.id] || []).map((c, i) => (
   <div key={`new-${i}`} className="flex gap-2 items-start relative">
-    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
-      style={{ background: "var(--muted)" }}>{c.emoji}</div>
+    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm cursor-pointer"
+      style={{ background: "var(--muted)" }}
+      onClick={() => setViewedAuthor({ name: c.user, avatar: c.emoji })}>{c.emoji}</div>
     <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
       style={{ color: "var(--foreground)" }}>
-      <span><span className="font-semibold">{c.user} </span>{c.text}</span>
+      <span>
+        <span
+          className="font-semibold cursor-pointer"
+          onClick={() => setViewedAuthor({ name: c.user, avatar: c.emoji })}
+        >
+          {c.user}{" "}
+        </span>
+        {c.text}
+      </span>
       <div className="relative shrink-0">
         <button
           onClick={() => setOpenCommentMenu(openCommentMenu === i ? null : i)}
@@ -1304,6 +1432,87 @@ const endDrag = () => {
     등록
   </button>
   </div>
+
+      {/* 댓글 작성자 신고 사유 선택 팝업 */}
+      {reportingCommentAuthor && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.4)" }}>
+          <div className="rounded-2xl p-5 w-full" style={{ background: "var(--card)" }}>
+            <p className="font-semibold text-sm text-center mb-1" style={{ color: "var(--foreground)" }}>사용자 신고</p>
+            <p className="text-xs text-center mb-3" style={{ color: "var(--muted-foreground)" }}>
+              {reportingCommentAuthor}님을 신고하는 이유를 선택해주세요
+            </p>
+            <div className="flex flex-col gap-2 mb-4">
+              {["욕설/비방", "스팸/광고", "음란물", "개인정보 침해", "기타"].map((reason) => (
+                <button
+                  key={reason}
+                  onClick={() => {
+                    incrementCommentReportCount(reportingCommentAuthor);
+                    const now = new Date();
+                    const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
+                    addReportToHistory({
+                      id: Date.now(),
+                      type: reason,
+                      target: `"${selectedPost!.title}" 게시물 - ${reportingCommentAuthor}님의 댓글`,
+                      status: "처리 중",
+                      date,
+                      postId: selectedPost!.id,
+                      sanction: null,
+                    });
+                    setReportingCommentAuthor(null);
+                    showAlert(`"${reason}" 사유로 신고가 접수되었습니다.`);
+                  }}
+                  className="w-full py-2.5 rounded-xl text-sm text-left px-4"
+                  style={{ background: "var(--muted)", color: "var(--foreground)" }}
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setReportingCommentAuthor(null)}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold"
+              style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 커스텀 알림 팝업 (확인 1개) - 게시물 상세 화면에서도 뜨도록 여기에도 렌더링 */}
+      {alertMessage && (
+        <div
+          className="absolute inset-0 z-[70] flex items-center justify-center px-6"
+          style={{ background: "rgba(0,0,0,0.6)" }}
+        >
+          <div
+            className="w-full rounded-2xl overflow-hidden shadow-2xl"
+            style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+          >
+            <div
+              className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+              style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+            >
+              Code
+              <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+              {alertMessage}
+            </div>
+            <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+              <button
+                className="w-full py-3 text-sm font-medium"
+                style={{ color: "var(--foreground)" }}
+                onClick={closeAlert}
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 커스텀 확인 팝업 (댓글 삭제 등) - 게시물 상세 화면에서도 뜨도록 여기에도 렌더링 */}
       {confirmState && (
@@ -1411,7 +1620,7 @@ const endDrag = () => {
 
       {/* Board tabs */}
       {!showSearch && (
-        <div className="flex gap-2 px-4 pb-3 overflow-x-auto scrollbar-hide shrink-0">
+        <div className="flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar shrink-0">
           {BOARDS.map(({ id, label, emoji }) => (
             <button
               key={id}
@@ -1434,7 +1643,7 @@ const endDrag = () => {
       )}
 
       {/* Posts */}
-<div className="flex-1 overflow-y-auto px-4 pb-20 flex flex-col gap-3 scrollbar-hide">        {posts.map((post) => (
+<div className="flex-1 overflow-y-auto px-4 pb-20 flex flex-col gap-3 no-scrollbar">        {posts.map((post) => (
           <div
             key={post.id}
             className="rounded-2xl p-4 shadow-sm relative"
@@ -1721,7 +1930,7 @@ const endDrag = () => {
           {showChat ? <ChevronDown size={18} color="white" /> : <ChevronUp size={18} color="white" />}
          </button>
 
-        <div className="px-4 py-3 h-160 overflow-y-auto flex flex-col gap-2"
+        <div className="px-4 py-3 h-160 overflow-y-auto flex flex-col gap-2 no-scrollbar"
           style={{ background: "var(--background)", borderTop: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between mb-1">
   <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>친구 목록</span>
@@ -1875,7 +2084,7 @@ const endDrag = () => {
               className="px-4 py-1.5 rounded-xl text-sm font-semibold"
               style={{ background: "var(--primary)", color: "white" }}
              onClick={() => {
-                if (!newTitle.trim() || !newContent.trim()) {
+                if (!newPollEnabled && (!newTitle.trim() || !newContent.trim())) {
                   showAlert("제목과 내용을 입력해주세요.");
                   return;
                 }
@@ -1919,12 +2128,12 @@ const endDrag = () => {
               등록
             </button>
           </div>
-          <div className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto">
+          <div className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto no-scrollbar">
             <div>
               <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
                 게시판 선택
               </label>
-               <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4">
+               <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
                 {BOARDS.map(({ id, label, emoji }) => (
                   <button
                     key={id}
@@ -1952,7 +2161,7 @@ const endDrag = () => {
               value={newContent}
               onChange={(e) => setNewContent(filterProfanity(e.target.value))}
               rows={8}
-              className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none"
+              className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
               style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
             />
             <input
@@ -2078,7 +2287,7 @@ const endDrag = () => {
               완료
             </button>
           </div>
-          <div className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto">
+          <div className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto no-scrollbar">
             <input
               placeholder="제목을 입력하세요"
               value={editTitle}
@@ -2091,7 +2300,7 @@ const endDrag = () => {
               value={editContent}
               onChange={(e) => setEditContent(filterProfanity(e.target.value))}
               rows={8}
-              className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none"
+              className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
               style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
             />
           </div>

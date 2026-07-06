@@ -219,10 +219,10 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
   const closeConfirm = () => setConfirmState(null);
 
   return (
-    <div className="relative flex flex-col flex-1 overflow-y-auto">
+    <div className="relative flex flex-col flex-1 overflow-hidden">
       {/* Profile header */}
       <div
-        className="relative px-4 pt-8 pb-6"
+        className="relative px-4 pt-8 pb-6 shrink-0"
         style={{ background: "linear-gradient(160deg, #111a30 0%, #0a0f1f 100%)" }}
       >
         <div className="flex items-start gap-4">
@@ -281,7 +281,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
       </div>
 
       {/* Tabs */}
-      <div className="grid grid-cols-3 px-4 gap-2 mb-3 mt-3">
+      <div className="grid grid-cols-3 px-4 gap-2 mb-3 mt-3 shrink-0">
         <button
           onClick={() => setActiveTab("posts")}
           className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all"
@@ -318,7 +318,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
       </div>
 
       {/* Tab content */}
-      <div className="px-4 pb-6 flex flex-col gap-3">
+      <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-6 flex flex-col gap-3">
         {activeTab === "posts" && (
   myPosts.length === 0 ? (
     <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
@@ -450,7 +450,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
       <button onClick={() => setSelectedPost(null)} className="text-lg">←</button>
       <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
     </div>
-    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 scrollbar-hide">
+    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
       {/* 게시물 카드 */}
       <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
         <div className="flex items-center gap-2 mb-3">

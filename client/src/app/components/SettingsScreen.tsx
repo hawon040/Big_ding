@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X } from "lucide-react";
 import {
-  REPORTS_STORAGE_KEY, REPORTS_UPDATED_EVENT, loadReportHistory, type ReportHistoryItem,
+  REPORTS_STORAGE_KEY, REPORTS_UPDATED_EVENT, loadReportHistory, removeReportFromHistory, type ReportHistoryItem,
   BLOCKED_STORAGE_KEY, BLOCKED_UPDATED_EVENT, loadBlockedUsers, removeBlockedUser, type BlockedUserItem,
+  POSTS, loadStoredInteractions, getDummyComments, type Post,
 } from "./CommunityScreen";
 
 interface SettingsScreenProps {
@@ -11,7 +12,6 @@ interface SettingsScreenProps {
   onLogout: () => void;
   nickname: string;
   setNickname: (name: string) => void;
-  onNavigateToPost?: (postId: number) => void;
 }
 
 const INQUIRY_STORAGE_KEY = "bigding_inquiry_history_v1";
@@ -28,7 +28,8 @@ const loadInquiryHistory = (): InquiryHistoryItem[] => {
   try {
     const raw = localStorage.getItem(INQUIRY_STORAGE_KEY);
     return raw ? JSON.parse(raw) : [];
-  } catch {
+  } catch (err) {
+    console.error("건의사항 내역을 불러오지 못했습니다.", err);
     return [];
   }
 };
@@ -38,8 +39,18 @@ const addInquiryToHistory = (inquiry: InquiryHistoryItem) => {
     const updated = [inquiry, ...loadInquiryHistory()];
     localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent(INQUIRY_UPDATED_EVENT, { detail: updated }));
-  } catch {
-    // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
+  } catch (err) {
+    console.error("건의사항을 저장하지 못했습니다.", err);
+  }
+};
+
+const removeInquiryFromHistory = (id: number) => {
+  try {
+    const updated = loadInquiryHistory().filter((i) => i.id !== id);
+    localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent(INQUIRY_UPDATED_EVENT, { detail: updated }));
+  } catch (err) {
+    console.error("건의사항을 삭제하지 못했습니다.", err);
   }
 };
 
@@ -48,12 +59,13 @@ const formatToday = () => {
   return `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
 };
 
-export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, setNickname, onNavigateToPost }: SettingsScreenProps) {
+export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, setNickname }: SettingsScreenProps) {
   const [notifications, setNotifications] = useState({
     chat: true,
     community: true,
   });
   const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [viewingPost, setViewingPost] = useState<Post | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -63,6 +75,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [reportHistory, setReportHistory] = useState<ReportHistoryItem[]>([]);
   const [inquiryHistory, setInquiryHistory] = useState<InquiryHistoryItem[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUserItem[]>([]);
+  const [historyTab, setHistoryTab] = useState<"reports" | "inquiries">("reports");
 
   useEffect(() => {
     setReportHistory(loadReportHistory());
@@ -98,6 +111,15 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       window.removeEventListener("storage", handleStorage);
     };
   }, []);
+
+  // 신고/건의 내역 화면에 들어갈 때마다 localStorage에서 최신 값을 다시 읽어와
+  // 이벤트를 놓쳤더라도 방금 등록한 내역이 항상 반영되도록 한다.
+  useEffect(() => {
+    if (activeSection === "reports") {
+      setReportHistory(loadReportHistory());
+      setInquiryHistory(loadInquiryHistory());
+    }
+  }, [activeSection]);
 
   // 커스텀 알림/확인 팝업 상태
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -180,7 +202,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           </button>
           <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>차단 내역</h2>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
           {blockedUsers.length === 0 && (
             <p className="text-sm text-center mt-8" style={{ color: "var(--muted-foreground)" }}>
               차단한 사용자가 없습니다.
@@ -315,7 +337,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           <button onClick={() => setActiveSection(null)}>
             <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
           </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>문의/건의사항</h2>
+          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>건의사항</h2>
         </div>
 
         <div className="px-4 py-4 flex flex-col gap-4">
@@ -325,7 +347,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             </label>
             <input
               type="text"
-              placeholder="문의 제목을 입력하세요"
+              placeholder="건의사항 제목을 입력하세요"
               value={inquiryTitle}
               onChange={(e) => setInquiryTitle(e.target.value)}
               className="w-full px-4 py-3 rounded-xl text-sm outline-none text-white placeholder:text-white/60"
@@ -338,11 +360,11 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               내용
             </label>
             <textarea
-              placeholder="문의 내용을 입력하세요"
+              placeholder="건의사항 내용을 입력하세요"
               value={inquiryContent}
               onChange={(e) => setInquiryContent(e.target.value)}
               rows={8}
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none text-white placeholder:text-white/60"
+              className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none text-white placeholder:text-white/60 no-scrollbar"
               style={{ background: "var(--input-background)", border: "1.5px solid var(--border)" }}
             />
           </div>
@@ -359,7 +381,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 content: inquiryContent,
                 date: formatToday(),
               });
-              showAlert("문의가 접수되었습니다. 빠른 시일 내에 답변드리겠습니다.", () => {
+              showAlert("건의사항이 접수되었습니다. 빠른 시일 내에 답변드리겠습니다.", () => {
                 setInquiryTitle("");
                 setInquiryContent("");
                 setActiveSection(null);
@@ -386,7 +408,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           </button>
           <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>커뮤니티 이용 규칙</h2>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex-1 overflow-y-auto px-4 py-4 no-scrollbar">
           <div className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)" }}>
             <h3 className="font-semibold mb-2" style={{ color: "var(--foreground)" }}>가이드 및 규칙</h3>
             <ul className="text-sm space-y-2" style={{ color: "var(--muted-foreground)" }}>
@@ -410,82 +432,197 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
   if (activeSection === "reports") {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="relative flex flex-col flex-1 overflow-hidden">
         <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
           <button onClick={() => setActiveSection(null)}>
             <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
           </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>신고 및 건의사항 내역</h2>
+          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>신고/건의 내역</h2>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-          {reportHistory.length === 0 && inquiryHistory.length === 0 && (
-            <p className="text-sm text-center mt-8" style={{ color: "var(--muted-foreground)" }}>
-              신고 및 건의사항 내역이 없습니다.
-            </p>
+
+        {/* 신고 내역 / 건의사항 내역 탭 */}
+        <div className="grid grid-cols-2 px-4 gap-2 mt-4 mb-1">
+          <button
+            onClick={() => setHistoryTab("reports")}
+            className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all"
+            style={{
+              background: historyTab === "reports" ? "var(--primary)" : "var(--muted)",
+              color: historyTab === "reports" ? "white" : "var(--muted-foreground)",
+            }}
+          >
+            <AlertTriangle size={14} /> 신고 내역 ({reportHistory.length})
+          </button>
+          <button
+            onClick={() => setHistoryTab("inquiries")}
+            className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all"
+            style={{
+              background: historyTab === "inquiries" ? "var(--primary)" : "var(--muted)",
+              color: historyTab === "inquiries" ? "white" : "var(--muted-foreground)",
+            }}
+          >
+            <MessageSquare size={14} /> 건의사항 내역 ({inquiryHistory.length})
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+          {historyTab === "reports" ? (
+            reportHistory.length === 0 ? (
+              <p className="text-sm text-center mt-8" style={{ color: "var(--muted-foreground)" }}>
+                신고 내역이 없습니다.
+              </p>
+            ) : (
+              reportHistory.map((r) => (
+                <div
+                  key={`report-${r.id}`}
+                  className="rounded-2xl p-4 shadow-sm cursor-pointer transition-all active:scale-98"
+                  style={{ background: "var(--card)" }}
+                  onClick={() => {
+                    const interactions = loadStoredInteractions();
+                    const allPosts = [...interactions.createdPosts, ...Object.values(POSTS).flat()].filter(
+                      (p) => !interactions.deletedPostIds.includes(p.id)
+                    );
+                    const post = allPosts.find((p) => p.id === r.postId);
+                    if (post) {
+                      setViewingPost(post);
+                    } else {
+                      showAlert("게시물을 찾을 수 없습니다. 삭제되었을 수 있습니다.");
+                    }
+                  }}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <AlertTriangle size={14} style={{ color: "var(--primary)" }} />
+                        <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{r.type}</span>
+                      </div>
+                      <p className="text-xs font-medium mt-1" style={{ color: "var(--foreground)" }}>
+                        "{r.target}"
+                      </p>
+                      <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>{r.date}</p>
+                    </div>
+                    {r.status === "처리 완료" ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          showAlert(r.sanction || "현재 검토 중이며, 아직 확정된 제재 내용이 없습니다.");
+                        }}
+                        className="text-xs px-2 py-1 rounded-full font-medium"
+                        style={{ background: "#5cb85c22", color: "#5cb85c" }}
+                      >
+                        처리 완료
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          showConfirm("신고를 취소하시겠습니까?", () => {
+                            removeReportFromHistory(r.id);
+                          });
+                        }}
+                        className="text-xs px-2 py-1 rounded-full font-medium"
+                        style={{ background: "#3b82f622", color: "var(--primary)" }}
+                      >
+                        {r.status}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )
+          ) : (
+            inquiryHistory.length === 0 ? (
+              <p className="text-sm text-center mt-8" style={{ color: "var(--muted-foreground)" }}>
+                건의사항 내역이 없습니다.
+              </p>
+            ) : (
+              inquiryHistory.map((item) => (
+                <div key={`inquiry-${item.id}`} className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <MessageSquare size={14} style={{ color: "#1e88e5" }} />
+                        <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                          {item.title}
+                        </span>
+                      </div>
+                      <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{item.content}</p>
+                      <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>{item.date}</p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        showConfirm("건의사항을 취소하시겠습니까?", () => {
+                          removeInquiryFromHistory(item.id);
+                        });
+                      }}
+                      className="text-xs px-2 py-1 rounded-full font-medium shrink-0"
+                      style={{ background: "#3b82f622", color: "var(--primary)" }}
+                    >
+                      처리 중
+                    </button>
+                  </div>
+                </div>
+              ))
+            )
           )}
-          {reportHistory.map((r) => (
-            <div
-              key={`report-${r.id}`}
-              className="rounded-2xl p-4 shadow-sm cursor-pointer transition-all active:scale-98"
-              style={{ background: "var(--card)" }}
-              onClick={() => {
-                if (onNavigateToPost) {
-                  onNavigateToPost(r.postId);
-                } else {
-                  showAlert("게시물로 이동합니다: " + r.target);
-                }
-              }}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <AlertTriangle size={14} style={{ color: "var(--primary)" }} />
-                    <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{r.type}</span>
-                  </div>
-                  <p className="text-xs font-medium mt-1" style={{ color: "var(--foreground)" }}>
-                    "{r.target}"
-                  </p>
-                  <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>{r.date}</p>
-                </div>
-                {r.status === "처리 완료" ? (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      showAlert(r.sanction || "현재 검토 중이며, 아직 확정된 제재 내용이 없습니다.");
-                    }}
-                    className="text-xs px-2 py-1 rounded-full font-medium"
-                    style={{ background: "#5cb85c22", color: "#5cb85c" }}
-                  >
-                    처리 완료
-                  </button>
-                ) : (
-                  <span
-                    className="text-xs px-2 py-1 rounded-full font-medium"
-                    style={{ background: "#3b82f622", color: "var(--primary)" }}
-                  >
-                    {r.status}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
-          {inquiryHistory.map((item) => (
-            <div key={`inquiry-${item.id}`} className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <MessageSquare size={14} style={{ color: "#1e88e5" }} />
-                    <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                      건의사항: {item.title}
-                    </span>
-                  </div>
-                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{item.content}</p>
-                  <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>{item.date}</p>
-                </div>
-              </div>
-            </div>
-          ))}
         </div>
+
+        {/* 신고/건의 내역에서 게시물 클릭 시, 커뮤니티 탭으로 이동하지 않고 이 화면 위에 바로 상세를 띄운다 */}
+        {viewingPost && (
+          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--background)" }}>
+            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+              <button onClick={() => setViewingPost(null)} className="text-lg" style={{ color: "var(--foreground)" }}>←</button>
+              <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+              <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xl">{viewingPost.avatar}</span>
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{viewingPost.author}</p>
+                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.time}</p>
+                  </div>
+                </div>
+                <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{viewingPost.title}</h3>
+                {viewingPost.image && (
+                  <img src={viewingPost.image} alt="첨부 이미지" className="mt-2 w-full max-h-72 object-cover rounded-xl" />
+                )}
+                <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
+                  {viewingPost.content}
+                </p>
+              </div>
+
+              <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3" style={{ background: "var(--card)" }}>
+                <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                  댓글 {getDummyComments(viewingPost).length + (loadStoredInteractions().extraComments[viewingPost.id]?.length || 0)}개
+                </p>
+                {getDummyComments(viewingPost).map((c, i) => (
+                  <div key={`dummy-${i}`} className="flex gap-2 items-start">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm" style={{ background: "var(--muted)" }}>
+                      {c.emoji}
+                    </div>
+                    <div className="flex-1 px-3 py-2 rounded-xl text-xs" style={{ color: "var(--foreground)" }}>
+                      <span className="font-semibold">{c.user} </span>{c.text}
+                    </div>
+                  </div>
+                ))}
+                {(loadStoredInteractions().extraComments[viewingPost.id] || []).map((c, i) => (
+                  <div key={`extra-${i}`} className="flex gap-2 items-start">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm" style={{ background: "var(--muted)" }}>
+                      {c.emoji}
+                    </div>
+                    <div className="flex-1 px-3 py-2 rounded-xl text-xs" style={{ color: "var(--foreground)" }}>
+                      <span className="font-semibold">{c.user} </span>{c.text}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {AlertModal}
+        {ConfirmModal}
       </div>
     );
   }
@@ -589,7 +726,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
         <Section title="고객 지원">
           <SettingRow
             icon={<MessageSquare size={18} style={{ color: "#5bc0de" }} />}
-            label="문의/건의사항"
+            label="건의사항"
             onPress={() => setActiveSection("inquiry")}
           />
           <SettingRow
@@ -603,7 +740,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
         <Section title="안전">
           <SettingRow
             icon={<AlertTriangle size={18} style={{ color: "#d4183d" }} />}
-            label="신고 및 건의사항 내역"
+            label="신고/건의 내역"
             onPress={() => setActiveSection("reports")}
           />
           <SettingRow

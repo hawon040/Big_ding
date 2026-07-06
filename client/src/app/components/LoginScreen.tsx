@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChevronRight, Eye, EyeOff, X } from "lucide-react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import api from "@/api";
@@ -32,6 +32,18 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
       setAlertMessage(err.response?.data?.message || "서버 연결 실패");
     }
   };
+
+  // 포커스가 입력창이 아니라 자동 로그인 체크박스나 빈 화면에 있어도
+  // Enter를 누르면 로그인이 시도되도록 화면 전체에서 감지한다.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        handleSubmit();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [studentId, password, autoLogin]);
 
   return (
     <div
