@@ -53,7 +53,6 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
   const [showVisibilityModal, setShowVisibilityModal] = useState<number | null>(null);
   const [avatar, setAvatar] = useState<string | null>(loadAvatar);
   const [postVisibility, setPostVisibility] = useState<Record<number, Visibility>>(loadPostVisibility);
-
   // CommunityScreen과 동일한 로컬 저장소(STORAGE_KEY)를 공유해서
   // 좋아요/싫어요/스크랩/댓글/삭제 상태가 두 화면에서 항상 일치하도록 한다.
   const [storedInit] = useState(loadStoredInteractions);
@@ -319,190 +318,151 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-6 flex flex-col gap-3">
-        {activeTab === "posts" && (
-  myPosts.length === 0 ? (
-    <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
-      아직 작성한 글이 없어요.
-    </p>
-  ) : myPosts.map((post) => {
-    const visibility = postVisibility[post.id] ?? "all";
-    const VisibilityIcon = VISIBILITY_META[visibility].Icon;
-    return (
-    <div key={post.id} className="p-3.5 rounded-2xl shadow-sm cursor-pointer" style={{ background: "var(--card)" }} onClick={() => setSelectedPost(post)}>
-      <div className="flex items-start justify-between mb-2">
-        <div className="flex-1">
-          <span
-            className="text-xs px-2 py-0.5 rounded-full font-medium"
-            style={{ background: "var(--secondary)", color: "var(--primary)" }}
-          >
-            {getBoardLabel(post.board)}
-          </span>
-          <p className="font-semibold text-sm mt-1.5" style={{ color: "var(--foreground)" }}>{post.title}</p>
-          <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>{post.time}</p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button onClick={(e) => { e.stopPropagation(); setShowVisibilityModal(post.id); }}>
-            <VisibilityIcon size={16} style={{ color: "var(--muted-foreground)" }} />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              showConfirm("이 게시물을 삭제하시겠습니까?", () => {
-                setDeletedPostIds((prev) => [...prev, post.id]);
-              });
-            }}
-          >
-            <Trash2 size={16} style={{ color: "#d4183d" }} />
-          </button>
-        </div>
-      </div>
-      <div className="flex items-center gap-3 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
-        <div className="flex items-center gap-1">
-  <Heart size={13} fill="var(--primary)" color="var(--primary)" />
-  <span className="text-xs" style={{ color: "var(--primary)" }}>{getLikeCount(post)}</span>
-</div>
-        <div className="flex items-center gap-1">
-          <MessageCircle size={13} style={{ color: "var(--muted-foreground)" }} />
-          <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(post)}</span>
-        </div>
-      </div>
-    </div>
-    );
-  })
-)}
-        {activeTab === "comments" && (
-          myWrittenComments.length === 0 ? (
-            <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
-              작성한 댓글이 없어요.
-            </p>
-          ) : myWrittenComments.map((comment) => (
-            <div
-              key={`${comment.postId}-${comment.index}`}
-              className="p-3.5 rounded-2xl shadow-sm cursor-pointer"
-              style={{ background: "var(--card)" }}
-              onClick={() => {
-                const post = allKnownPosts.find((p) => p.id === comment.postId);
-                if (post) setSelectedPost(post);
-              }}
-            >
-              <div className="flex items-start justify-between mb-1">
-                <p className="text-xs font-semibold" style={{ color: "var(--primary)" }}>
-                  {comment.postTitle}
-                </p>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteComment(comment.postId, comment.index);
-                  }}
-                >
-                  <X size={14} style={{ color: "#d4183d" }} />
-                </button>
-              </div>
-              <p className="text-sm" style={{ color: "var(--foreground)" }}>{comment.emoji} {comment.text}</p>
+
+  {/* POSTS TAB */}
+  {activeTab === "posts" && (
+    myPosts.length === 0 ? (
+      <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
+        아직 작성한 글이 없어요.
+      </p>
+    ) : myPosts.map((post) => {
+      const visibility = postVisibility[post.id] ?? "all";
+      const VisibilityIcon = VISIBILITY_META[visibility].Icon;
+
+      const isLiked = likedPosts[post.id] ?? false;
+      const isDisliked = dislikedPosts[post.id] ?? false;
+
+      return (
+        <div
+          key={post.id}
+          className="p-3.5 rounded-2xl shadow-sm cursor-pointer"
+          style={{ background: "var(--card)" }}
+          onClick={() => setSelectedPost(post)}
+        >
+          {/* 상단 정보 */}
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex-1">
+              <span
+                className="text-xs px-2 py-0.5 rounded-full font-medium"
+                style={{ background: "var(--secondary)", color: "var(--primary)" }}
+              >
+                {getBoardLabel(post.board)}
+              </span>
+              <p className="font-semibold text-sm mt-1.5" style={{ color: "var(--foreground)" }}>
+                {post.title}
+              </p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+                {post.time}
+              </p>
             </div>
-          ))
-        )}
 
-        {activeTab === "scrapped" && (
-          scrappedPosts.length === 0 ? (
-            <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
-              스크랩한 게시물이 없어요.
-            </p>
-          ) : scrappedPosts.map((post) => (
-            <div
-              key={post.id}
-              className="p-3.5 rounded-2xl shadow-sm cursor-pointer"
-              style={{ background: "var(--card)" }}
-              onClick={() => setSelectedPost(post)}
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xl">{post.avatar}</span>
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full font-medium"
-                      style={{ background: "var(--secondary)", color: "var(--primary)" }}
-                    >
-                      {getBoardLabel(post.board)}
-                    </span>
-                  </div>
-                  <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>{post.title}</p>
-                </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    showConfirm("스크랩을 취소하시겠습니까?", () => {
-                      setSavedPosts((prev) => ({ ...prev, [post.id]: false }));
-                    });
-                  }}
-                >
-                  <Bookmark size={18} fill="var(--primary)" color="var(--primary)" />
-                </button>
-              </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={(e) => { e.stopPropagation(); setShowVisibilityModal(post.id); }}>
+                <VisibilityIcon size={16} style={{ color: "var(--muted-foreground)" }} />
+              </button>
+
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  showConfirm("이 게시물을 삭제하시겠습니까?", () => {
+                    setDeletedPostIds((prev) => [...prev, post.id]);
+                  });
+                }}
+              >
+                <Trash2 size={16} style={{ color: "#d4183d" }} />
+              </button>
             </div>
-          ))
-        )}
+          </div>
+
+          {/* 좋아요 / 싫어요 / 댓글 */}
+          <div className="flex items-center gap-3 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+            
+            {/* 좋아요 */}
+            <div className="flex items-center gap-1">
+              <Heart
+                size={13}
+                fill={isLiked ? "var(--primary)" : "none"}
+                color={isLiked ? "var(--primary)" : "var(--muted-foreground)"}
+              />
+              <span
+                className="text-xs"
+                style={{ color: isLiked ? "var(--primary)" : "var(--muted-foreground)" }}
+              >
+                {getLikeCount(post)}
+              </span>
+            </div>
+
+            {/* 싫어요 */}
+            <div className="flex items-center gap-1">
+              <ThumbsDown
+                size={13}
+                fill={isDisliked ? "var(--primary)" : "none"}
+                color={isDisliked ? "var(--primary)" : "var(--muted-foreground)"}
+              />
+              <span
+                className="text-xs"
+                style={{ color: isDisliked ? "var(--primary)" : "var(--muted-foreground)" }}
+              >
+                {getDislikeCount(post)}
+              </span>
+            </div>
+
+            {/* 댓글 */}
+            <div className="flex items-center gap-1">
+              <MessageCircle size={13} style={{ color: "var(--muted-foreground)" }} />
+              <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                {getCommentCount(post)}
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    })
+  )}
+
+  {/* 상세 화면 */}
+  {selectedPost && (
+    <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+      
+      {/* 상단 바 */}
+      <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+        <button onClick={() => setSelectedPost(null)} className="text-lg">←</button>
+        <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
       </div>
 
-    {selectedPost && (
-  <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-    <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-      <button onClick={() => setSelectedPost(null)} className="text-lg">←</button>
-      <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
-    </div>
-    <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-      {/* 게시물 카드 */}
-      <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-        <div className="flex items-center gap-2 mb-3">
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0"
-            style={{ background: "var(--muted)" }}
-          >
-            {selectedPost.avatar}
+      {/* 스크롤 영역 */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+
+        {/* 카드 */}
+        <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
+          
+          {/* 아바타 */}
+          <div className="flex items-center gap-2 mb-3">
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0"
+              style={{ background: "var(--muted)" }}
+            >
+              {selectedPost.avatar}
+            </div>
+
+            <div className="flex-1">
+              <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                {selectedPost.author}
+              </p>
+              {selectedPost.rating != null && (
+                <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
+                  {selectedPost.rating.toFixed(1)}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-              {selectedPost.author}
-            </p>
-            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-              {selectedPost.time}
-            </p>
-          </div>
-          {selectedPost.price && (
-            <span className="px-2 py-1 rounded-xl text-xs font-bold"
-              style={{ background: "var(--accent)", color: "var(--foreground)" }}>
-              {selectedPost.price}원
-            </span>
-          )}
-        </div>
 
-        <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h3>
-
-        {selectedPost.image && (
-          <img
-            src={selectedPost.image}
-            alt="첨부 이미지"
-            className="mt-2 w-full max-h-72 object-cover rounded-xl"
-          />
-        )}
-
-        {selectedPost.rating && (
-          <div className="flex items-center gap-1 mb-1.5 mt-2">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} size={14}
-                fill={i < Math.floor(selectedPost!.rating!) ? "#ffc107" : "none"}
-                color={i < Math.floor(selectedPost!.rating!) ? "#ffc107" : "var(--muted-foreground)"} />
-            ))}
-            <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
-              {selectedPost.rating.toFixed(1)}
-            </span>
-          </div>
-        )}
-
+        {/* 내용 */}
         <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
           {selectedPost.content}
         </p>
 
+        {/* 태그 */}
         {selectedPost.tags && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {selectedPost.tags.map((tag, i) => (
@@ -514,6 +474,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
           </div>
         )}
 
+        {/* 모집 인원 */}
         {selectedPost.maxParticipants && (
           <div className="mt-2">
             <span
@@ -529,22 +490,26 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
           </div>
         )}
 
+        {/* 좋아요 / 싫어요 / 댓글 / 스크랩 */}
         <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-         <button className="flex items-center gap-1.5"
-          onClick={() => {
-            setLikedPosts((l) => ({ ...l, [selectedPost!.id]: !l[selectedPost!.id] }));
-            setDislikedPosts((d) => ({ ...d, [selectedPost!.id]: false }));
-          }}>
+          {/* 좋아요 */}
+          <button className="flex items-center gap-1.5"
+            onClick={() => {
+              setLikedPosts((l) => ({ ...l, [selectedPost.id]: !l[selectedPost.id] }));
+              setDislikedPosts((d) => ({ ...d, [selectedPost.id]: false }));
+            }}>
             <Heart size={16} fill={likedPosts[selectedPost.id] ? "#3b82f6" : "none"}
               color={likedPosts[selectedPost.id] ? "#3b82f6" : "var(--muted-foreground)"} />
             <span className="text-xs" style={{ color: likedPosts[selectedPost.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
               {getLikeCount(selectedPost)}
             </span>
           </button>
+
+          {/* 싫어요 */}
           <button className="flex items-center gap-1.5"
             onClick={() => {
-              if (!likedPosts[selectedPost!.id]) {
-                setDislikedPosts((d) => ({ ...d, [selectedPost!.id]: !d[selectedPost!.id] }));
+              if (!likedPosts[selectedPost.id]) {
+                setDislikedPosts((d) => ({ ...d, [selectedPost.id]: !d[selectedPost.id] }));
               }
             }}>
             <ThumbsDown size={16} fill={dislikedPosts[selectedPost.id] ? "#d4183d" : "none"}
@@ -553,6 +518,8 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
               {getDislikeCount(selectedPost)}
             </span>
           </button>
+
+          {/* 댓글 */}
           <button className="flex items-center gap-1.5"
             onClick={() => {
               commentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -561,8 +528,10 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
             <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
             <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(selectedPost)}</span>
           </button>
+
+          {/* 스크랩 */}
           <button className="flex items-center gap-1.5"
-            onClick={() => setSavedPosts((s) => ({ ...s, [selectedPost!.id]: !s[selectedPost!.id] }))}>
+            onClick={() => setSavedPosts((s) => ({ ...s, [selectedPost.id]: !s[selectedPost.id] }))}>
             <Bookmark size={16} fill={savedPosts[selectedPost.id] ? "var(--primary)" : "none"}
               color={savedPosts[selectedPost.id] ? "var(--primary)" : "var(--muted-foreground)"} />
           </button>
@@ -574,6 +543,8 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
         <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
           댓글 {getCommentCount(selectedPost)}개
         </p>
+
+        {/* 기존 댓글 */}
         {getDummyComments(selectedPost).map((c, i) => (
           <div key={i} className="flex gap-2 items-start">
             <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
@@ -585,6 +556,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
           </div>
         ))}
 
+        {/* 새 댓글 */}
         {(extraComments[selectedPost.id] || []).map((c, i) => (
           <div key={`new-${i}`} className="flex gap-2 items-start relative">
             <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
@@ -620,35 +592,11 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
         ))}
       </div>
     </div>
-
-    {/* 댓글 입력 */}
-    <div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
-      <input
-        ref={commentInputRef}
-        value={commentInput}
-        onChange={(e) => setCommentInput(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") handleAddComment();
-        }}
-        placeholder="댓글 입력..."
-        className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
-        style={{ background: "var(--input-background)", color: "white", border: "1.5px solid var(--border)" }}
-      />
-      <button
-        onClick={handleAddComment}
-        disabled={!commentInput.trim()}
-        className="px-3 py-2 rounded-xl text-xs font-semibold"
-        style={{
-          background: commentInput.trim() ? "var(--primary)" : "var(--muted)",
-          color: commentInput.trim() ? "white" : "var(--muted-foreground)",
-          cursor: commentInput.trim() ? "pointer" : "not-allowed",
-        }}
-      >
-        등록
-      </button>
-    </div>
   </div>
 )}
+
+  
+  </div>
       {/* Visibility modal */}
       {showVisibilityModal && (
         <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
