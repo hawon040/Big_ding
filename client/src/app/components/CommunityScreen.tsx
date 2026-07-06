@@ -37,6 +37,20 @@ interface Poll {
   options: PollOption[];
 }
 
+// "N분 전" / "N시간 전" / "N일 전" / "방금 전" 문자열을,
+// 게시물이 실제로 만들어진 시각(createdAt)과 현재 시각(now)의 차이로부터 계산한다.
+// createdAt이 없는(더미) 게시물은 기존에 박아둔 time 문자열을 그대로 보여준다.
+export const getDisplayTime = (post: Post, now: number = Date.now()): string => {
+  if (!post.createdAt) return post.time;
+  const diffMinutes = Math.max(0, Math.floor((now - post.createdAt) / 60000));
+  if (diffMinutes < 1) return "방금 전";
+  if (diffMinutes < 60) return `${diffMinutes}분 전`;
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}시간 전`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}일 전`;
+};
+
 export interface Post {
   id: number;
   author: string;
@@ -48,6 +62,7 @@ export interface Post {
   dislikes: number;
   comments: number;
   image?: string;
+  createdAt?: number;
   tags?: string[];
   rating?: number;
   maxParticipants?: number;
@@ -399,6 +414,22 @@ export const loadStoredInteractions = (): StoredInteractions => {
   { user: "익명11", text: "이런 정보 자주 올려주세요", emoji: "🙌" },
   { user: "익명12", text: "저도 참고할게요~", emoji: "🐶" },
 ];
+// "N분 전" / "N시간 전" / "N일 전" / "방금 전" 같은 상대 시간 문자열을 분 단위 숫자로 변환한다.
+// 값이 작을수록 더 최근 글이므로, 이 값으로 정렬하면 게시판 종류와 상관없이 최신순으로 볼 수 있다.
+const parseRelativeTimeToMinutes = (time: string): number => {
+  if (time.includes("방금")) return 0;
+  const match = time.match(/(\d+)\s*(분|시간|일)/);
+  if (!match) return Number.MAX_SAFE_INTEGER;
+  const value = parseInt(match[1], 10);
+  const unit = match[2];
+  if (unit === "분") return value;
+  if (unit === "시간") return value * 60;
+  return value * 60 * 24; // 일
+};
+
+// 정렬용: createdAt이 있으면 실제 경과 분을, 없으면(더미 게시물) 기존 문자열을 파싱해서 사용한다.
+const getPostMinutesAgo = (post: Post, now: number = Date.now()): number =>
+  post.createdAt ? Math.max(0, Math.floor((now - post.createdAt) / 60000)) : parseRelativeTimeToMinutes(post.time);
 
 export const getDummyComments = (post: Post) => {
   const count = Math.max(0, post.comments);
@@ -435,6 +466,16 @@ export function CommunityScreen({
   const [storedInit] = useState(loadStoredInteractions);
   const isAdmin = ADMIN_STUDENT_IDS.includes(getCurrentStudentId());
   const [activeBoard, setActiveBoard] = useState<BoardType>("free");
+
+  // 게시물의 "방금 전 / N분 전 / N시간 전" 표시가 시간이 지남에 따라
+  // 새로고침 없이도 자동으로 갱신되도록, 1초마다 현재 시각을 갱신해서
+  // getDisplayTime을 다시 계산하게 만든다.
+  const [nowTick, setNowTick] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const [likedPosts, setLikedPosts] = useState<Record<number, boolean>>(storedInit.likedPosts);
   const [dislikedPosts, setDislikedPosts] = useState<Record<number, boolean>>(storedInit.dislikedPosts);
   const [savedPosts, setSavedPosts] = useState<Record<number, boolean>>(storedInit.savedPosts);
@@ -669,7 +710,12 @@ const [viewingImage, setViewingImage] = useState<string | null>(null);
         p.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
       )
-    : [...createdPosts.filter((p) => p.board === activeBoard), ...POSTS[activeBoard]].filter((p) => !deletedPostIds.includes(p.id));
+    : activeBoard === "free"
+// "생활Q&A"는 게시판 종류에 상관없이 모든 최신 글을 모아서 보여준다.
+? [...allPosts].sort(
+    (a, b) => getPostMinutesAgo(a) - getPostMinutesAgo(b)
+  )
+: [...createdPosts.filter((p) => p.board === activeBoard), ...POSTS[activeBoard]].filter((p) => !deletedPostIds.includes(p.id));
 
   const toggleFriendSelectMode = () => {
   setIsFriendSelectMode((prev) => !prev);
@@ -1114,7 +1160,7 @@ const endDrag = () => {
                         <MessageCircle size={12} /> {getCommentCount(p)}
                       </span>
                       <span className="text-xs ml-auto" style={{ color: "var(--muted-foreground)" }}>
-                        {p.time}
+                        {getDisplayTime(p, nowTick)}
                       </span>
                     </div>
                   </div>
@@ -1166,7 +1212,7 @@ const endDrag = () => {
                   {selectedPost.author}
                 </p>
                 <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                  {selectedPost.time}
+                  {getDisplayTime(selectedPost, nowTick)}
                 </p>
               </div>
               {selectedPost.price && (
@@ -1686,7 +1732,7 @@ const endDrag = () => {
               </button>
               <div className="flex-1">
                 <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{post.author}</p>
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{post.time}</p>
+                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(post, nowTick)}</p>
               </div>
               {post.price && (
                 <span className="px-2 py-1 rounded-xl text-xs font-bold"
@@ -2121,6 +2167,7 @@ const endDrag = () => {
                   author: "나",
                   avatar: "🙂",
                   time: "방금 전",
+                  createdAt: Date.now(),
                   title: newTitle,
                   content: newContent,
                   likes: 0,
