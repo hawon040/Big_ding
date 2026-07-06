@@ -266,6 +266,45 @@ const addReportToHistory = (report: ReportHistoryItem) => {
     // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
   }
 };
+
+export const BLOCKED_STORAGE_KEY = "bigding_blocked_users_v1";
+export const BLOCKED_UPDATED_EVENT = "bigding-blocked-updated";
+
+export interface BlockedUserItem {
+  id: number;
+  name: string;
+  reason: string;
+  date: string;
+}
+
+export const loadBlockedUsers = (): BlockedUserItem[] => {
+  try {
+    const raw = localStorage.getItem(BLOCKED_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const addBlockedUser = (user: BlockedUserItem) => {
+  try {
+    const updated = [user, ...loadBlockedUsers()];
+    localStorage.setItem(BLOCKED_STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent(BLOCKED_UPDATED_EVENT, { detail: updated }));
+  } catch {
+    // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
+  }
+};
+
+export const removeBlockedUser = (id: number) => {
+  try {
+    const updated = loadBlockedUsers().filter((u) => u.id !== id);
+    localStorage.setItem(BLOCKED_STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent(BLOCKED_UPDATED_EVENT, { detail: updated }));
+  } catch {
+    // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
+  }
+};
 export interface StoredInteractions {
   likedPosts: Record<number, boolean>;
   dislikedPosts: Record<number, boolean>;
@@ -2061,8 +2100,8 @@ const endDrag = () => {
 
       {/* 신고 모달 */}
       {showReport && (
-        <div className="absolute inset-0 z-50 flex items-end" style={{ background: "rgba(0,0,0,0.5)" }}>
-          <div className="w-full rounded-t-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
+        <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>신고하기</h3>
               <button onClick={() => setShowReport(null)}>
@@ -2097,7 +2136,16 @@ const endDrag = () => {
             ))}
           <button
               onClick={() => {
+                const targetPost = allPosts.find((p) => p.id === showReport);
                 showConfirm("이 사용자를 차단하시겠습니까?", () => {
+                  const now = new Date();
+                  const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
+                  addBlockedUser({
+                    id: Date.now(),
+                    name: targetPost ? targetPost.author : "사용자",
+                    reason: "게시물 신고",
+                    date,
+                  });
                   setShowReport(null);
                   showAlert("사용자가 차단되었습니다.");
                 });

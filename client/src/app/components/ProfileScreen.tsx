@@ -651,9 +651,9 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
 )}
       {/* Visibility modal */}
       {showVisibilityModal && (
-        <div className="absolute inset-0 z-50 flex items-end" style={{ background: "rgba(0,0,0,0.5)" }}>
+        <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
           <div
-            className="w-full rounded-t-3xl px-4 py-6 flex flex-col gap-3"
+            className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3"
             style={{ background: "var(--background)" }}
           >
             <div className="flex items-center justify-between mb-2">

@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X } from "lucide-react";
-import { REPORTS_STORAGE_KEY, REPORTS_UPDATED_EVENT, loadReportHistory, type ReportHistoryItem } from "./CommunityScreen";
+import {
+  REPORTS_STORAGE_KEY, REPORTS_UPDATED_EVENT, loadReportHistory, type ReportHistoryItem,
+  BLOCKED_STORAGE_KEY, BLOCKED_UPDATED_EVENT, loadBlockedUsers, removeBlockedUser, type BlockedUserItem,
+} from "./CommunityScreen";
 
 interface SettingsScreenProps {
   darkMode: boolean;
@@ -10,11 +13,6 @@ interface SettingsScreenProps {
   setNickname: (name: string) => void;
   onNavigateToPost?: (postId: number) => void;
 }
-
-const BLOCKED_USERS = [
-  { id: 1, name: "차단된유저1", reason: "욕설/비방", date: "2026.05.25" },
-  { id: 2, name: "차단된유저2", reason: "스팸", date: "2026.05.15" },
-];
 
 const INQUIRY_STORAGE_KEY = "bigding_inquiry_history_v1";
 const INQUIRY_UPDATED_EVENT = "bigding-inquiry-added";
@@ -64,11 +62,12 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [inquiryContent, setInquiryContent] = useState("");
   const [reportHistory, setReportHistory] = useState<ReportHistoryItem[]>([]);
   const [inquiryHistory, setInquiryHistory] = useState<InquiryHistoryItem[]>([]);
-  const [blockedUsers, setBlockedUsers] = useState(BLOCKED_USERS);
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUserItem[]>([]);
 
   useEffect(() => {
     setReportHistory(loadReportHistory());
     setInquiryHistory(loadInquiryHistory());
+    setBlockedUsers(loadBlockedUsers());
 
     const handleReportsUpdated = (e: Event) => {
       const detail = (e as CustomEvent<ReportHistoryItem[]>).detail;
@@ -78,17 +77,24 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       const detail = (e as CustomEvent<InquiryHistoryItem[]>).detail;
       setInquiryHistory(detail ?? loadInquiryHistory());
     };
+    const handleBlockedUpdated = (e: Event) => {
+      const detail = (e as CustomEvent<BlockedUserItem[]>).detail;
+      setBlockedUsers(detail ?? loadBlockedUsers());
+    };
     const handleStorage = (e: StorageEvent) => {
       if (e.key === REPORTS_STORAGE_KEY) setReportHistory(loadReportHistory());
       if (e.key === INQUIRY_STORAGE_KEY) setInquiryHistory(loadInquiryHistory());
+      if (e.key === BLOCKED_STORAGE_KEY) setBlockedUsers(loadBlockedUsers());
     };
 
     window.addEventListener(REPORTS_UPDATED_EVENT, handleReportsUpdated);
     window.addEventListener(INQUIRY_UPDATED_EVENT, handleInquiryUpdated);
+    window.addEventListener(BLOCKED_UPDATED_EVENT, handleBlockedUpdated);
     window.addEventListener("storage", handleStorage);
     return () => {
       window.removeEventListener(REPORTS_UPDATED_EVENT, handleReportsUpdated);
       window.removeEventListener(INQUIRY_UPDATED_EVENT, handleInquiryUpdated);
+      window.removeEventListener(BLOCKED_UPDATED_EVENT, handleBlockedUpdated);
       window.removeEventListener("storage", handleStorage);
     };
   }, []);
@@ -194,7 +200,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 <button
                   onClick={() => {
                     showConfirm(`${user.name}님의 차단을 해제하시겠습니까?`, () => {
-                      setBlockedUsers((users) => users.filter((u) => u.id !== user.id));
+                      removeBlockedUser(user.id);
                       showAlert("차단이 해제되었습니다.");
                     });
                   }}
@@ -541,11 +547,11 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
   return (
     <div className="flex flex-col flex-1">
-      <div className="px-4 pt-5 pb-3">
+      <div className="px-4 pt-3 pb-2">
         <h1 className="font-bold text-xl text-white">설정</h1>
       </div>
 
-      <div className="px-4 flex flex-col gap-4 pb-6">
+      <div className="px-4 flex flex-col gap-2.5 pb-3">
         <Section title="계정">
           <SettingRow
             icon={<User size={18} style={{ color: "var(--primary)" }} />}
@@ -609,7 +615,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
         <button
           onClick={onLogout}
-          className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-semibold text-sm shadow-sm transition-all active:scale-98"
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm shadow-sm transition-all active:scale-98"
           style={{ background: "var(--card)", color: "#d4183d", border: "1.5px solid #d4183d30" }}
         >
           <LogOut size={16} />
@@ -623,7 +629,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs font-semibold mb-2 px-1 text-white">{title}</p>
+      <p className="text-xs font-semibold mb-1 px-1 text-white">{title}</p>
       <div className="rounded-2xl overflow-hidden shadow-sm" style={{ background: "var(--card)" }}>
         {children}
       </div>
@@ -642,7 +648,7 @@ function SettingRow({
   return (
     <button
       onClick={onPress}
-      className="w-full flex items-center gap-3 px-4 py-4 border-b transition-all active:bg-muted"
+      className="w-full flex items-center gap-3 px-4 py-3 border-b transition-all active:bg-muted"
       style={{ borderColor: last ? "transparent" : "var(--border)" }}
     >
       {icon}
@@ -663,7 +669,7 @@ function ToggleRow({
 }) {
   return (
     <div
-      className="flex items-center gap-3 px-4 py-4 border-b"
+      className="flex items-center gap-3 px-4 py-3 border-b"
       style={{ borderColor: last ? "transparent" : "var(--border)" }}
     >
       {icon}

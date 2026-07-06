@@ -201,7 +201,7 @@ onViewOwnProfile={() => handleTabChange("profile")}
         {/* 프로필/설정은 위에 덮어씌우는 방식으로 렌더링 */}
         {activeTab === "profile" && (
           <div
-            className="absolute inset-0 overflow-hidden"
+            className="absolute inset-0 overflow-hidden flex flex-col"
             style={{ background: "var(--background)" }}
           >
             <ProfileScreen nickname={nickname} setNickname={setNickname} />
@@ -209,7 +209,7 @@ onViewOwnProfile={() => handleTabChange("profile")}
         )}
         {activeTab === "settings" && (
           <div
-            className="absolute inset-0 overflow-hidden"
+            className="absolute inset-0 overflow-hidden flex flex-col"
             style={{ background: "var(--background)" }}
           >
             <SettingsScreen
