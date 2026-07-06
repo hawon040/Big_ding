@@ -6,7 +6,7 @@ import {
 import {
   POSTS, BOARDS, loadStoredInteractions, getDummyComments, filterProfanity,
   STORAGE_KEY, INTERACTIONS_UPDATED_EVENT,
-  AVATAR_STORAGE_KEY, AVATAR_UPDATED_EVENT, loadAvatar,
+  AVATAR_STORAGE_KEY, AVATAR_UPDATED_EVENT, loadAvatar, scopedKey,
   type Post, type StoredInteractions,
 } from "./CommunityScreen";
 
@@ -22,7 +22,7 @@ const VISIBILITY_META: Record<Visibility, { label: string; Icon: React.Component
 
 const loadPostVisibility = (): Record<number, Visibility> => {
   try {
-    const raw = localStorage.getItem(VISIBILITY_STORAGE_KEY);
+    const raw = localStorage.getItem(scopedKey(VISIBILITY_STORAGE_KEY));
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
@@ -84,8 +84,8 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
     };
     try {
       const json = JSON.stringify(toStore);
-      if (localStorage.getItem(STORAGE_KEY) !== json) {
-        localStorage.setItem(STORAGE_KEY, json);
+      if (localStorage.getItem(scopedKey(STORAGE_KEY)) !== json) {
+        localStorage.setItem(scopedKey(STORAGE_KEY), json);
         window.dispatchEvent(new CustomEvent(INTERACTIONS_UPDATED_EVENT, { detail: toStore }));
       }
     } catch {
@@ -108,7 +108,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
       applyExternalUpdate(detail ?? loadStoredInteractions());
     };
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) applyExternalUpdate(loadStoredInteractions());
+      if (e.key === scopedKey(STORAGE_KEY)) applyExternalUpdate(loadStoredInteractions());
     };
     window.addEventListener(INTERACTIONS_UPDATED_EVENT, handleInteractionsUpdated);
     window.addEventListener("storage", handleStorage);
@@ -120,7 +120,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
 
   useEffect(() => {
     try {
-      localStorage.setItem(VISIBILITY_STORAGE_KEY, JSON.stringify(postVisibility));
+      localStorage.setItem(scopedKey(VISIBILITY_STORAGE_KEY), JSON.stringify(postVisibility));
     } catch {
       // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
     }
@@ -190,7 +190,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
       const result = reader.result as string;
       setAvatar(result);
       try {
-        localStorage.setItem(AVATAR_STORAGE_KEY, result);
+        localStorage.setItem(scopedKey(AVATAR_STORAGE_KEY), result);
         window.dispatchEvent(new CustomEvent(AVATAR_UPDATED_EVENT, { detail: result }));
       } catch {
         // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시

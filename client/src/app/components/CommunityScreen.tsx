@@ -8,6 +8,24 @@ import {
 
 export type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting";
 
+// "행사공지" 게시판은 관리자 학번만 글을 작성할 수 있다.
+const ADMIN_STUDENT_IDS = ["20232023"];
+
+// 좋아요/신고/차단/건의 등 계정별 데이터가 다른 계정으로 로그인해도 섞이지 않도록,
+// localStorage 키에 현재 로그인한 학번을 붙여 계정별로 분리해서 저장한다.
+export const getCurrentStudentId = (): string => {
+  try {
+    const raw = localStorage.getItem("user");
+    if (!raw) return "guest";
+    const user = JSON.parse(raw);
+    return user?.studentId || "guest";
+  } catch {
+    return "guest";
+  }
+};
+
+export const scopedKey = (base: string): string => `${base}::${getCurrentStudentId()}`;
+
 interface PollOption {
   id: number;
   text: string;
@@ -91,7 +109,7 @@ const CHAT_STORAGE_KEY = "bigding_chat_messages_v1";
 
 const loadChatMessages = (): Record<number, Message[]> => {
   try {
-    const raw = localStorage.getItem(CHAT_STORAGE_KEY);
+    const raw = localStorage.getItem(scopedKey(CHAT_STORAGE_KEY));
     return raw ? JSON.parse(raw) : CHAT_MESSAGES;
   } catch {
     return CHAT_MESSAGES;
@@ -231,7 +249,7 @@ export const AVATAR_UPDATED_EVENT = "bigding-avatar-updated";
 
 export const loadAvatar = (): string | null => {
   try {
-    return localStorage.getItem(AVATAR_STORAGE_KEY);
+    return localStorage.getItem(scopedKey(AVATAR_STORAGE_KEY));
   } catch {
     return null;
   }
@@ -249,7 +267,7 @@ export interface ReportHistoryItem {
 
 export const loadReportHistory = (): ReportHistoryItem[] => {
   try {
-    const raw = localStorage.getItem(REPORTS_STORAGE_KEY);
+    const raw = localStorage.getItem(scopedKey(REPORTS_STORAGE_KEY));
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -259,7 +277,7 @@ export const loadReportHistory = (): ReportHistoryItem[] => {
 const addReportToHistory = (report: ReportHistoryItem) => {
   try {
     const updated = [report, ...loadReportHistory()];
-    localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem(scopedKey(REPORTS_STORAGE_KEY), JSON.stringify(updated));
     // 같은 탭 안에서도 설정 화면이 즉시 반영할 수 있도록 커스텀 이벤트 전파
     window.dispatchEvent(new CustomEvent(REPORTS_UPDATED_EVENT, { detail: updated }));
   } catch {
@@ -270,7 +288,7 @@ const addReportToHistory = (report: ReportHistoryItem) => {
 export const removeReportFromHistory = (id: number) => {
   try {
     const updated = loadReportHistory().filter((r) => r.id !== id);
-    localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem(scopedKey(REPORTS_STORAGE_KEY), JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent(REPORTS_UPDATED_EVENT, { detail: updated }));
   } catch {
     // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
@@ -283,7 +301,7 @@ const MAX_COMMENT_REPORTS_PER_AUTHOR = 3;
 
 const loadCommentReportCounts = (): Record<string, number> => {
   try {
-    const raw = localStorage.getItem(COMMENT_REPORT_COUNTS_KEY);
+    const raw = localStorage.getItem(scopedKey(COMMENT_REPORT_COUNTS_KEY));
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
@@ -294,7 +312,7 @@ const incrementCommentReportCount = (author: string) => {
   try {
     const counts = loadCommentReportCounts();
     counts[author] = (counts[author] || 0) + 1;
-    localStorage.setItem(COMMENT_REPORT_COUNTS_KEY, JSON.stringify(counts));
+    localStorage.setItem(scopedKey(COMMENT_REPORT_COUNTS_KEY), JSON.stringify(counts));
   } catch {
     // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
   }
@@ -312,7 +330,7 @@ export interface BlockedUserItem {
 
 export const loadBlockedUsers = (): BlockedUserItem[] => {
   try {
-    const raw = localStorage.getItem(BLOCKED_STORAGE_KEY);
+    const raw = localStorage.getItem(scopedKey(BLOCKED_STORAGE_KEY));
     return raw ? JSON.parse(raw) : [];
   } catch {
     return [];
@@ -322,7 +340,7 @@ export const loadBlockedUsers = (): BlockedUserItem[] => {
 const addBlockedUser = (user: BlockedUserItem) => {
   try {
     const updated = [user, ...loadBlockedUsers()];
-    localStorage.setItem(BLOCKED_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem(scopedKey(BLOCKED_STORAGE_KEY), JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent(BLOCKED_UPDATED_EVENT, { detail: updated }));
   } catch {
     // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
@@ -332,7 +350,7 @@ const addBlockedUser = (user: BlockedUserItem) => {
 export const removeBlockedUser = (id: number) => {
   try {
     const updated = loadBlockedUsers().filter((u) => u.id !== id);
-    localStorage.setItem(BLOCKED_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem(scopedKey(BLOCKED_STORAGE_KEY), JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent(BLOCKED_UPDATED_EVENT, { detail: updated }));
   } catch {
     // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
@@ -359,7 +377,7 @@ export const loadStoredInteractions = (): StoredInteractions => {
     nextPostId: 10000,
   };
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(scopedKey(STORAGE_KEY));
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
     return { ...fallback, ...parsed };
@@ -415,6 +433,7 @@ export function CommunityScreen({
   // 좋아요/싫어요/댓글/스크랩/새 글 등은 로컬 저장소에서 초기값을 불러와
   // 새로고침해도 그대로 유지되도록 한다.
   const [storedInit] = useState(loadStoredInteractions);
+  const isAdmin = ADMIN_STUDENT_IDS.includes(getCurrentStudentId());
   const [activeBoard, setActiveBoard] = useState<BoardType>("free");
   const [likedPosts, setLikedPosts] = useState<Record<number, boolean>>(storedInit.likedPosts);
   const [dislikedPosts, setDislikedPosts] = useState<Record<number, boolean>>(storedInit.dislikedPosts);
@@ -463,7 +482,7 @@ export function CommunityScreen({
       setMyAvatar(detail ?? loadAvatar());
     };
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === AVATAR_STORAGE_KEY) setMyAvatar(loadAvatar());
+      if (e.key === scopedKey(AVATAR_STORAGE_KEY)) setMyAvatar(loadAvatar());
     };
     window.addEventListener(AVATAR_UPDATED_EVENT, handleAvatarUpdated);
     window.addEventListener("storage", handleStorage);
@@ -519,8 +538,8 @@ export function CommunityScreen({
     };
     try {
       const json = JSON.stringify(toStore);
-      if (localStorage.getItem(STORAGE_KEY) !== json) {
-        localStorage.setItem(STORAGE_KEY, json);
+      if (localStorage.getItem(scopedKey(STORAGE_KEY)) !== json) {
+        localStorage.setItem(scopedKey(STORAGE_KEY), json);
         window.dispatchEvent(new CustomEvent(INTERACTIONS_UPDATED_EVENT, { detail: toStore }));
       }
     } catch {
@@ -545,7 +564,7 @@ export function CommunityScreen({
       applyExternalUpdate(detail ?? loadStoredInteractions());
     };
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) applyExternalUpdate(loadStoredInteractions());
+      if (e.key === scopedKey(STORAGE_KEY)) applyExternalUpdate(loadStoredInteractions());
     };
     window.addEventListener(INTERACTIONS_UPDATED_EVENT, handleInteractionsUpdated);
     window.addEventListener("storage", handleStorage);
@@ -575,7 +594,7 @@ const [viewingImage, setViewingImage] = useState<string | null>(null);
   // chatMessages가 바뀔 때마다 저장해서 새로고침해도 대화 내용과 안 읽음 상태가 유지되게 한다.
   useEffect(() => {
     try {
-      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(chatMessages));
+      localStorage.setItem(scopedKey(CHAT_STORAGE_KEY), JSON.stringify(chatMessages));
     } catch {
       // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
     }
@@ -1595,7 +1614,7 @@ const endDrag = () => {
             </button>
             <button
   onClick={() => {
-    setNewBoard(activeBoard);
+    setNewBoard(activeBoard === "event" && !isAdmin ? "free" : activeBoard);
     setShowWrite(true);
   }}
   className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
@@ -2084,6 +2103,10 @@ const endDrag = () => {
               className="px-4 py-1.5 rounded-xl text-sm font-semibold"
               style={{ background: "var(--primary)", color: "white" }}
              onClick={() => {
+                if (newBoard === "event" && !isAdmin) {
+                  showAlert("행사공지 게시판은 관리자만 작성할 수 있습니다.");
+                  return;
+                }
                 if (!newPollEnabled && (!newTitle.trim() || !newContent.trim())) {
                   showAlert("제목과 내용을 입력해주세요.");
                   return;
@@ -2134,7 +2157,7 @@ const endDrag = () => {
                 게시판 선택
               </label>
                <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
-                {BOARDS.map(({ id, label, emoji }) => (
+                {BOARDS.filter(({ id }) => id !== "event" || isAdmin).map(({ id, label, emoji }) => (
                   <button
                     key={id}
                     onClick={() => setNewBoard(id)}

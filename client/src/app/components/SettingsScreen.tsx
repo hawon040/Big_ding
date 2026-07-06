@@ -3,7 +3,7 @@ import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText
 import {
   REPORTS_STORAGE_KEY, REPORTS_UPDATED_EVENT, loadReportHistory, removeReportFromHistory, type ReportHistoryItem,
   BLOCKED_STORAGE_KEY, BLOCKED_UPDATED_EVENT, loadBlockedUsers, removeBlockedUser, type BlockedUserItem,
-  POSTS, loadStoredInteractions, getDummyComments, type Post,
+  POSTS, loadStoredInteractions, getDummyComments, type Post, scopedKey,
 } from "./CommunityScreen";
 
 interface SettingsScreenProps {
@@ -26,7 +26,7 @@ interface InquiryHistoryItem {
 
 const loadInquiryHistory = (): InquiryHistoryItem[] => {
   try {
-    const raw = localStorage.getItem(INQUIRY_STORAGE_KEY);
+    const raw = localStorage.getItem(scopedKey(INQUIRY_STORAGE_KEY));
     return raw ? JSON.parse(raw) : [];
   } catch (err) {
     console.error("건의사항 내역을 불러오지 못했습니다.", err);
@@ -37,7 +37,7 @@ const loadInquiryHistory = (): InquiryHistoryItem[] => {
 const addInquiryToHistory = (inquiry: InquiryHistoryItem) => {
   try {
     const updated = [inquiry, ...loadInquiryHistory()];
-    localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem(scopedKey(INQUIRY_STORAGE_KEY), JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent(INQUIRY_UPDATED_EVENT, { detail: updated }));
   } catch (err) {
     console.error("건의사항을 저장하지 못했습니다.", err);
@@ -47,7 +47,7 @@ const addInquiryToHistory = (inquiry: InquiryHistoryItem) => {
 const removeInquiryFromHistory = (id: number) => {
   try {
     const updated = loadInquiryHistory().filter((i) => i.id !== id);
-    localStorage.setItem(INQUIRY_STORAGE_KEY, JSON.stringify(updated));
+    localStorage.setItem(scopedKey(INQUIRY_STORAGE_KEY), JSON.stringify(updated));
     window.dispatchEvent(new CustomEvent(INQUIRY_UPDATED_EVENT, { detail: updated }));
   } catch (err) {
     console.error("건의사항을 삭제하지 못했습니다.", err);
@@ -99,9 +99,9 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       setBlockedUsers(detail ?? loadBlockedUsers());
     };
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === REPORTS_STORAGE_KEY) setReportHistory(loadReportHistory());
-      if (e.key === INQUIRY_STORAGE_KEY) setInquiryHistory(loadInquiryHistory());
-      if (e.key === BLOCKED_STORAGE_KEY) setBlockedUsers(loadBlockedUsers());
+      if (e.key === scopedKey(REPORTS_STORAGE_KEY)) setReportHistory(loadReportHistory());
+      if (e.key === scopedKey(INQUIRY_STORAGE_KEY)) setInquiryHistory(loadInquiryHistory());
+      if (e.key === scopedKey(BLOCKED_STORAGE_KEY)) setBlockedUsers(loadBlockedUsers());
     };
 
     window.addEventListener(REPORTS_UPDATED_EVENT, handleReportsUpdated);
