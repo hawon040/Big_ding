@@ -1,6 +1,6 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
-const Chat = require("../models/Chat");
+const Message = require("../models/Message");
 const { filterProfanity } = require("../middleware/profanityFilter");
 
 const onlineUsers = new Map(); // userId -> socketId
@@ -32,12 +32,12 @@ module.exports = (server) => {
     console.log(`🟢 ${userId} 접속`);
 
     // 1:1 채팅 메시지 전송
-    socket.on("send_message", async ({ toId, content }) => {
-      const filtered = filterProfanity(content);
+    socket.on("send_message", async ({ toId, content, image }) => {
+      const filtered = content ? filterProfanity(content) : "";
 
       // DB 저장
-      const msg = await Chat.create({ from: userId, to: toId, content: filtered });
-      await msg.populate("from", "nickname avatar");
+      const msg = await Message.create({ from: userId, to: toId, content: filtered, image });
+      await msg.populate("from", "nickname avatar studentId");
 
       // 수신자에게 실시간 전달
       const toSocketId = onlineUsers.get(toId);
