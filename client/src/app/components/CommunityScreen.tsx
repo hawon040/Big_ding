@@ -1001,10 +1001,9 @@ const endDrag = () => {
                 if (!file || !activeFriend) return;
                 const friendId = activeFriend._id;
                 try {
-                  const imageRef = storageRef(storage, `chat/${getCurrentStudentId()}/${Date.now()}-${file.name}`);
-                  await uploadBytes(imageRef, file);
-                  const url = await getDownloadURL(imageRef);
-                  const res = await api.post(`/chat/${friendId}`, { image: url });
+                  const formData = new FormData();
+                  formData.append("image", file);
+                  const res = await api.post(`/chat/${friendId}`, formData);
                   const [newMsg] = mapMessages([res.data]);
                   setChatMessages((prev) => ({
                     ...prev,

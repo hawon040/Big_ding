@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Message = require("../models/Message");
 const auth = require("../middleware/authMiddleware");
+const upload = require("../middleware/upload");
 const { filterProfanity } = require("../middleware/profanityFilter");
 
 const USER_FIELDS = "nickname avatar studentId";
@@ -31,10 +32,11 @@ router.get("/:friendId", auth, async (req, res) => {
   }
 });
 
-// POST /api/chat/:friendId - 메시지 보내기 (텍스트/이미지)
-router.post("/:friendId", auth, async (req, res) => {
+// POST /api/chat/:friendId - 메시지 보내기 (텍스트: JSON, 이미지: multipart/form-data의 image 필드)
+router.post("/:friendId", auth, upload.single("image"), async (req, res) => {
   try {
-    const { content, image } = req.body;
+    const { content } = req.body;
+    const image = req.file ? `${req.protocol}://${req.get("host")}/uploads/chat/${req.file.filename}` : undefined;
     if (!content && !image) {
       return res.status(400).json({ message: "내용 또는 이미지를 입력해주세요." });
     }

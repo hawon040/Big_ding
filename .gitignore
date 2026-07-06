@@ -10,3 +10,4 @@ build/
 
 server/.env
 Big_ding/
+server/uploads/

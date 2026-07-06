@@ -26,6 +26,9 @@ app.use("/api/users", require("./routes/users"));
 app.use("/api/friends", require("./routes/friends"));
 app.use("/api/reports", require("./routes/reports"));
 
+// 채팅 등에서 업로드한 이미지 정적 파일 제공
+app.use("/uploads", express.static("uploads"));
+
 // 관리자 페이지 정적 파일 제공
 app.use(express.static("admin"));
 
