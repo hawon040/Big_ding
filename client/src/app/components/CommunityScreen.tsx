@@ -93,6 +93,16 @@ export interface PostComment {
   createdAt: string;
 }
 
+export interface PollOption {
+  text: string;
+  votes: string[]; // 투표한 사용자 id 목록
+}
+
+export interface Poll {
+  question: string;
+  options: PollOption[];
+}
+
 export interface Post {
   _id: string;
   author: PostAuthor;
@@ -108,6 +118,7 @@ export interface Post {
   currentParticipants?: number;
   price?: number;
   board: BoardType;
+  poll?: Poll;
   createdAt: string;
 }
 
@@ -424,6 +435,9 @@ export function CommunityScreen({
   const [newImageFile, setNewImageFile] = useState<File | null>(null);
   const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
+  const [newPollEnabled, setNewPollEnabled] = useState(false);
+  const [newPollQuestion, setNewPollQuestion] = useState("");
+  const [newPollOptions, setNewPollOptions] = useState<string[]>(["", ""]);
 
   // 스크랩(savedPosts)이 바뀔 때마다 저장해서 새로고침해도 유지되게 한다.
   // 이미 저장된 내용과 동일하면 다시 쓰지 않아, ProfileScreen이 보낸 갱신을 받아
@@ -696,6 +710,55 @@ const [viewingImage, setViewingImage] = useState<string | null>(null);
  };
 
  const toggleSave = (postId: string) => setSavedPosts((s) => ({ ...s, [postId]: !s[postId] }));
+
+ // 투표하기: 이미 다른 옵션에 투표했었다면 서버에서 자동으로 옮겨준다.
+ const handleVote = async (post: Post, optionIndex: number) => {
+   if (!currentUser) return;
+   try {
+     const res = await api.post(`/posts/${post._id}/poll/vote`, { optionIndex });
+     setPosts((prev) => prev.map((p) => (p._id === post._id ? res.data : p)));
+   } catch {
+     showAlert("투표에 실패했습니다.");
+   }
+ };
+
+ const renderPoll = (post: Post) => {
+   if (!post.poll) return null;
+   const { poll } = post;
+   const totalVotes = poll.options.reduce((sum, o) => sum + o.votes.length, 0);
+   const myVoteIndex = currentUser ? poll.options.findIndex((o) => o.votes.includes(currentUser._id)) : -1;
+   return (
+     <div
+       className="mt-2 p-3 rounded-2xl flex flex-col gap-2"
+       style={{ background: "var(--muted)" }}
+       onClick={(e) => e.stopPropagation()}
+     >
+       <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>🗳️ {poll.question}</p>
+       {poll.options.map((opt, idx) => {
+         const percent = totalVotes === 0 ? 0 : Math.round((opt.votes.length / totalVotes) * 100);
+         const isMine = idx === myVoteIndex;
+         return (
+           <button
+             key={idx}
+             onClick={() => handleVote(post, idx)}
+             className="relative w-full text-left px-3 py-2 rounded-xl text-xs overflow-hidden"
+             style={{ background: "var(--card)", border: isMine ? "1.5px solid var(--primary)" : "1.5px solid var(--border)" }}
+           >
+             <div
+               className="absolute inset-y-0 left-0"
+               style={{ width: `${percent}%`, background: "var(--secondary)" }}
+             />
+             <div className="relative flex items-center justify-between" style={{ color: "var(--foreground)" }}>
+               <span>{opt.text}{isMine ? " ✓" : ""}</span>
+               <span>{percent}%</span>
+             </div>
+           </button>
+         );
+       })}
+       <p className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>{totalVotes}명 참여</p>
+     </div>
+   );
+ };
 
  const allPosts = posts;
  const visiblePosts = showSearch && searchQuery
@@ -1277,6 +1340,8 @@ const endDrag = () => {
               </div>
             )}
 
+            {renderPoll(selectedPost)}
+
             <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
              <button className="flex items-center gap-1.5" onClick={() => handleLike(selectedPost)}>
                 <Heart size={16} fill={isLiked(selectedPost) ? "#3b82f6" : "none"}
@@ -1767,6 +1832,8 @@ const endDrag = () => {
               )}
             </div>
 
+            {renderPoll(post)}
+
            {/* Actions */}
 <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
   <button className="flex items-center gap-1.5" onClick={() => handleLike(post)}>
@@ -2021,6 +2088,11 @@ const endDrag = () => {
                   showAlert("제목과 내용을 입력해주세요.");
                   return;
                 }
+                const pollOptions = newPollOptions.map((o) => o.trim()).filter(Boolean);
+                if (newPollEnabled && (!newPollQuestion.trim() || pollOptions.length < 2)) {
+                  showAlert("투표 질문과 옵션을 2개 이상 입력해주세요.");
+                  return;
+                }
                 setIsSubmittingPost(true);
                 try {
                   const formData = new FormData();
@@ -2028,15 +2100,21 @@ const endDrag = () => {
                   formData.append("title", newTitle);
                   formData.append("content", newContent);
                   if (newImageFile) formData.append("image", newImageFile);
+                  if (newPollEnabled) {
+                    formData.append("poll", JSON.stringify({ question: newPollQuestion.trim(), options: pollOptions }));
+                  }
                   const res = await api.post("/posts", formData);
                   setPosts((prev) => [res.data, ...prev]);
                   setNewTitle("");
                   setNewContent("");
                   setNewImageFile(null);
                   setNewImagePreview(null);
+                  setNewPollEnabled(false);
+                  setNewPollQuestion("");
+                  setNewPollOptions(["", ""]);
                   setShowWrite(false);
-                } catch {
-                  showAlert("게시물 등록에 실패했습니다.");
+                } catch (err: any) {
+                  showAlert(err.response?.data?.message || "게시물 등록에 실패했습니다.");
                 } finally {
                   setIsSubmittingPost(false);
                 }
@@ -2117,6 +2195,69 @@ const endDrag = () => {
               >
                 <Image size={18} />
                 <span className="text-sm">사진 첨부</span>
+              </button>
+            )}
+
+            {/* 투표 추가 */}
+            {newPollEnabled ? (
+              <div className="p-3 rounded-2xl flex flex-col gap-2.5" style={{ background: "var(--muted)" }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>🗳️ 투표 만들기</span>
+                  <button
+                    onClick={() => {
+                      setNewPollEnabled(false);
+                      setNewPollQuestion("");
+                      setNewPollOptions(["", ""]);
+                    }}
+                  >
+                    <X size={16} style={{ color: "var(--muted-foreground)" }} />
+                  </button>
+                </div>
+                <input
+                  placeholder="투표 질문을 입력하세요"
+                  value={newPollQuestion}
+                  onChange={(e) => setNewPollQuestion(filterProfanity(e.target.value))}
+                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                />
+                {newPollOptions.map((opt, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <input
+                      placeholder={`옵션 ${idx + 1}`}
+                      value={opt}
+                      onChange={(e) => {
+                        const next = [...newPollOptions];
+                        next[idx] = filterProfanity(e.target.value);
+                        setNewPollOptions(next);
+                      }}
+                      className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
+                      style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                    />
+                    {newPollOptions.length > 2 && (
+                      <button onClick={() => setNewPollOptions(newPollOptions.filter((_, i) => i !== idx))}>
+                        <X size={16} style={{ color: "var(--muted-foreground)" }} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {newPollOptions.length < 5 && (
+                  <button
+                    onClick={() => setNewPollOptions([...newPollOptions, ""])}
+                    className="self-start text-xs font-medium px-3 py-1.5 rounded-xl"
+                    style={{ background: "var(--secondary)", color: "var(--primary)" }}
+                  >
+                    + 옵션 추가
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => setNewPollEnabled(true)}
+                className="flex items-center gap-2 px-4 py-3 rounded-2xl border border-dashed"
+                style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
+              >
+                <Plus size={18} />
+                <span className="text-sm">투표 추가</span>
               </button>
             )}
           </div>

@@ -32,9 +32,48 @@ router.post("/", auth, upload.single("image"), profanityFilter, async (req, res)
     const images = req.file
       ? [`${req.protocol}://${req.get("host")}/uploads/posts/${req.file.filename}`]
       : [];
-    const post = await Post.create({ ...req.body, images, author: req.user.id });
+
+    let poll;
+    if (req.body.poll) {
+      const parsed = JSON.parse(req.body.poll);
+      const options = (parsed.options || [])
+        .map((text) => String(text).trim())
+        .filter(Boolean);
+      if (!parsed.question?.trim() || options.length < 2 || options.length > 5) {
+        return res.status(400).json({ message: "투표 질문과 옵션(2~5개)을 확인해주세요." });
+      }
+      poll = { question: parsed.question.trim(), options: options.map((text) => ({ text, votes: [] })) };
+    }
+
+    const post = await Post.create({ ...req.body, images, poll, author: req.user.id });
     await post.populate("author", "nickname avatar");
     res.status(201).json(post);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// POST /api/posts/:id/poll/vote - 투표하기 (이미 투표했다면 선택한 옵션으로 옮겨진다)
+router.post("/:id/poll/vote", auth, async (req, res) => {
+  try {
+    const { optionIndex } = req.body;
+    const post = await Post.findById(req.params.id);
+    if (!post || !post.poll) {
+      return res.status(404).json({ message: "투표를 찾을 수 없습니다." });
+    }
+    if (typeof optionIndex !== "number" || optionIndex < 0 || optionIndex >= post.poll.options.length) {
+      return res.status(400).json({ message: "잘못된 옵션입니다." });
+    }
+
+    post.poll.options.forEach((opt) => {
+      opt.votes = opt.votes.filter((v) => v.toString() !== req.user.id);
+    });
+    post.poll.options[optionIndex].votes.push(req.user.id);
+
+    await post.save();
+    await post.populate("author", "nickname avatar");
+    await post.populate("comments.author", "nickname avatar");
+    res.json(post);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }
