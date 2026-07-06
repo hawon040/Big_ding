@@ -76,7 +76,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
         });
     };
     fetchPosts(true);
-    const interval = setInterval(() => fetchPosts(false), 5000);
+    const interval = setInterval(() => fetchPosts(false), 2000);
     return () => {
       cancelled = true;
       clearInterval(interval);

@@ -350,7 +350,7 @@ export function CommunityScreen({
         });
     };
     fetchPosts(true);
-    const interval = setInterval(() => fetchPosts(false), 5000);
+    const interval = setInterval(() => fetchPosts(false), 2000);
     return () => {
       cancelled = true;
       clearInterval(interval);
@@ -520,7 +520,7 @@ const [viewingImage, setViewingImage] = useState<string | null>(null);
       api.get("/friends/requests").then((res) => { if (!cancelled) setFriendRequests(res.data); }).catch(() => {});
     };
     fetchFriendsData();
-    const interval = setInterval(fetchFriendsData, 5000);
+    const interval = setInterval(fetchFriendsData, 2000);
     return () => {
       cancelled = true;
       clearInterval(interval);
@@ -623,7 +623,7 @@ const [viewingImage, setViewingImage] = useState<string | null>(null);
         .catch(() => {});
     };
     fetchMessages();
-    const interval = setInterval(fetchMessages, 3000);
+    const interval = setInterval(fetchMessages, 2000);
     return () => {
       cancelled = true;
       clearInterval(interval);
