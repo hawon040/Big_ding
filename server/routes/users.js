@@ -30,15 +30,21 @@ router.patch("/profile", auth, async (req, res) => {
   }
 });
 
-// POST /api/users/friends/:targetId - 친구 추가
-router.post("/friends/:targetId", auth, async (req, res) => {
+// GET /api/users/search?q= - 학번/닉네임으로 사용자 검색 (친구 신청용)
+router.get("/search", auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id);
-    if (!user.friends.includes(req.params.targetId)) {
-      user.friends.push(req.params.targetId);
-      await user.save();
-    }
-    res.json({ message: "친구가 추가되었습니다." });
+    const q = (req.query.q || "").trim();
+    if (!q) return res.json([]);
+    const users = await User.find({
+      _id: { $ne: req.user.id },
+      $or: [
+        { studentId: { $regex: q, $options: "i" } },
+        { nickname: { $regex: q, $options: "i" } },
+      ],
+    })
+      .select("nickname avatar studentId")
+      .limit(20);
+    res.json(users);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }

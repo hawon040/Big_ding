@@ -3,10 +3,12 @@ import {
   Camera, ChevronRight, Heart, FileText, Edit3, MessageCircle, Bookmark,
   Lock, Users, Globe, X, ThumbsDown, Star, MoreVertical, Trash2,
 } from "lucide-react";
+import api from "@/api";
 import {
-  POSTS, BOARDS, loadStoredInteractions, getDummyComments, filterProfanity,
+  BOARDS, loadStoredInteractions, filterProfanity,
   STORAGE_KEY, INTERACTIONS_UPDATED_EVENT,
   AVATAR_STORAGE_KEY, AVATAR_UPDATED_EVENT, loadAvatar, scopedKey,
+  getCurrentUser, getDisplayTime,
   type Post, type StoredInteractions,
 } from "./CommunityScreen";
 
@@ -20,7 +22,7 @@ const VISIBILITY_META: Record<Visibility, { label: string; Icon: React.Component
   private: { label: "나만 보기", Icon: Lock },
 };
 
-const loadPostVisibility = (): Record<number, Visibility> => {
+const loadPostVisibility = (): Record<string, Visibility> => {
   try {
     const raw = localStorage.getItem(scopedKey(VISIBILITY_STORAGE_KEY));
     return raw ? JSON.parse(raw) : {};
@@ -40,33 +42,6 @@ const loadStudentId = (): string => {
   }
 };
 
-// 24시간이 지난 게시물의 날짜를 "M월 D일" 형식으로 표시한다. (연도는 표시하지 않음)
-const formatPostDate = (createdAt: number): string => {
-  const date = new Date(createdAt);
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  return `${month}월 ${day}일`;
-};
-
-// createdAt(작성 시각, epoch ms)이 있으면 그걸 기준으로 "N분 전" 같은 상대 시간을
-// 실시간으로 계산해서 보여준다. 24시간이 지나면 "N일 전" 대신 실제 날짜로 표시한다.
-// createdAt이 없는 더미 게시물은 기존 문자열(fallback)을 그대로 쓴다.
-const formatRelativeTime = (createdAt?: number, fallback?: string): string => {
-  if (!createdAt) return fallback ?? "";
-
-  const diffSec = Math.floor((Date.now() - createdAt) / 1000);
-  if (diffSec < 5) return "방금 전";
-  if (diffSec < 60) return `${diffSec}초 전`;
-
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}분 전`;
-
-  const diffHour = Math.floor(diffMin / 60);
-  if (diffHour < 24) return `${diffHour}시간 전`;
-
-  return formatPostDate(createdAt);
-};
-
 interface ProfileScreenProps {
   nickname: string;
   setNickname: (name: string) => void;
@@ -74,25 +49,41 @@ interface ProfileScreenProps {
 
 export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
   const [activeTab, setActiveTab] = useState<"posts" | "comments" | "scrapped">("posts");
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [currentUser] = useState(getCurrentUser);
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [studentId] = useState(loadStudentId);
-  const [showVisibilityModal, setShowVisibilityModal] = useState<number | null>(null);
+  const [showVisibilityModal, setShowVisibilityModal] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(loadAvatar);
-  const [postVisibility, setPostVisibility] = useState<Record<number, Visibility>>(loadPostVisibility);
-  // CommunityScreen과 동일한 로컬 저장소(STORAGE_KEY)를 공유해서
-  // 좋아요/싫어요/스크랩/댓글/삭제 상태가 두 화면에서 항상 일치하도록 한다.
+  const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>(loadPostVisibility);
+
+  // 게시물 목록은 실제 DB(GET /api/posts)에서 불러온다.
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setPostsLoading(true);
+    api.get("/posts")
+      .then((res) => {
+        if (!cancelled) setPosts(res.data);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setPostsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const selectedPost = selectedPostId ? posts.find((p) => p._id === selectedPostId) ?? null : null;
+
+  // 스크랩(저장)만 CommunityScreen과 동일한 로컬 저장소(STORAGE_KEY)를 공유해서
+  // 두 화면에서 항상 일치하도록 한다. 좋아요/싫어요/댓글/삭제는 이제 DB가 기준이다.
   const [storedInit] = useState(loadStoredInteractions);
-  const [likedPosts, setLikedPosts] = useState<Record<number, boolean>>(storedInit.likedPosts);
-  const [dislikedPosts, setDislikedPosts] = useState<Record<number, boolean>>(storedInit.dislikedPosts);
-  const [savedPosts, setSavedPosts] = useState<Record<number, boolean>>(storedInit.savedPosts);
-  const [extraComments, setExtraComments] = useState<Record<number, { user: string; text: string; emoji: string }[]>>(storedInit.extraComments);
-  const [createdPosts, setCreatedPosts] = useState<Post[]>(storedInit.createdPosts);
-  const [deletedPostIds, setDeletedPostIds] = useState<number[]>(storedInit.deletedPostIds);
-  const [nextPostId, setNextPostId] = useState(storedInit.nextPostId);
+  const [savedPosts, setSavedPosts] = useState<Record<string, boolean>>(storedInit.savedPosts);
   const [commentInput, setCommentInput] = useState("");
   const commentInputRef = useRef<HTMLInputElement>(null);
-  const [openCommentMenu, setOpenCommentMenu] = useState<number | null>(null);
+  const [openCommentMenu, setOpenCommentMenu] = useState<string | null>(null);
 
   // 상대 시간("N분 전") 표시를 실시간으로 갱신하기 위한 tick.
   // 값 자체는 쓰지 않고, 1분마다 리렌더를 강제로 일으켜 formatRelativeTime이 다시 계산되게 한다.
@@ -102,20 +93,12 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
     return () => clearInterval(interval);
   }, []);
 
-  // 이 화면에서 좋아요/싫어요/스크랩/댓글/삭제가 바뀌면 저장하고, CommunityScreen에도
+  // 스크랩(savedPosts)이 바뀌면 저장하고, CommunityScreen에도
   // 즉시 알려서(같은 탭: 커스텀 이벤트, 다른 탭: storage 이벤트) 서로 어긋나지 않게 한다.
   // 이미 저장된 내용과 같으면 다시 쓰지 않아, CommunityScreen이 보낸 갱신을 반영할 때
   // 다시 이벤트를 쏘는 무한 루프가 생기지 않는다.
   useEffect(() => {
-    const toStore: StoredInteractions = {
-      likedPosts,
-      dislikedPosts,
-      savedPosts,
-      extraComments,
-      createdPosts,
-      deletedPostIds,
-      nextPostId,
-    };
+    const toStore: StoredInteractions = { savedPosts };
     try {
       const json = JSON.stringify(toStore);
       if (localStorage.getItem(scopedKey(STORAGE_KEY)) !== json) {
@@ -125,17 +108,11 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
     } catch {
       // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
     }
-  }, [likedPosts, dislikedPosts, savedPosts, extraComments, createdPosts, deletedPostIds, nextPostId]);
+  }, [savedPosts]);
 
   useEffect(() => {
     const applyExternalUpdate = (next: StoredInteractions) => {
-      setLikedPosts(next.likedPosts);
-      setDislikedPosts(next.dislikedPosts);
       setSavedPosts(next.savedPosts);
-      setExtraComments(next.extraComments);
-      setCreatedPosts(next.createdPosts);
-      setDeletedPostIds(next.deletedPostIds);
-      setNextPostId(next.nextPostId);
     };
     const handleInteractionsUpdated = (e: Event) => {
       const detail = (e as CustomEvent<StoredInteractions>).detail;
@@ -160,59 +137,102 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
     }
   }, [postVisibility]);
 
-  const allKnownPosts: Post[] = useMemo(() => {
-    const allPosts = [...createdPosts, ...Object.values(POSTS).flat()];
-    return allPosts.filter((p) => !deletedPostIds.includes(p.id));
-  }, [createdPosts, deletedPostIds]);
-
   const myPosts: Post[] = useMemo(
-    () => allKnownPosts.filter((p) => p.author === "나"),
-    [allKnownPosts]
+    () => (currentUser ? posts.filter((p) => p.author._id === currentUser._id) : []),
+    [posts, currentUser]
   );
 
   // CommunityScreen에서 스크랩(북마크)한 게시물을 실제로 불러온다.
   const scrappedPosts: Post[] = useMemo(
-    () => allKnownPosts.filter((p) => savedPosts[p.id]),
-    [allKnownPosts, savedPosts]
+    () => posts.filter((p) => savedPosts[p._id]),
+    [posts, savedPosts]
   );
 
-  // 내가 실제로 작성한 댓글을 게시물별 extraComments에서 뽑아온다.
+  // 내가 실제로 작성한 댓글을 각 게시물의 실제 comments 배열에서 뽑아온다.
   const myWrittenComments = useMemo(() => {
-    const list: { postId: number; index: number; text: string; emoji: string; postTitle: string }[] = [];
-    Object.entries(extraComments).forEach(([postIdStr, comments]) => {
-      const postId = Number(postIdStr);
-      const post = allKnownPosts.find((p) => p.id === postId);
-      if (!post) return;
-      comments.forEach((c, index) => {
-        if (c.user !== "나") return;
-        list.push({ postId, index, text: c.text, emoji: c.emoji, postTitle: post.title });
+    if (!currentUser) return [];
+    const list: { postId: string; commentId: string; text: string; postTitle: string }[] = [];
+    posts.forEach((post) => {
+      post.comments.forEach((c) => {
+        if (c.author._id !== currentUser._id) return;
+        list.push({ postId: post._id, commentId: c._id, text: c.content, postTitle: post.title });
       });
     });
     return list;
-  }, [extraComments, allKnownPosts]);
+  }, [posts, currentUser]);
 
   const getBoardLabel = (board?: string) => BOARDS.find((b) => b.id === board)?.label ?? board ?? "";
-  const getCommentCount = (post: Post) => post.comments + (extraComments[post.id]?.length || 0);
-  const getLikeCount = (post: Post) => post.likes + (likedPosts[post.id] ? 1 : 0);
-  const getDislikeCount = (post: Post) => post.dislikes + (dislikedPosts[post.id] ? 1 : 0);
+  const getCommentCount = (post: Post) => post.comments.length;
+  const isLiked = (post: Post) => !!currentUser && post.likes.includes(currentUser._id);
+  const isDisliked = (post: Post) => !!currentUser && post.dislikes.includes(currentUser._id);
 
-  const handleAddComment = () => {
-    if (!selectedPost || !commentInput.trim()) return;
-    const filtered = filterProfanity(commentInput.trim());
-    setExtraComments((prev) => ({
-      ...prev,
-      [selectedPost.id]: [...(prev[selectedPost.id] || []), { user: "나", text: filtered, emoji: "🙂" }],
+  const handleLike = async (post: Post) => {
+    if (!currentUser) return;
+    const uid = currentUser._id;
+    const wasLiked = post.likes.includes(uid);
+    const wasDisliked = post.dislikes.includes(uid);
+    setPosts((prev) => prev.map((p) => p._id !== post._id ? p : {
+      ...p,
+      likes: wasLiked ? p.likes.filter((id) => id !== uid) : [...p.likes, uid],
+      dislikes: wasDisliked ? p.dislikes.filter((id) => id !== uid) : p.dislikes,
     }));
-    setCommentInput("");
+    try {
+      await api.post(`/posts/${post._id}/like`);
+    } catch {
+      setPosts((prev) => prev.map((p) => (p._id === post._id ? post : p)));
+    }
   };
 
-  const handleDeleteComment = (postId: number, index: number) => {
+  const handleDislike = async (post: Post) => {
+    if (!currentUser) return;
+    const uid = currentUser._id;
+    const wasDisliked = post.dislikes.includes(uid);
+    const wasLiked = post.likes.includes(uid);
+    setPosts((prev) => prev.map((p) => p._id !== post._id ? p : {
+      ...p,
+      dislikes: wasDisliked ? p.dislikes.filter((id) => id !== uid) : [...p.dislikes, uid],
+      likes: wasLiked ? p.likes.filter((id) => id !== uid) : p.likes,
+    }));
+    try {
+      await api.post(`/posts/${post._id}/dislike`);
+    } catch {
+      setPosts((prev) => prev.map((p) => (p._id === post._id ? post : p)));
+    }
+  };
+
+  const handleDeletePost = (postId: string) => {
+    showConfirm("이 게시물을 삭제하시겠습니까?", async () => {
+      try {
+        await api.delete(`/posts/${postId}`);
+        setPosts((prev) => prev.filter((p) => p._id !== postId));
+      } catch {
+        showAlert("게시물 삭제에 실패했습니다.");
+      }
+    });
+  };
+
+  const handleAddComment = async () => {
+    if (!selectedPost || !commentInput.trim()) return;
+    const content = filterProfanity(commentInput.trim());
+    const postId = selectedPost._id;
+    setCommentInput("");
+    try {
+      const res = await api.post(`/posts/${postId}/comments`, { content });
+      setPosts((prev) => prev.map((p) => (p._id === postId ? { ...p, comments: res.data } : p)));
+    } catch {
+      showAlert("댓글 등록에 실패했습니다.");
+    }
+  };
+
+  const handleDeleteComment = (postId: string, commentId: string) => {
     setOpenCommentMenu(null);
-    showConfirm("댓글을 삭제하시겠습니까?", () => {
-      setExtraComments((prev) => ({
-        ...prev,
-        [postId]: (prev[postId] || []).filter((_, i) => i !== index),
-      }));
+    showConfirm("댓글을 삭제하시겠습니까?", async () => {
+      try {
+        const res = await api.delete(`/posts/${postId}/comments/${commentId}`);
+        setPosts((prev) => prev.map((p) => (p._id === postId ? { ...p, comments: res.data } : p)));
+      } catch {
+        showAlert("댓글 삭제에 실패했습니다.");
+      }
     });
   };
 
@@ -354,15 +374,19 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-6 flex flex-col gap-3">
         {activeTab === "posts" && (
-          myPosts.length === 0 ? (
+          postsLoading && myPosts.length === 0 ? (
+            <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
+              불러오는 중...
+            </p>
+          ) : myPosts.length === 0 ? (
             <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
               아직 작성한 글이 없어요.
             </p>
           ) : myPosts.map((post) => {
-            const visibility = postVisibility[post.id] ?? "all";
+            const visibility = postVisibility[post._id] ?? "all";
             const VisibilityIcon = VISIBILITY_META[visibility].Icon;
             return (
-              <div key={post.id} className="p-3.5 rounded-2xl shadow-sm cursor-pointer" style={{ background: "var(--card)" }} onClick={() => setSelectedPost(post)}>
+              <div key={post._id} className="p-3.5 rounded-2xl shadow-sm cursor-pointer" style={{ background: "var(--card)" }} onClick={() => setSelectedPostId(post._id)}>
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1">
                     <span
@@ -373,19 +397,17 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                     </span>
                     <p className="font-semibold text-sm mt-1.5" style={{ color: "var(--foreground)" }}>{post.title}</p>
                     <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
-                      {formatRelativeTime(post.createdAt, post.time)}
+                      {getDisplayTime(post)}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={(e) => { e.stopPropagation(); setShowVisibilityModal(post.id); }}>
+                    <button onClick={(e) => { e.stopPropagation(); setShowVisibilityModal(post._id); }}>
                       <VisibilityIcon size={16} style={{ color: "var(--muted-foreground)" }} />
                     </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        showConfirm("이 게시물을 삭제하시겠습니까?", () => {
-                          setDeletedPostIds((prev) => [...prev, post.id]);
-                        });
+                        handleDeletePost(post._id);
                       }}
                     >
                       <Trash2 size={16} style={{ color: "#d4183d" }} />
@@ -397,34 +419,32 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                     className="flex items-center gap-1"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setLikedPosts((l) => ({ ...l, [post.id]: !l[post.id] }));
-                      setDislikedPosts((d) => ({ ...d, [post.id]: false }));
+                      handleLike(post);
                     }}
                   >
                     <Heart
                       size={13}
-                      fill={likedPosts[post.id] ? "var(--primary)" : "none"}
-                      color={likedPosts[post.id] ? "var(--primary)" : "var(--muted-foreground)"}
+                      fill={isLiked(post) ? "var(--primary)" : "none"}
+                      color={isLiked(post) ? "var(--primary)" : "var(--muted-foreground)"}
                     />
-                    <span className="text-xs" style={{ color: likedPosts[post.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
-                      {getLikeCount(post)}
+                    <span className="text-xs" style={{ color: isLiked(post) ? "var(--primary)" : "var(--muted-foreground)" }}>
+                      {post.likes.length}
                     </span>
                   </button>
                   <button
                     className="flex items-center gap-1"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setDislikedPosts((d) => ({ ...d, [post.id]: !d[post.id] }));
-                      setLikedPosts((l) => ({ ...l, [post.id]: false }));
+                      handleDislike(post);
                     }}
                   >
                     <ThumbsDown
                       size={13}
-                      fill={dislikedPosts[post.id] ? "#d4183d" : "none"}
-                      color={dislikedPosts[post.id] ? "#d4183d" : "var(--muted-foreground)"}
+                      fill={isDisliked(post) ? "#d4183d" : "none"}
+                      color={isDisliked(post) ? "#d4183d" : "var(--muted-foreground)"}
                     />
-                    <span className="text-xs" style={{ color: dislikedPosts[post.id] ? "#d4183d" : "var(--muted-foreground)" }}>
-                      {getDislikeCount(post)}
+                    <span className="text-xs" style={{ color: isDisliked(post) ? "#d4183d" : "var(--muted-foreground)" }}>
+                      {post.dislikes.length}
                     </span>
                   </button>
                   <div className="flex items-center gap-1">
@@ -444,13 +464,10 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
             </p>
           ) : myWrittenComments.map((comment) => (
             <div
-              key={`${comment.postId}-${comment.index}`}
+              key={comment.commentId}
               className="p-3.5 rounded-2xl shadow-sm cursor-pointer"
               style={{ background: "var(--card)" }}
-              onClick={() => {
-                const post = allKnownPosts.find((p) => p.id === comment.postId);
-                if (post) setSelectedPost(post);
-              }}
+              onClick={() => setSelectedPostId(comment.postId)}
             >
               <div className="flex items-start justify-between mb-1">
                 <p className="text-xs font-semibold" style={{ color: "var(--primary)" }}>
@@ -459,13 +476,13 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDeleteComment(comment.postId, comment.index);
+                    handleDeleteComment(comment.postId, comment.commentId);
                   }}
                 >
                   <X size={14} style={{ color: "#d4183d" }} />
                 </button>
               </div>
-              <p className="text-sm" style={{ color: "var(--foreground)" }}>{comment.emoji} {comment.text}</p>
+              <p className="text-sm" style={{ color: "var(--foreground)" }}>{comment.text}</p>
             </div>
           ))
         )}
@@ -477,10 +494,10 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
             </p>
           ) : scrappedPosts.map((post) => (
             <div
-              key={post.id}
+              key={post._id}
               className="p-3.5 rounded-2xl shadow-sm cursor-pointer"
               style={{ background: "var(--card)" }}
-              onClick={() => setSelectedPost(post)}
+              onClick={() => setSelectedPostId(post._id)}
             >
               <span
                 className="text-xs px-2 py-0.5 rounded-full font-medium"
@@ -490,7 +507,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
               </span>
               <p className="font-semibold text-sm mt-1.5" style={{ color: "var(--foreground)" }}>{post.title}</p>
               <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
-                {formatRelativeTime(post.createdAt, post.time)}
+                {getDisplayTime(post)}
               </p>
             </div>
           ))
@@ -500,7 +517,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
         {selectedPost && (
           <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
             <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-              <button onClick={() => setSelectedPost(null)} className="text-lg">←</button>
+              <button onClick={() => setSelectedPostId(null)} className="text-lg">←</button>
               <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
             </div>
 
@@ -508,17 +525,21 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
               <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
                 <div className="flex items-center gap-2 mb-3">
                   <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0"
+                    className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
                     style={{ background: "var(--muted)" }}
                   >
-                    {selectedPost.avatar}
+                    {selectedPost.author.avatar ? (
+                      <img src={selectedPost.author.avatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                    ) : (
+                      selectedPost.author.nickname.charAt(0)
+                    )}
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                      {selectedPost.author}
+                      {selectedPost.author.nickname}
                     </p>
                     <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                      {formatRelativeTime(selectedPost.createdAt, selectedPost.time)}
+                      {getDisplayTime(selectedPost)}
                     </p>
                   </div>
                   {selectedPost.price && (
@@ -531,9 +552,9 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
 
                 <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h3>
 
-                {selectedPost.image && (
+                {selectedPost.images[0] && (
                   <img
-                    src={selectedPost.image}
+                    src={selectedPost.images[0]}
                     alt="첨부 이미지"
                     className="mt-2 w-full max-h-72 object-cover rounded-xl"
                   />
@@ -583,27 +604,19 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                 )}
 
                 <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-                  <button className="flex items-center gap-1.5"
-                    onClick={() => {
-                      setLikedPosts((l) => ({ ...l, [selectedPost.id]: !l[selectedPost.id] }));
-                      setDislikedPosts((d) => ({ ...d, [selectedPost.id]: false }));
-                    }}>
-                    <Heart size={16} fill={likedPosts[selectedPost.id] ? "#3b82f6" : "none"}
-                      color={likedPosts[selectedPost.id] ? "#3b82f6" : "var(--muted-foreground)"} />
-                    <span className="text-xs" style={{ color: likedPosts[selectedPost.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
-                      {getLikeCount(selectedPost)}
+                  <button className="flex items-center gap-1.5" onClick={() => handleLike(selectedPost)}>
+                    <Heart size={16} fill={isLiked(selectedPost) ? "#3b82f6" : "none"}
+                      color={isLiked(selectedPost) ? "#3b82f6" : "var(--muted-foreground)"} />
+                    <span className="text-xs" style={{ color: isLiked(selectedPost) ? "var(--primary)" : "var(--muted-foreground)" }}>
+                      {selectedPost.likes.length}
                     </span>
                   </button>
 
-                  <button className="flex items-center gap-1.5"
-  onClick={() => {
-    setDislikedPosts((d) => ({ ...d, [selectedPost.id]: !d[selectedPost.id] }));
-    setLikedPosts((l) => ({ ...l, [selectedPost.id]: false }));
-  }}>
-                    <ThumbsDown size={16} fill={dislikedPosts[selectedPost.id] ? "#d4183d" : "none"}
-                      color={dislikedPosts[selectedPost.id] ? "#d4183d" : "var(--muted-foreground)"} />
-                    <span className="text-xs" style={{ color: dislikedPosts[selectedPost.id] ? "#d4183d" : "var(--muted-foreground)" }}>
-                      {getDislikeCount(selectedPost)}
+                  <button className="flex items-center gap-1.5" onClick={() => handleDislike(selectedPost)}>
+                    <ThumbsDown size={16} fill={isDisliked(selectedPost) ? "#d4183d" : "none"}
+                      color={isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)"} />
+                    <span className="text-xs" style={{ color: isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)" }}>
+                      {selectedPost.dislikes.length}
                     </span>
                   </button>
 
@@ -617,9 +630,9 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                   </button>
 
                   <button className="flex items-center gap-1.5"
-                    onClick={() => setSavedPosts((s) => ({ ...s, [selectedPost.id]: !s[selectedPost.id] }))}>
-                    <Bookmark size={16} fill={savedPosts[selectedPost.id] ? "var(--primary)" : "none"}
-                      color={savedPosts[selectedPost.id] ? "var(--primary)" : "var(--muted-foreground)"} />
+                    onClick={() => setSavedPosts((s) => ({ ...s, [selectedPost._id]: !s[selectedPost._id] }))}>
+                    <Bookmark size={16} fill={savedPosts[selectedPost._id] ? "var(--primary)" : "none"}
+                      color={savedPosts[selectedPost._id] ? "var(--primary)" : "var(--muted-foreground)"} />
                   </button>
                 </div>
               </div>
@@ -629,47 +642,44 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                   댓글 {getCommentCount(selectedPost)}개
                 </p>
 
-                {getDummyComments(selectedPost).map((c, i) => (
-                  <div key={i} className="flex gap-2 items-start">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
-                      style={{ background: "var(--muted)" }}>{c.emoji}</div>
-                    <div className="flex-1 px-3 py-2 rounded-xl text-xs"
-                      style={{ color: "var(--foreground)" }}>
-                      <span className="font-semibold">{c.user} </span>{c.text}
+                {selectedPost.comments.map((c) => (
+                  <div key={c._id} className="flex gap-2 items-start relative">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm overflow-hidden"
+                      style={{ background: "var(--muted)" }}>
+                      {c.author.avatar ? (
+                        <img src={c.author.avatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                      ) : (
+                        c.author.nickname.charAt(0)
+                      )}
                     </div>
-                  </div>
-                ))}
-
-                {(extraComments[selectedPost.id] || []).map((c, i) => (
-                  <div key={`new-${i}`} className="flex gap-2 items-start relative">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
-                      style={{ background: "var(--muted)" }}>{c.emoji}</div>
                     <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
                       style={{ color: "var(--foreground)" }}>
-                      <span><span className="font-semibold">{c.user} </span>{c.text}</span>
-                      <div className="relative shrink-0">
-                        <button
-                          onClick={() => setOpenCommentMenu(openCommentMenu === i ? null : i)}
-                          style={{ color: "var(--muted-foreground)" }}
-                          aria-label="댓글 더보기"
-                        >
-                          <MoreVertical size={14} />
-                        </button>
-                        {openCommentMenu === i && (
-                          <div
-                            className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
-                            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                      <span><span className="font-semibold">{c.author.nickname} </span>{c.content}</span>
+                      {currentUser && c.author._id === currentUser._id && (
+                        <div className="relative shrink-0">
+                          <button
+                            onClick={() => setOpenCommentMenu(openCommentMenu === c._id ? null : c._id)}
+                            style={{ color: "var(--muted-foreground)" }}
+                            aria-label="댓글 더보기"
                           >
-                            <button
-                              onClick={() => handleDeleteComment(selectedPost.id, i)}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
-                              style={{ color: "#d4183d" }}
+                            <MoreVertical size={14} />
+                          </button>
+                          {openCommentMenu === c._id && (
+                            <div
+                              className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
+                              style={{ background: "var(--card)", border: "1px solid var(--border)" }}
                             >
-                              <Trash2 size={13} /> 삭제
-                            </button>
-                          </div>
-                        )}
-                      </div>
+                              <button
+                                onClick={() => handleDeleteComment(selectedPost._id, c._id)}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
+                                style={{ color: "#d4183d" }}
+                              >
+                                <Trash2 size={13} /> 삭제
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

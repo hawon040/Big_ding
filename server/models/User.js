@@ -14,6 +14,9 @@ const userSchema = new mongoose.Schema({
   // 닉네임
   nickname: { type: String, required: true },
 
+  // 프로필 사진 URL (Firebase Storage)
+  avatar: { type: String },
+
   // 담당 교수 (3명 중 1명만 허용)
   professor: {
     type: String,
@@ -23,6 +26,12 @@ const userSchema = new mongoose.Schema({
 
   // 최초 로그인 여부 (true면 회원가입 화면 표시)
   isFirstLogin: { type: Boolean, default: true },
+
+  // 친구 목록
+  friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+  // 차단한 사용자 목록
+  blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 
 }, { timestamps: true }); // createdAt, updatedAt 자동 생성
 

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X } from "lucide-react";
+import api from "@/api";
 import {
   REPORTS_STORAGE_KEY, REPORTS_UPDATED_EVENT, loadReportHistory, removeReportFromHistory, type ReportHistoryItem,
   BLOCKED_STORAGE_KEY, BLOCKED_UPDATED_EVENT, loadBlockedUsers, removeBlockedUser, type BlockedUserItem,
-  POSTS, loadStoredInteractions, getDummyComments, type Post, scopedKey,
+  getDisplayTime, type Post, scopedKey,
 } from "./CommunityScreen";
 
 interface SettingsScreenProps {
@@ -512,16 +513,17 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                   key={`report-${r.id}`}
                   className="rounded-2xl p-4 shadow-sm cursor-pointer transition-all active:scale-98"
                   style={{ background: "var(--card)" }}
-                  onClick={() => {
-                    const interactions = loadStoredInteractions();
-                    const allPosts = [...interactions.createdPosts, ...Object.values(POSTS).flat()].filter(
-                      (p) => !interactions.deletedPostIds.includes(p.id)
-                    );
-                    const post = allPosts.find((p) => p.id === r.postId);
-                    if (post) {
-                      setViewingPost(post);
-                    } else {
-                      showAlert("게시물을 찾을 수 없습니다. 삭제되었을 수 있습니다.");
+                  onClick={async () => {
+                    try {
+                      const res = await api.get("/posts");
+                      const post = (res.data as Post[]).find((p) => p._id === r.postId);
+                      if (post) {
+                        setViewingPost(post);
+                      } else {
+                        showAlert("게시물을 찾을 수 없습니다. 삭제되었을 수 있습니다.");
+                      }
+                    } catch {
+                      showAlert("게시물을 불러오지 못했습니다.");
                     }
                   }}
                 >
@@ -613,15 +615,19 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
               <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-xl">{viewingPost.avatar}</span>
+                  {viewingPost.author.avatar ? (
+                    <img src={viewingPost.author.avatar} alt="프로필 사진" className="w-7 h-7 rounded-full object-cover" />
+                  ) : (
+                    <span className="text-xl">{viewingPost.author.nickname.charAt(0)}</span>
+                  )}
                   <div>
-                    <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{viewingPost.author}</p>
-                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.time}</p>
+                    <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{viewingPost.author.nickname}</p>
+                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(viewingPost)}</p>
                   </div>
                 </div>
                 <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{viewingPost.title}</h3>
-                {viewingPost.image && (
-                  <img src={viewingPost.image} alt="첨부 이미지" className="mt-2 w-full max-h-72 object-cover rounded-xl" />
+                {viewingPost.images[0] && (
+                  <img src={viewingPost.images[0]} alt="첨부 이미지" className="mt-2 w-full max-h-72 object-cover rounded-xl" />
                 )}
                 <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
                   {viewingPost.content}
@@ -630,25 +636,19 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
               <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3" style={{ background: "var(--card)" }}>
                 <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
-                  댓글 {getDummyComments(viewingPost).length + (loadStoredInteractions().extraComments[viewingPost.id]?.length || 0)}개
+                  댓글 {viewingPost.comments.length}개
                 </p>
-                {getDummyComments(viewingPost).map((c, i) => (
-                  <div key={`dummy-${i}`} className="flex gap-2 items-start">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm" style={{ background: "var(--muted)" }}>
-                      {c.emoji}
+                {viewingPost.comments.map((c) => (
+                  <div key={c._id} className="flex gap-2 items-start">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm overflow-hidden" style={{ background: "var(--muted)" }}>
+                      {c.author.avatar ? (
+                        <img src={c.author.avatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                      ) : (
+                        c.author.nickname.charAt(0)
+                      )}
                     </div>
                     <div className="flex-1 px-3 py-2 rounded-xl text-xs" style={{ color: "var(--foreground)" }}>
-                      <span className="font-semibold">{c.user} </span>{c.text}
-                    </div>
-                  </div>
-                ))}
-                {(loadStoredInteractions().extraComments[viewingPost.id] || []).map((c, i) => (
-                  <div key={`extra-${i}`} className="flex gap-2 items-start">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm" style={{ background: "var(--muted)" }}>
-                      {c.emoji}
-                    </div>
-                    <div className="flex-1 px-3 py-2 rounded-xl text-xs" style={{ color: "var(--foreground)" }}>
-                      <span className="font-semibold">{c.user} </span>{c.text}
+                      <span className="font-semibold">{c.author.nickname} </span>{c.content}
                     </div>
                   </div>
                 ))}

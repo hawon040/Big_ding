@@ -23,6 +23,7 @@ app.use("/api/auth", require("./routes/auth"));
 app.use("/api/posts", require("./routes/posts"));
 app.use("/api/chat", require("./routes/chat"));
 app.use("/api/users", require("./routes/users"));
+app.use("/api/friends", require("./routes/friends"));
 app.use("/api/reports", require("./routes/reports"));
 
 // 관리자 페이지 정적 파일 제공

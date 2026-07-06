@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
+import api from "@/api";
+import { storage } from "@/utils/firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
   Search, Star, Send, UserPlus, ChevronDown, ChevronUp, FileText,
@@ -26,22 +29,30 @@ export const getCurrentStudentId = (): string => {
 
 export const scopedKey = (base: string): string => `${base}::${getCurrentStudentId()}`;
 
-interface PollOption {
-  id: number;
-  text: string;
-  votes: number;
+export interface CurrentUser {
+  _id: string;
+  nickname: string;
+  avatar?: string;
+  studentId: string;
 }
 
-interface Poll {
-  question: string;
-  options: PollOption[];
-}
+// 로그인 시 서버에서 받아 localStorage에 저장해 둔 사용자 정보를 그대로 "현재 로그인한 나"로 사용한다.
+export const getCurrentUser = (): CurrentUser | null => {
+  try {
+    const raw = localStorage.getItem("user");
+    if (!raw) return null;
+    const user = JSON.parse(raw);
+    if (!user?._id) return null;
+    return { _id: user._id, nickname: user.nickname, avatar: user.avatar, studentId: user.studentId };
+  } catch {
+    return null;
+  }
+};
 
 // "N분 전" / "N시간 전" / "N일 전" / "방금 전" 문자열을,
 // 게시물이 실제로 만들어진 시각(createdAt)과 현재 시각(now)의 차이로부터 계산한다.
-// createdAt이 없는(더미) 게시물은 기존에 박아둔 time 문자열을 그대로 보여준다.
 // 24시간이 지난 게시물의 날짜를 "M월 D일" 형식으로 표시한다.
-const formatPostDate = (createdAt: number): string => {
+const formatPostDate = (createdAt: string): string => {
   const date = new Date(createdAt);
   const month = date.getMonth() + 1;
   const day = date.getDate();
@@ -50,10 +61,9 @@ const formatPostDate = (createdAt: number): string => {
 
 // "N분 전" / "N시간 전" / "방금 전"까지는 상대 시간으로, 24시간(하루)이 지나면
 // "N일 전" 대신 실제 날짜(예: "7월 5일")로 표시한다.
-// createdAt이 없는(더미) 게시물은 기존에 박아둔 time 문자열을 그대로 보여준다.
 export const getDisplayTime = (post: Post, now: number = Date.now()): string => {
-  if (!post.createdAt) return post.time;
-  const diffMinutes = Math.max(0, Math.floor((now - post.createdAt) / 60000));
+  const created = new Date(post.createdAt).getTime();
+  const diffMinutes = Math.max(0, Math.floor((now - created) / 60000));
   if (diffMinutes < 1) return "방금 전";
   if (diffMinutes < 60) return `${diffMinutes}분 전`;
   const diffHours = Math.floor(diffMinutes / 60);
@@ -83,31 +93,48 @@ const formatMessageTime = (msg: Message, now: number = Date.now()): string => {
   return formatMessageDate(msg.id);
 };
 
+export interface PostAuthor {
+  _id: string;
+  nickname: string;
+  avatar?: string;
+  studentId?: string;
+}
+
+export interface PostComment {
+  _id: string;
+  author: PostAuthor;
+  content: string;
+  createdAt: string;
+}
+
 export interface Post {
-  id: number;
-  author: string;
-  avatar: string;
-  time: string;
+  _id: string;
+  author: PostAuthor;
   title: string;
   content: string;
-  likes: number;
-  dislikes: number;
-  comments: number;
-  image?: string;
+  likes: string[];
+  dislikes: string[];
+  comments: PostComment[];
+  images: string[];
   tags?: string[];
   rating?: number;
   maxParticipants?: number;
   currentParticipants?: number;
   price?: number;
-  poll?: Poll;
-  board?: BoardType;
-  createdAt?: number;
+  board: BoardType;
+  createdAt: string;
 }
 
-interface Friend {
-  id: number;
-  name: string;
-  avatar: string;
+export interface Friend {
+  _id: string;
+  nickname: string;
+  avatar?: string;
+  studentId?: string;
+}
+
+export interface FriendRequestItem {
+  _id: string;
+  from: Friend;
 }
 
 interface Message {
@@ -132,152 +159,16 @@ export const filterProfanity = (text: string) => {
   return filtered;
 };
 
-const FRIENDS: Friend[] = [
-  { id: 1, name: "데이터킹", avatar: "👑" },
-  { id: 2, name: "AI빅데이터27", avatar: "🐱" },
-  { id: 3, name: "분석마스터", avatar: "📊" },
-  { id: 4, name: "파이썬고수", avatar: "🐍" },
-];
-
-const CHAT_MESSAGES: Record<number, Message[]> = {
-  1: [
-    { id: 1, from: "데이터킹", content: "오늘 수업 어때?", time: "10:30", mine: false, read: true },
-    { id: 2, from: "나", content: "괜찮아! 발표 잘 됐어", time: "10:31", mine: true, read: true },
-    { id: 3, from: "데이터킹", content: "다행이다 ㅎㅎ 점심 같이?", time: "10:32", mine: false, read: false },
-  ],
-  2: [
-    { id: 1, from: "AI빅데이터27", content: "공모전 같이 나가자!", time: "09:15", mine: false, read: true },
-    { id: 2, from: "나", content: "어떤 공모전?", time: "09:20", mine: true, read: true },
-  ],
-};
-
 // 채팅 메시지도 새로고침 후 유지되도록 로컬 저장소에 보관한다.
 const CHAT_STORAGE_KEY = "bigding_chat_messages_v1";
 
-const loadChatMessages = (): Record<number, Message[]> => {
+const loadChatMessages = (): Record<string, Message[]> => {
   try {
     const raw = localStorage.getItem(scopedKey(CHAT_STORAGE_KEY));
-    return raw ? JSON.parse(raw) : CHAT_MESSAGES;
+    return raw ? JSON.parse(raw) : {};
   } catch {
-    return CHAT_MESSAGES;
+    return {};
   }
-};
-
-export const POSTS: Record<BoardType, Post[]> = {
-  free: [
-    {
-      id: 1, author: "AI빅데이터21", avatar: "📊", time: "10분 전",
-      title: "오늘 AI빅데이터 프로젝트 발표 끝!",
-      content: "한 학기 동안 진행한 AI빅데이터 분석 프로젝트 발표가 무사히 끝났습니다! 팀원분들 모두 고생하셨어요 👏",
-      likes: 24, dislikes: 0, comments: 8
-    },
-    {
-      id: 2, author: "데이터분석가", avatar: "💻", time: "1시간 전",
-      title: "자취방 구하는 팁 공유합니다",
-      content: "학교 근처에서 자취방 구하면서 배운 꿀팁들 공유해요. 부동산 어플 잘 활용하면 좋은 방 구할 수 있어요!",
-      likes: 45, dislikes: 2, comments: 15
-    },
-    {
-      id: 3, author: "통계전공생", avatar: "📈", time: "3시간 전",
-      title: "학교 카페테리아 신메뉴 후기",
-      content: "오늘 새로 나온 돈까스 먹어봤는데 가성비 좋네요! 4,500원에 이 정도면 괜찮은 것 같아요.",
-      likes: 67, dislikes: 5, comments: 22
-    },
-  ],
-  qna: [
-    {
-      id: 4, author: "신입생22", avatar: "🎓", time: "30분 전",
-      title: "학교 도서관 이용 시간 문의",
-      content: "시험 기간에 도서관 24시간 운영하나요? 처음이라 잘 몰라서 여쭤봅니다!",
-      likes: 8, dislikes: 0, comments: 12
-    },
-    {
-      id: 5, author: "선배님", avatar: "👨‍🎓", time: "2시간 전",
-      title: "편의점 알바 추천드려요",
-      content: "학교 앞 GS25에서 야간 알바생 구한다고 하네요. 시급 괜찮고 일도 널널해요!",
-      likes: 23, dislikes: 1, comments: 9
-    },
-    {
-      id: 14, author: "3학년선배", avatar: "🎒", time: "4시간 전",
-      title: "복수전공 신청 방법 알려드려요",
-      content: "복수전공 신청은 3월 초에 학사포털에서 하면 됩니다. 경쟁률이 있으니 서두르세요!",
-      likes: 34, dislikes: 0, comments: 11
-    },
-  ],
-  contest: [
-    {
-      id: 6, author: "공모전헌터", avatar: "🏆", time: "1시간 전",
-      title: "[공모전] AI빅데이터 분석 공모전 팀원 모집",
-      content: "데이터 분석 공모전 프론트엔드 개발자 1명 구합니다! Python, R 가능하신 분 환영해요.",
-      likes: 34, dislikes: 0, comments: 18
-    },
-    {
-      id: 7, author: "자격증왕", avatar: "📜", time: "4시간 전",
-      title: "ADsP 자격증 체감 난이도 후기",
-      content: "지난주 ADsP 시험 봤는데 생각보다 어렵지 않았어요. 기출 문제 위주로 공부하시면 충분합니다!",
-      likes: 89, dislikes: 3, comments: 25
-    },
-    {
-      id: 15, author: "백엔드개발자", avatar: "⚙️", time: "2시간 전",
-      title: "[팀모집] 창업 공모전 백엔드 구합니다",
-      content: "Spring Boot 또는 Node.js 가능하신 분 구합니다. 상금 500만원 공모전이에요!",
-      likes: 56, dislikes: 1, comments: 20
-    },
-  ],
-  event: [
-    {
-      id: 8, author: "학생회", avatar: "🎉", time: "1일 전",
-      title: "[행사] AI빅데이터 전공 축제 안내",
-      content: "다음주 수요일 전공 축제가 열립니다! 다양한 이벤트와 경품 행사가 준비되어 있으니 많은 참여 부탁드립니다.",
-      likes: 156, dislikes: 2, comments: 42
-    },
-    {
-      id: 16, author: "교수님대리", avatar: "📢", time: "3시간 전",
-      title: "[공지] AI빅데이터 세미나 개최 안내",
-      content: "이번 주 금요일 오후 3시, 산학협력관 101호에서 AI빅데이터 산업 동향 세미나가 열립니다.",
-      likes: 88, dislikes: 0, comments: 15
-    },
-  ],
-  lecture: [
-    {
-      id: 9, author: "4학년선배", avatar: "📚", time: "2시간 전",
-      title: "데이터마이닝",
-      content: "김교수님 데이터마이닝 강의 정말 좋아요! 실습 위주라 이해하기 쉽고 과제도 적당해요.",
-      likes: 45, dislikes: 3, comments: 16
-    },
-    {
-      id: 10, author: "수강생", avatar: "✏️", time: "5시간 전",
-      title: "머신러닝",
-      content: "작년 기말고사 문제 유형 공유합니다. 이론 60% 실습 40% 비율이에요!",
-      likes: 78, dislikes: 1, comments: 23
-    },
-    {
-      id: 17, author: "통계학도", avatar: "📐", time: "1일 전",
-      title: "통계학 개론",
-      content: "출석 30%, 중간 30%, 기말 40% 비율입니다. 교수님 수업은 판서 위주라 필기 열심히 하세요!",
-      likes: 62, dislikes: 0, comments: 18
-    },
-  ],
-  meeting: [
-    {
-      id: 11, author: "공강러", avatar: "☕", time: "30분 전",
-      title: "오늘 3시 카페 공부 같이하실 분!",
-      content: "학교 앞 스타벅스에서 3시부터 6시까지 공부하려고 해요. 같이 하실 분 댓글 주세요!",
-      likes: 12, dislikes: 0, comments: 5, maxParticipants: 4, currentParticipants: 2
-    },
-    {
-      id: 12, author: "밥친구", avatar: "🍚", time: "1시간 전",
-      title: "점심 같이 드실 분 구해요",
-      content: "12시 30분에 학식 먹으러 가려고 하는데 혼자 먹기 심심해서요. 같이 가실 분~",
-      likes: 8, dislikes: 0, comments: 7, maxParticipants: 3, currentParticipants: 1
-    },
-    {
-      id: 13, author: "운동러", avatar: "🏃", time: "2시간 전",
-      title: "저녁 학교 운동장 러닝 같이해요",
-      content: "매주 화목 저녁 7시에 운동장 러닝합니다. 부담 없이 참여하세요!",
-      likes: 19, dislikes: 0, comments: 10, maxParticipants: 8, currentParticipants: 5
-    },
-  ],
 };
 
 // 좋아요/싫어요/댓글 등 사용자 상호작용을 새로고침해도 유지하기 위한 로컬 저장소 헬퍼
@@ -308,7 +199,7 @@ export interface ReportHistoryItem {
   target: string;
   status: string;
   date: string;
-  postId: number;
+  postId: string;
   sanction?: string | null;
 }
 
@@ -404,24 +295,12 @@ export const removeBlockedUser = (id: number) => {
   }
 };
 export interface StoredInteractions {
-  likedPosts: Record<number, boolean>;
-  dislikedPosts: Record<number, boolean>;
-  savedPosts: Record<number, boolean>;
-  extraComments: Record<number, { user: string; text: string; emoji: string }[]>;
-  createdPosts: Post[];
-  deletedPostIds: number[];
-  nextPostId: number;
+  savedPosts: Record<string, boolean>;
 }
- 
+
 export const loadStoredInteractions = (): StoredInteractions => {
   const fallback: StoredInteractions = {
-    likedPosts: {},
-    dislikedPosts: {},
     savedPosts: {},
-    extraComments: {},
-    createdPosts: [],
-    deletedPostIds: [],
-    nextPostId: 10000,
   };
   try {
     const raw = localStorage.getItem(scopedKey(STORAGE_KEY));
@@ -432,29 +311,7 @@ export const loadStoredInteractions = (): StoredInteractions => {
     return fallback;
   }
 };
- const DUMMY_COMMENT_TEMPLATES: { user: string; text: string; emoji: string }[] = [
-  { user: "익명1", text: "좋은 정보 감사해요!", emoji: "😊" },
-  { user: "익명2", text: "저도 궁금했는데 도움됐어요!", emoji: "🐱" },
-  { user: "익명3", text: "공유 감사합니다 👍", emoji: "📊" },
-  { user: "익명4", text: "완전 유용하네요!", emoji: "🔥" },
-  { user: "익명5", text: "저장해두고 봐야겠어요", emoji: "📌" },
-  { user: "익명6", text: "덕분에 잘 알아갑니다", emoji: "🙏" },
-  { user: "익명7", text: "저랑 상황이 똑같아서 공감돼요", emoji: "🐰" },
-  { user: "익명8", text: "이거 진짜 궁금했던 내용이에요", emoji: "🤔" },
-  { user: "익명9", text: "글 잘 읽었습니다!", emoji: "📚" },
-  { user: "익명10", text: "다음 글도 기대할게요", emoji: "✨" },
-  { user: "익명11", text: "이런 정보 자주 올려주세요", emoji: "🙌" },
-  { user: "익명12", text: "저도 참고할게요~", emoji: "🐶" },
-];
 
-export const getDummyComments = (post: Post) => {
-  const count = Math.max(0, post.comments);
-  return Array.from({ length: count }, (_, i) => {
-    const template = DUMMY_COMMENT_TEMPLATES[i % DUMMY_COMMENT_TEMPLATES.length];
-    const user = i < DUMMY_COMMENT_TEMPLATES.length ? template.user : `익명${i + 1}`;
-    return { user, text: template.text, emoji: template.emoji };
-  });
-};
 export const BOARDS = [
   { id: "free" as BoardType, label: "전체 게시판", emoji: "💬", icon: MessageCircle },
   { id: "qna" as BoardType, label: "선배들 작품 전시 공간", emoji: "🏆", icon: Users },
@@ -480,18 +337,36 @@ export function CommunityScreen({
   // 좋아요/싫어요/댓글/스크랩/새 글 등은 로컬 저장소에서 초기값을 불러와
   // 새로고침해도 그대로 유지되도록 한다.
   const [storedInit] = useState(loadStoredInteractions);
+  const [currentUser] = useState(getCurrentUser);
   const isAdmin = ADMIN_STUDENT_IDS.includes(getCurrentStudentId());
   const [activeBoard, setActiveBoard] = useState<BoardType>("free");
-  const [likedPosts, setLikedPosts] = useState<Record<number, boolean>>(storedInit.likedPosts);
-  const [dislikedPosts, setDislikedPosts] = useState<Record<number, boolean>>(storedInit.dislikedPosts);
-  const [savedPosts, setSavedPosts] = useState<Record<number, boolean>>(storedInit.savedPosts);
- 
-  const [openComments, setOpenComments] = useState<Record<number, boolean>>({});
-  const [extraComments, setExtraComments] = useState<Record<number, { user: string; text: string; emoji: string }[]>>(storedInit.extraComments);
+
+  // 게시물 목록은 실제 DB(GET /api/posts)에서 불러온다.
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [postsLoading, setPostsLoading] = useState(false);
+  useEffect(() => {
+    if (!isActive) return;
+    let cancelled = false;
+    setPostsLoading(true);
+    api.get("/posts")
+      .then((res) => {
+        if (!cancelled) setPosts(res.data);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setPostsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isActive]);
+
+  // 스크랩(저장)만 계정별 로컬 저장소에 유지한다(좋아요/싫어요/댓글/삭제는 이제 DB가 기준).
+  const [savedPosts, setSavedPosts] = useState<Record<string, boolean>>(storedInit.savedPosts);
+
   const [commentInput, setCommentInput] = useState("");
   const commentInputRef = useRef<HTMLInputElement>(null);
-  const [openCommentMenu, setOpenCommentMenu] = useState<number | null>(null);
-  const [openDummyCommentMenu, setOpenDummyCommentMenu] = useState<number | null>(null);
+  const [openCommentMenu, setOpenCommentMenu] = useState<string | null>(null);
   const [reportingCommentAuthor, setReportingCommentAuthor] = useState<string | null>(null);
 
   // 상대 시간("N분 전") 표시를 실시간으로 갱신하기 위한 tick
@@ -500,7 +375,7 @@ export function CommunityScreen({
     const interval = setInterval(() => setNowTick(Date.now()), 60 * 1000);
     return () => clearInterval(interval);
   }, []);
-  
+
   const handleReportCommentAuthor = (author: string) => {
     const counts = loadCommentReportCounts();
     if ((counts[author] || 0) >= MAX_COMMENT_REPORTS_PER_AUTHOR) {
@@ -509,8 +384,11 @@ export function CommunityScreen({
     }
     setReportingCommentAuthor(author);
   };
-  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-  const [viewedAuthor, setViewedAuthor] = useState<{ name: string; avatar: string } | null>(null);
+  // 게시물 상세/작성자 화면은 id만 들고 있다가 posts에서 찾아 쓴다.
+  // 그래야 좋아요/댓글 등으로 posts가 갱신될 때 상세 화면에도 즉시 반영된다.
+  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const selectedPost = selectedPostId ? posts.find((p) => p._id === selectedPostId) ?? null : null;
+  const [viewedAuthor, setViewedAuthor] = useState<PostAuthor | null>(null);
   const [authorActiveTab, setAuthorActiveTab] = useState<"posts" | "scrapped">("posts");
 
   // 다른 사용자의 프로필을 새로 열 때마다 "내 글" 탭부터 다시 보이게 한다.
@@ -523,7 +401,7 @@ export function CommunityScreen({
   // 채팅 패널로 실제로 이동할 수 있게 한다.
   useEffect(() => {
     if (showChat) {
-      setSelectedPost(null);
+      setSelectedPostId(null);
       setViewedAuthor(null);
     } else {
       // 커뮤니티/프로필/설정 탭으로 나가면(showChat이 꺼지면) 열려있던 1:1 대화창도 닫아서,
@@ -555,45 +433,31 @@ export function CommunityScreen({
   // 항상 목록 화면부터 다시 보이도록 탭을 벗어나는 즉시 초기화한다.
   useEffect(() => {
     if (!isActive) {
-      setSelectedPost(null);
+      setSelectedPostId(null);
       setViewedAuthor(null);
     }
   }, [isActive]);
 
   const [showWrite, setShowWrite] = useState(false);
-  const [showReport, setShowReport] = useState<number | null>(null);
-  const [showMoreMenu, setShowMoreMenu] = useState<number | null>(null);
+  const [showReport, setShowReport] = useState<string | null>(null);
+  const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
-  const [deletedPostIds, setDeletedPostIds] = useState<number[]>(storedInit.deletedPostIds);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newBoard, setNewBoard] = useState<BoardType>("free");
-  const [newImage, setNewImage] = useState<string | null>(null);
-  const [newPollEnabled, setNewPollEnabled] = useState(false);
-  const [newPollQuestion, setNewPollQuestion] = useState("");
-  const [newPollOptions, setNewPollOptions] = useState<string[]>(["", ""]);
-  const [createdPosts, setCreatedPosts] = useState<Post[]>(storedInit.createdPosts);
-  const [nextPostId, setNextPostId] = useState(storedInit.nextPostId);
-  const [pollSelections, setPollSelections] = useState<Record<number, number>>({});
+  const [newImageFile, setNewImageFile] = useState<File | null>(null);
+  const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
+  const [isSubmittingPost, setIsSubmittingPost] = useState(false);
 
-  // likedPosts/dislikedPosts/savedPosts/extraComments/createdPosts/deletedPostIds/nextPostId가
-  // 바뀔 때마다 로컬 저장소에 저장해서 새로고침해도 숫자가 유지되게 한다.
+  // 스크랩(savedPosts)이 바뀔 때마다 저장해서 새로고침해도 유지되게 한다.
   // 이미 저장된 내용과 동일하면 다시 쓰지 않아, ProfileScreen이 보낸 갱신을 받아
   // 그대로 반영할 때 다시 이벤트를 쏘는 무한 루프가 생기지 않는다.
   useEffect(() => {
-    const toStore: StoredInteractions = {
-      likedPosts,
-      dislikedPosts,
-      savedPosts,
-      extraComments,
-      createdPosts,
-      deletedPostIds,
-      nextPostId,
-    };
+    const toStore: StoredInteractions = { savedPosts };
     try {
       const json = JSON.stringify(toStore);
       if (localStorage.getItem(scopedKey(STORAGE_KEY)) !== json) {
@@ -603,19 +467,13 @@ export function CommunityScreen({
     } catch {
       // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
     }
-  }, [likedPosts, dislikedPosts, savedPosts, extraComments, createdPosts, deletedPostIds, nextPostId]);
+  }, [savedPosts]);
 
-  // 다른 화면(ProfileScreen)에서 좋아요/싫어요/스크랩/댓글/삭제를 바꾸면
+  // 다른 화면(ProfileScreen)에서 스크랩을 바꾸면
   // 같은 탭에서는 커스텀 이벤트로, 다른 탭에서는 storage 이벤트로 반영한다.
   useEffect(() => {
     const applyExternalUpdate = (next: StoredInteractions) => {
-      setLikedPosts(next.likedPosts);
-      setDislikedPosts(next.dislikedPosts);
       setSavedPosts(next.savedPosts);
-      setExtraComments(next.extraComments);
-      setCreatedPosts(next.createdPosts);
-      setDeletedPostIds(next.deletedPostIds);
-      setNextPostId(next.nextPostId);
     };
     const handleInteractionsUpdated = (e: Event) => {
       const detail = (e as CustomEvent<StoredInteractions>).detail;
@@ -636,18 +494,83 @@ export function CommunityScreen({
   const [dragStartY, setDragStartY] = useState<number | null>(null);
 
   const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
-  const [chatMessages, setChatMessages] = useState<Record<number, Message[]>>(loadChatMessages);
+  const [chatMessages, setChatMessages] = useState<Record<string, Message[]>>(loadChatMessages);
   const [chatInput, setChatInput] = useState("");
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [friendSearch, setFriendSearch] = useState("");
-  const [friends, setFriends] = useState<Friend[]>(FRIENDS);
+  const [friendSearchResults, setFriendSearchResults] = useState<Friend[]>([]);
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [friendRequests, setFriendRequests] = useState<FriendRequestItem[]>([]);
   const [isFriendSelectMode, setIsFriendSelectMode] = useState(false);
-  const [selectedFriendIds, setSelectedFriendIds] = useState<number[]>([]);
+  const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
 const [showChatMenu, setShowChatMenu] = useState(false);
 const [selectMode, setSelectMode] = useState(false);
 const [selectedMsgs, setSelectedMsgs] = useState<number[]>([]);
 const [showReportConfirm, setShowReportConfirm] = useState(false);
 const [viewingImage, setViewingImage] = useState<string | null>(null);
+
+  // 친구 목록 / 받은 친구 신청은 실제 DB(GET /api/friends, /api/friends/requests)에서 불러온다.
+  useEffect(() => {
+    if (!isActive) return;
+    let cancelled = false;
+    api.get("/friends").then((res) => { if (!cancelled) setFriends(res.data); }).catch(() => {});
+    api.get("/friends/requests").then((res) => { if (!cancelled) setFriendRequests(res.data); }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isActive]);
+
+  // 친구 검색: 입력 후 잠시 멈추면(디바운스) 학번/닉네임으로 사용자를 검색한다.
+  useEffect(() => {
+    if (!showAddFriend || !friendSearch.trim()) {
+      setFriendSearchResults([]);
+      return;
+    }
+    let cancelled = false;
+    const timeout = setTimeout(() => {
+      api.get("/users/search", { params: { q: friendSearch.trim() } })
+        .then((res) => { if (!cancelled) setFriendSearchResults(res.data); })
+        .catch(() => {});
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [friendSearch, showAddFriend]);
+
+  const handleSendFriendRequest = async (targetId: string) => {
+    try {
+      const res = await api.post(`/friends/requests/${targetId}`);
+      setFriendSearchResults((prev) => prev.filter((u) => u._id !== targetId));
+      showAlert(res.data.message);
+      if (res.data.message?.includes("친구가 되었습니다")) {
+        const friendsRes = await api.get("/friends");
+        setFriends(friendsRes.data);
+      }
+    } catch (err: any) {
+      showAlert(err.response?.data?.message || "친구 신청에 실패했습니다.");
+    }
+  };
+
+  const handleAcceptFriendRequest = async (requestId: string) => {
+    try {
+      await api.post(`/friends/requests/${requestId}/accept`);
+      setFriendRequests((prev) => prev.filter((r) => r._id !== requestId));
+      const res = await api.get("/friends");
+      setFriends(res.data);
+    } catch {
+      showAlert("친구 요청 수락에 실패했습니다.");
+    }
+  };
+
+  const handleRejectFriendRequest = async (requestId: string) => {
+    try {
+      await api.delete(`/friends/requests/${requestId}`);
+      setFriendRequests((prev) => prev.filter((r) => r._id !== requestId));
+    } catch {
+      showAlert("처리에 실패했습니다.");
+    }
+  };
 
   // chatMessages가 바뀔 때마다 저장해서 새로고침해도 대화 내용과 안 읽음 상태가 유지되게 한다.
   useEffect(() => {
@@ -660,7 +583,7 @@ const [viewingImage, setViewingImage] = useState<string | null>(null);
 
   // 친구 목록 카드에 보여줄 마지막 메시지 미리보기/시간/안 읽은 개수
   const getFriendPreview = (friend: Friend) => {
-    const msgs = chatMessages[friend.id] || [];
+    const msgs = chatMessages[friend._id] || [];
     if (msgs.length === 0) {
       return { text: "", time: "", unreadCount: 0 };
     }
@@ -673,7 +596,7 @@ const [viewingImage, setViewingImage] = useState<string | null>(null);
   // 새 메시지는 id를 Date.now()로 부여하므로, 마지막 메시지 id가 클수록 최근에
   // 주고받은 대화다. 메시지가 없는 친구는 가장 아래로 내려간다.
   const getLastMessageSortKey = (friend: Friend) => {
-    const msgs = chatMessages[friend.id] || [];
+    const msgs = chatMessages[friend._id] || [];
     return msgs.length === 0 ? 0 : msgs[msgs.length - 1].id;
   };
   const sortedFriends = [...friends].sort(
@@ -685,7 +608,7 @@ const [viewingImage, setViewingImage] = useState<string | null>(null);
     setActiveFriend(friend);
     setChatMessages((prev) => ({
       ...prev,
-      [friend.id]: (prev[friend.id] || []).map((m) => (m.read === false ? { ...m, read: true } : m)),
+      [friend._id]: (prev[friend._id] || []).map((m) => (m.read === false ? { ...m, read: true } : m)),
     }));
   };
 
@@ -708,33 +631,75 @@ const [viewingImage, setViewingImage] = useState<string | null>(null);
   };
   const closeConfirm = () => setConfirmState(null);
 
- // 게시물의 실제 댓글 수 = 원래 댓글 수 + 내가 새로 등록한 댓글 수
- const getCommentCount = (post: Post) => post.comments + (extraComments[post.id]?.length || 0);
- // "나"가 쓴 글은 프로필에서 업로드한 실제 프로필 사진을, 그 외에는 기존 이모지 아바타를 보여준다.
- const getAuthorAvatar = (post: Post): string | null => (post.author === "나" ? myAvatar : null);
+ // 게시물의 댓글 수는 이제 실제 DB에 저장된 comments 배열의 길이다.
+ const getCommentCount = (post: Post) => post.comments.length;
+ // 내가 쓴 글은 프로필에서 업로드한 실제 프로필 사진을, 그 외에는 작성자의 avatar(아직 비어있으면 null)를 보여준다.
+ const getAuthorAvatarUrl = (author: PostAuthor): string | null => {
+   if (currentUser && author._id === currentUser._id) return myAvatar ?? author.avatar ?? null;
+   return author.avatar ?? null;
+ };
  // 내가 쓴 글의 아바타를 누르면 작성자 보기 화면 대신 실제 내 프로필 탭으로 이동한다.
- const openAuthor = (author: { name: string; avatar: string }) => {
-   if (author.name === "나") {
+ const openAuthor = (author: PostAuthor) => {
+   if (currentUser && author._id === currentUser._id) {
      onViewOwnProfile();
    } else {
      setViewedAuthor(author);
    }
  };
- const allPosts = [...createdPosts, ...Object.values(POSTS).flat()].filter((p) => !deletedPostIds.includes(p.id));
-  const posts = showSearch && searchQuery
+ const isLiked = (post: Post) => !!currentUser && post.likes.includes(currentUser._id);
+ const isDisliked = (post: Post) => !!currentUser && post.dislikes.includes(currentUser._id);
+
+ const handleLike = async (post: Post) => {
+   if (!currentUser) return;
+   const uid = currentUser._id;
+   const wasLiked = post.likes.includes(uid);
+   const wasDisliked = post.dislikes.includes(uid);
+   setPosts((prev) => prev.map((p) => p._id !== post._id ? p : {
+     ...p,
+     likes: wasLiked ? p.likes.filter((id) => id !== uid) : [...p.likes, uid],
+     dislikes: wasDisliked ? p.dislikes.filter((id) => id !== uid) : p.dislikes,
+   }));
+   try {
+     await api.post(`/posts/${post._id}/like`);
+   } catch {
+     setPosts((prev) => prev.map((p) => (p._id === post._id ? post : p)));
+   }
+ };
+
+ const handleDislike = async (post: Post) => {
+   if (!currentUser) return;
+   const uid = currentUser._id;
+   const wasDisliked = post.dislikes.includes(uid);
+   const wasLiked = post.likes.includes(uid);
+   setPosts((prev) => prev.map((p) => p._id !== post._id ? p : {
+     ...p,
+     dislikes: wasDisliked ? p.dislikes.filter((id) => id !== uid) : [...p.dislikes, uid],
+     likes: wasLiked ? p.likes.filter((id) => id !== uid) : p.likes,
+   }));
+   try {
+     await api.post(`/posts/${post._id}/dislike`);
+   } catch {
+     setPosts((prev) => prev.map((p) => (p._id === post._id ? post : p)));
+   }
+ };
+
+ const toggleSave = (postId: string) => setSavedPosts((s) => ({ ...s, [postId]: !s[postId] }));
+
+ const allPosts = posts;
+ const visiblePosts = showSearch && searchQuery
     ? allPosts.filter((p) =>
         p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
       )
-    : [...createdPosts.filter((p) => p.board === activeBoard), ...POSTS[activeBoard]].filter((p) => !deletedPostIds.includes(p.id));
+    : allPosts.filter((p) => p.board === activeBoard);
 
   const toggleFriendSelectMode = () => {
   setIsFriendSelectMode((prev) => !prev);
   setSelectedFriendIds([]);
 };
 
-const toggleFriendSelect = (id: number) => {
+const toggleFriendSelect = (id: string) => {
   setSelectedFriendIds((prev) =>
     prev.includes(id) ? prev.filter((fid) => fid !== id) : [...prev, id]
   );
@@ -742,10 +707,16 @@ const toggleFriendSelect = (id: number) => {
 
 const handleDeleteFriends = () => {
   if (selectedFriendIds.length === 0) return;
-  showConfirm(`선택한 ${selectedFriendIds.length}명의 친구를 삭제하시겠습니까?`, () => {
-    setFriends((prev) => prev.filter((f) => !selectedFriendIds.includes(f.id)));
+  showConfirm(`선택한 ${selectedFriendIds.length}명의 친구를 삭제하시겠습니까?`, async () => {
+    const idsToDelete = selectedFriendIds;
     setSelectedFriendIds([]);
     setIsFriendSelectMode(false);
+    const results = await Promise.allSettled(idsToDelete.map((id) => api.delete(`/friends/${id}`)));
+    const succeededIds = idsToDelete.filter((_, i) => results[i].status === "fulfilled");
+    setFriends((prev) => prev.filter((f) => !succeededIds.includes(f._id)));
+    if (succeededIds.length < idsToDelete.length) {
+      showAlert("일부 친구 삭제에 실패했습니다.");
+    }
   });
 };
 
@@ -762,19 +733,22 @@ const handleDeleteFriends = () => {
     };
     setChatMessages((prev) => ({
       ...prev,
-      [activeFriend.id]: [...(prev[activeFriend.id] || []), newMsg],
+      [activeFriend._id]: [...(prev[activeFriend._id] || []), newMsg],
     }));
     setChatInput("");
   };
 
-  const handleAddComment = () => {
+  const handleAddComment = async () => {
   if (!selectedPost || !commentInput.trim()) return;
-  const filtered = filterProfanity(commentInput.trim());
-  setExtraComments((prev) => ({
-    ...prev,
-    [selectedPost.id]: [...(prev[selectedPost.id] || []), { user: "나", text: filtered, emoji: "🙂" }],
-  }));
+  const content = filterProfanity(commentInput.trim());
+  const postId = selectedPost._id;
   setCommentInput("");
+  try {
+    const res = await api.post(`/posts/${postId}/comments`, { content });
+    setPosts((prev) => prev.map((p) => (p._id === postId ? { ...p, comments: res.data } : p)));
+  } catch {
+    showAlert("댓글 등록에 실패했습니다.");
+  }
 };
 const startDrag = (y: number) => {
   setDragStartY(y);
@@ -815,14 +789,16 @@ const endDrag = () => {
   setDragStartY(null);
 };
 
-// 내가 작성한 댓글 삭제 (extraComments에서 해당 인덱스만 제거)
-  const handleDeleteComment = (postId: number, index: number) => {
+// 내가 작성한 댓글 삭제 (실제 DB에서 삭제)
+  const handleDeleteComment = (postId: string, commentId: string) => {
     setOpenCommentMenu(null);
-    showConfirm("댓글을 삭제하시겠습니까?", () => {
-      setExtraComments((prev) => ({
-        ...prev,
-        [postId]: (prev[postId] || []).filter((_, i) => i !== index),
-      }));
+    showConfirm("댓글을 삭제하시겠습니까?", async () => {
+      try {
+        const res = await api.delete(`/posts/${postId}/comments/${commentId}`);
+        setPosts((prev) => prev.map((p) => (p._id === postId ? { ...p, comments: res.data } : p)));
+      } catch {
+        showAlert("댓글 삭제에 실패했습니다.");
+      }
     });
   };
   // ── 채팅 창 ──────────────────────────────────────────────────────────────
@@ -837,9 +813,9 @@ const endDrag = () => {
           ) : (
             <button onClick={() => setActiveFriend(null)} className="text-lg">←</button>
           )}
-          <span className="text-2xl">{activeFriend.avatar}</span>
+          <span className="text-2xl">{activeFriend.avatar ?? activeFriend.nickname.charAt(0)}</span>
           <div className="flex-1">
-            <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>{activeFriend.name}</p>
+            <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>{activeFriend.nickname}</p>
           </div>
           {selectMode ? (
             <div className="flex gap-2">
@@ -847,7 +823,7 @@ const endDrag = () => {
                 onClick={() => {
                   setChatMessages((prev) => ({
                     ...prev,
-                    [activeFriend.id]: (prev[activeFriend.id] || []).filter((m) => !selectedMsgs.includes(m.id)),
+                    [activeFriend._id]: (prev[activeFriend._id] || []).filter((m) => !selectedMsgs.includes(m.id)),
                   }));
                   setSelectedMsgs([]);
                   setSelectMode(false);
@@ -888,13 +864,13 @@ const endDrag = () => {
               setShowChatMenu(false);
 
               showConfirm(
-                `${activeFriend?.name}님을 차단하면
+                `${activeFriend?.nickname}님을 차단하면
                 더 이상 채팅을 주고받을 수 없습니다.
 
                 차단하시겠습니까?`,
                 () => {
                   setFriends((prev) =>
-                    prev.filter((f) => f.id !== activeFriend?.id)
+                    prev.filter((f) => f._id !== activeFriend?._id)
                   );
 
                   setActiveFriend(null);
@@ -949,7 +925,7 @@ const endDrag = () => {
 
         {/* 메시지 목록 */}
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-          {(chatMessages[activeFriend.id] || []).map((msg) => (
+          {(chatMessages[activeFriend._id] || []).map((msg) => (
             <div key={msg.id} className={`flex items-end gap-2 ${msg.mine ? "justify-end" : "justify-start"}`}>
               {selectMode && msg.mine && (
                 <input
@@ -1021,7 +997,7 @@ const endDrag = () => {
                   };
                   setChatMessages((prev) => ({
                     ...prev,
-                    [activeFriend.id]: [...(prev[activeFriend.id] || []), newMsg],
+                    [activeFriend._id]: [...(prev[activeFriend._id] || []), newMsg],
                   }));
                 };
                 reader.readAsDataURL(file);
@@ -1073,7 +1049,7 @@ const endDrag = () => {
 
   // ── 작성자 프로필 화면 (내 프로필과 동일한 화면/기능 구성) ──────────────────
   if (viewedAuthor) {
-    const authorPosts = allPosts.filter((p) => p.author === viewedAuthor.name);
+    const authorPosts = allPosts.filter((p) => p.author._id === viewedAuthor._id);
     const getBoardLabel = (board?: BoardType) => BOARDS.find((b) => b.id === board)?.label ?? "";
 
     return (
@@ -1106,11 +1082,15 @@ const endDrag = () => {
                 className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-md overflow-hidden"
                 style={{ background: "var(--accent)", border: "3px solid var(--primary)" }}
               >
-                {viewedAuthor.avatar}
+                {getAuthorAvatarUrl(viewedAuthor) ? (
+                  <img src={getAuthorAvatarUrl(viewedAuthor)!} alt="프로필 사진" className="w-full h-full object-cover" />
+                ) : (
+                  viewedAuthor.nickname.charAt(0)
+                )}
               </div>
               <div className="flex-1 pt-1">
                 <h2 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>
-                  {viewedAuthor.name}
+                  {viewedAuthor.nickname}
                 </h2>
               </div>
             </div>
@@ -1147,10 +1127,10 @@ const endDrag = () => {
               ) : (
                 authorPosts.map((p) => (
                   <div
-                    key={p.id}
+                    key={p._id}
                     onClick={() => {
                       setViewedAuthor(null);
-                      setSelectedPost(p);
+                      setSelectedPostId(p._id);
                     }}
                     className="p-4 rounded-2xl cursor-pointer"
                     style={{ background: "var(--card)" }}
@@ -1166,7 +1146,7 @@ const endDrag = () => {
                     </p>
                     <div className="flex items-center gap-3">
                       <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
-                        <Heart size={12} /> {p.likes + (likedPosts[p.id] ? 1 : 0)}
+                        <Heart size={12} /> {p.likes.length}
                       </span>
                       <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
                         <MessageCircle size={12} /> {getCommentCount(p)}
@@ -1196,7 +1176,7 @@ const endDrag = () => {
     return (
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
         <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setSelectedPost(null)} className="text-lg">
+          <button onClick={() => setSelectedPostId(null)} className="text-lg">
             ←
           </button>
           <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
@@ -1207,21 +1187,21 @@ const endDrag = () => {
             <div className="flex items-center gap-2 mb-3">
               <button
                 onClick={() => {
-                  setSelectedPost(null);
-                  openAuthor({ name: selectedPost.author, avatar: selectedPost.avatar });
+                  setSelectedPostId(null);
+                  openAuthor(selectedPost.author);
                 }}
                 className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
                 style={{ background: "var(--muted)" }}
               >
-                {getAuthorAvatar(selectedPost) ? (
-                  <img src={getAuthorAvatar(selectedPost)!} alt="프로필 사진" className="w-full h-full object-cover" />
+                {getAuthorAvatarUrl(selectedPost.author) ? (
+                  <img src={getAuthorAvatarUrl(selectedPost.author)!} alt="프로필 사진" className="w-full h-full object-cover" />
                 ) : (
-                  selectedPost.avatar
+                  selectedPost.author.nickname.charAt(0)
                 )}
               </button>
               <div className="flex-1">
                 <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                  {selectedPost.author}
+                  {selectedPost.author.nickname}
                 </p>
                 <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
   {getDisplayTime(selectedPost, nowTick)}
@@ -1237,9 +1217,9 @@ const endDrag = () => {
 
             <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h3>
 
-            {selectedPost.image && (
+            {selectedPost.images[0] && (
               <img
-                src={selectedPost.image}
+                src={selectedPost.images[0]}
                 alt="첨부 이미지"
                 className="mt-2 w-full max-h-72 object-cover rounded-xl"
               />
@@ -1261,65 +1241,6 @@ const endDrag = () => {
             <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
               {selectedPost.content}
             </p>
-
-            {selectedPost.poll && (() => {
-              const selectedId = pollSelections[selectedPost.id];
-              const totalVotes = selectedPost.poll.options.reduce(
-                (sum, opt) => sum + opt.votes + (selectedId === opt.id ? 1 : 0),
-                0
-              );
-              return (
-                <div
-                  className="mt-3 p-3 rounded-2xl flex flex-col gap-2"
-                  style={{ background: "var(--muted)" }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                    🗳️ {selectedPost.poll.question}
-                  </p>
-                  {selectedPost.poll.options.map((opt) => {
-                    const votes = opt.votes + (selectedId === opt.id ? 1 : 0);
-                    const percent = totalVotes === 0 ? 0 : Math.round((votes / totalVotes) * 100);
-                    const isSelected = selectedId === opt.id;
-                    return (
-                      <button
-                        key={opt.id}
-                        onClick={() =>
-                          setPollSelections((prev) => ({
-                            ...prev,
-                            [selectedPost.id]: prev[selectedPost.id] === opt.id ? undefined : opt.id,
-                          } as Record<number, number>))
-                        }
-                        className="relative w-full text-left rounded-xl overflow-hidden text-xs"
-                        style={{ border: "1.5px solid var(--border)" }}
-                      >
-                        {selectedId !== undefined && (
-                          <div
-                            className="absolute inset-y-0 left-0 transition-all"
-                            style={{
-                              width: `${percent}%`,
-                              background: isSelected ? "var(--primary)" : "var(--secondary)",
-                              opacity: isSelected ? 0.35 : 0.25,
-                            }}
-                          />
-                        )}
-                        <div className="relative flex items-center justify-between px-3 py-2">
-                          <span style={{ color: "var(--foreground)", fontWeight: isSelected ? 600 : 400 }}>
-                            {opt.text}
-                          </span>
-                          {selectedId !== undefined && (
-                            <span style={{ color: "var(--muted-foreground)" }}>{percent}% ({votes})</span>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                    {totalVotes}명 참여{selectedId === undefined ? " · 옵션을 눌러 투표하세요" : ""}
-                  </p>
-                </div>
-              );
-            })()}
 
             {selectedPost.tags && (
               <div className="flex flex-wrap gap-1.5 mt-2">
@@ -1348,26 +1269,18 @@ const endDrag = () => {
             )}
 
             <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-             <button className="flex items-center gap-1.5"
-              onClick={() => {
-                setLikedPosts((l) => ({ ...l, [selectedPost!.id]: !l[selectedPost!.id] }));
-                setDislikedPosts((d) => ({ ...d, [selectedPost!.id]: false }));
-              }}>
-                <Heart size={16} fill={likedPosts[selectedPost.id] ? "#3b82f6" : "none"}
-                  color={likedPosts[selectedPost.id] ? "#3b82f6" : "var(--muted-foreground)"} />
-                <span className="text-xs" style={{ color: likedPosts[selectedPost.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
-                  {selectedPost.likes + (likedPosts[selectedPost.id] ? 1 : 0)}
+             <button className="flex items-center gap-1.5" onClick={() => handleLike(selectedPost)}>
+                <Heart size={16} fill={isLiked(selectedPost) ? "#3b82f6" : "none"}
+                  color={isLiked(selectedPost) ? "#3b82f6" : "var(--muted-foreground)"} />
+                <span className="text-xs" style={{ color: isLiked(selectedPost) ? "var(--primary)" : "var(--muted-foreground)" }}>
+                  {selectedPost.likes.length}
                 </span>
               </button>
-              <button className="flex items-center gap-1.5"
-  onClick={() => {
-    setDislikedPosts((d) => ({ ...d, [selectedPost!.id]: !d[selectedPost!.id] }));
-    setLikedPosts((l) => ({ ...l, [selectedPost!.id]: false }));
-  }}>
-                <ThumbsDown size={16} fill={dislikedPosts[selectedPost.id] ? "#d4183d" : "none"}
-                  color={dislikedPosts[selectedPost.id] ? "#d4183d" : "var(--muted-foreground)"} />
-                <span className="text-xs" style={{ color: dislikedPosts[selectedPost.id] ? "#d4183d" : "var(--muted-foreground)" }}>
-                  {selectedPost.dislikes + (dislikedPosts[selectedPost.id] ? 1 : 0)}
+              <button className="flex items-center gap-1.5" onClick={() => handleDislike(selectedPost)}>
+                <ThumbsDown size={16} fill={isDisliked(selectedPost) ? "#d4183d" : "none"}
+                  color={isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)"} />
+                <span className="text-xs" style={{ color: isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)" }}>
+                  {selectedPost.dislikes.length}
                 </span>
               </button>
               <button className="flex items-center gap-1.5"
@@ -1379,9 +1292,9 @@ const endDrag = () => {
                 <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(selectedPost)}</span>
               </button>
               <button className="flex items-center gap-1.5"
-                onClick={() => setSavedPosts((s) => ({ ...s, [selectedPost!.id]: !s[selectedPost!.id] }))}>
-                <Bookmark size={16} fill={savedPosts[selectedPost.id] ? "var(--primary)" : "none"}
-                  color={savedPosts[selectedPost.id] ? "var(--primary)" : "var(--muted-foreground)"} />
+                onClick={() => toggleSave(selectedPost._id)}>
+                <Bookmark size={16} fill={savedPosts[selectedPost._id] ? "var(--primary)" : "none"}
+                  color={savedPosts[selectedPost._id] ? "var(--primary)" : "var(--muted-foreground)"} />
               </button>
             </div>
           </div>
@@ -1391,94 +1304,67 @@ const endDrag = () => {
             <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
               댓글 {getCommentCount(selectedPost)}개
             </p>
-            {getDummyComments(selectedPost).map((c, i) => (
-              <div key={i} className="flex gap-2 items-start relative">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm cursor-pointer"
+            {selectedPost.comments.map((c) => (
+              <div key={c._id} className="flex gap-2 items-start relative">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm cursor-pointer overflow-hidden"
                   style={{ background: "var(--muted)" }}
-                  onClick={() => setViewedAuthor({ name: c.user, avatar: c.emoji })}>{c.emoji}</div>
+                  onClick={() => openAuthor(c.author)}>
+                  {getAuthorAvatarUrl(c.author) ? (
+                    <img src={getAuthorAvatarUrl(c.author)!} alt="프로필 사진" className="w-full h-full object-cover" />
+                  ) : (
+                    c.author.nickname.charAt(0)
+                  )}
+                </div>
                 <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
                   style={{ color: "var(--foreground)" }}>
                   <span>
                     <span
                       className="font-semibold cursor-pointer"
-                      onClick={() => setViewedAuthor({ name: c.user, avatar: c.emoji })}
+                      onClick={() => openAuthor(c.author)}
                     >
-                      {c.user}{" "}
+                      {c.author.nickname}{" "}
                     </span>
-                    {c.text}
+                    {c.content}
                   </span>
                   <div className="relative shrink-0">
                     <button
-                      onClick={() => setOpenDummyCommentMenu(openDummyCommentMenu === i ? null : i)}
+                      onClick={() => setOpenCommentMenu(openCommentMenu === c._id ? null : c._id)}
                       style={{ color: "var(--muted-foreground)" }}
                       aria-label="댓글 더보기"
                     >
                       <MoreVertical size={14} />
                     </button>
-                    {openDummyCommentMenu === i && (
+                    {openCommentMenu === c._id && (
                       <div
                         className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
                         style={{ background: "var(--card)", border: "1px solid var(--border)" }}
                       >
-                        <button
-                          onClick={() => {
-                            setOpenDummyCommentMenu(null);
-                            handleReportCommentAuthor(c.user);
-                          }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
-                          style={{ color: "#d4183d" }}
-                        >
-                          <AlertTriangle size={13} /> 신고
-                        </button>
+                        {currentUser && c.author._id === currentUser._id ? (
+                          <button
+                            onClick={() => handleDeleteComment(selectedPost._id, c._id)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
+                            style={{ color: "#d4183d" }}
+                          >
+                            <Trash2 size={13} /> 삭제
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setOpenCommentMenu(null);
+                              handleReportCommentAuthor(c.author.nickname);
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
+                            style={{ color: "#d4183d" }}
+                          >
+                            <AlertTriangle size={13} /> 신고
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
                 </div>
               </div>
             ))}
-
-           {(extraComments[selectedPost.id] || []).map((c, i) => (
-  <div key={`new-${i}`} className="flex gap-2 items-start relative">
-    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm cursor-pointer"
-      style={{ background: "var(--muted)" }}
-      onClick={() => setViewedAuthor({ name: c.user, avatar: c.emoji })}>{c.emoji}</div>
-    <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
-      style={{ color: "var(--foreground)" }}>
-      <span>
-        <span
-          className="font-semibold cursor-pointer"
-          onClick={() => setViewedAuthor({ name: c.user, avatar: c.emoji })}
-        >
-          {c.user}{" "}
-        </span>
-        {c.text}
-      </span>
-      <div className="relative shrink-0">
-        <button
-          onClick={() => setOpenCommentMenu(openCommentMenu === i ? null : i)}
-          style={{ color: "var(--muted-foreground)" }}
-          aria-label="댓글 더보기"
-        >
-          <MoreVertical size={14} />
-        </button>
-        {openCommentMenu === i && (
-          <div
-            className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
-            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-          >
-            <button
-              onClick={() => handleDeleteComment(selectedPost.id, i)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
-              style={{ color: "#d4183d" }}
-            >
-              <Trash2 size={13} /> 삭제
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  </div>
-))}
           </div>
         </div>
 
@@ -1531,7 +1417,7 @@ const endDrag = () => {
                       target: `"${selectedPost!.title}" 게시물 - ${reportingCommentAuthor}님의 댓글`,
                       status: "처리 중",
                       date,
-                      postId: selectedPost!.id,
+                      postId: selectedPost!._id,
                       sanction: null,
                     });
                     setReportingCommentAuthor(null);
@@ -1719,9 +1605,20 @@ const endDrag = () => {
       )}
 
       {/* Posts */}
-<div className="flex-1 overflow-y-auto px-4 pb-20 flex flex-col gap-3 no-scrollbar">        {posts.map((post) => (
+<div className="flex-1 overflow-y-auto px-4 pb-20 flex flex-col gap-3 no-scrollbar">
+        {postsLoading && visiblePosts.length === 0 && (
+          <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
+            게시물을 불러오는 중...
+          </p>
+        )}
+        {!postsLoading && visiblePosts.length === 0 && (
+          <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
+            아직 게시물이 없어요.
+          </p>
+        )}
+        {visiblePosts.map((post) => (
           <div
-            key={post.id}
+            key={post._id}
             className="rounded-2xl p-4 shadow-sm relative"
             style={{ background: "var(--card)" }}
           >
@@ -1730,19 +1627,19 @@ const endDrag = () => {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  openAuthor({ name: post.author, avatar: post.avatar });
+                  openAuthor(post.author);
                 }}
                 className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
                 style={{ background: "var(--muted)" }}
               >
-                {getAuthorAvatar(post) ? (
-                  <img src={getAuthorAvatar(post)!} alt="프로필 사진" className="w-full h-full object-cover" />
+                {getAuthorAvatarUrl(post.author) ? (
+                  <img src={getAuthorAvatarUrl(post.author)!} alt="프로필 사진" className="w-full h-full object-cover" />
                 ) : (
-                  post.avatar
+                  post.author.nickname.charAt(0)
                 )}
               </button>
               <div className="flex-1">
-                <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{post.author}</p>
+                <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{post.author.nickname}</p>
                 <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(post, nowTick)}</p>
               </div>
               {post.price && (
@@ -1758,19 +1655,19 @@ const endDrag = () => {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowMoreMenu(showMoreMenu === post.id ? null : post.id);
+                  setShowMoreMenu(showMoreMenu === post._id ? null : post._id);
                 }}
                 className="w-8 h-8 rounded-full flex items-center justify-center"
                 style={{ color: "var(--muted-foreground)" }}
               >
                 <MoreVertical size={18} />
               </button>
-              {showMoreMenu === post.id && (
+              {showMoreMenu === post._id && (
                 <div
                   className="absolute right-0 top-9 z-20 rounded-xl shadow-lg py-1 min-w-[110px]"
                   style={{ background: "var(--card)", border: "1px solid var(--border)" }}
                 >
-                  {post.author === "나" ? (
+                  {currentUser && post.author._id === currentUser._id ? (
                     <>
                       <button
                         onClick={() => {
@@ -1786,9 +1683,14 @@ const endDrag = () => {
                       </button>
                       <button
                         onClick={() => {
-                          showConfirm("이 게시물을 삭제하시겠습니까?", () => {
-                            setDeletedPostIds((prev) => [...prev, post.id]);
+                          showConfirm("이 게시물을 삭제하시겠습니까?", async () => {
                             setShowMoreMenu(null);
+                            try {
+                              await api.delete(`/posts/${post._id}`);
+                              setPosts((prev) => prev.filter((p) => p._id !== post._id));
+                            } catch {
+                              showAlert("게시물 삭제에 실패했습니다.");
+                            }
                           });
                         }}
                         className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
@@ -1800,7 +1702,7 @@ const endDrag = () => {
                   ) : (
                     <button
                       onClick={() => {
-                        setShowReport(post.id);
+                        setShowReport(post._id);
                         setShowMoreMenu(null);
                       }}
                       className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
@@ -1814,12 +1716,12 @@ const endDrag = () => {
             </div>
 
             {/* 클릭하면 상세화면으로 이동 */}
-            <div onClick={() => setSelectedPost(post)} className="cursor-pointer">
+            <div onClick={() => setSelectedPostId(post._id)} className="cursor-pointer">
               <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{post.title}</h3>
 
-              {post.image && (
+              {post.images[0] && (
                 <img
-                  src={post.image}
+                  src={post.images[0]}
                   alt="첨부 이미지"
                   className="mt-2 w-full max-h-48 object-cover rounded-xl"
                 />
@@ -1840,65 +1742,6 @@ const endDrag = () => {
 
               <p className="text-sm leading-relaxed" style={{ color: "var(--muted-foreground)" }}>{post.content}</p>
 
-              {post.poll && (() => {
-                const selectedId = pollSelections[post.id];
-                const totalVotes = post.poll.options.reduce(
-                  (sum, opt) => sum + opt.votes + (selectedId === opt.id ? 1 : 0),
-                  0
-                );
-                return (
-                  <div
-                    className="mt-3 p-3 rounded-2xl flex flex-col gap-2"
-                    style={{ background: "var(--muted)" }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                      🗳️ {post.poll.question}
-                    </p>
-                    {post.poll.options.map((opt) => {
-                      const votes = opt.votes + (selectedId === opt.id ? 1 : 0);
-                      const percent = totalVotes === 0 ? 0 : Math.round((votes / totalVotes) * 100);
-                      const isSelected = selectedId === opt.id;
-                      return (
-                        <button
-                          key={opt.id}
-                          onClick={() =>
-                            setPollSelections((prev) => ({
-                              ...prev,
-                              [post.id]: prev[post.id] === opt.id ? undefined : opt.id,
-                            } as Record<number, number>))
-                          }
-                          className="relative w-full text-left rounded-xl overflow-hidden text-xs"
-                          style={{ border: "1.5px solid var(--border)" }}
-                        >
-                          {selectedId !== undefined && (
-                            <div
-                              className="absolute inset-y-0 left-0 transition-all"
-                              style={{
-                                width: `${percent}%`,
-                                background: isSelected ? "var(--primary)" : "var(--secondary)",
-                                opacity: isSelected ? 0.35 : 0.25,
-                              }}
-                            />
-                          )}
-                          <div className="relative flex items-center justify-between px-3 py-2">
-                            <span style={{ color: "var(--foreground)", fontWeight: isSelected ? 600 : 400 }}>
-                              {opt.text}
-                            </span>
-                            {selectedId !== undefined && (
-                              <span style={{ color: "var(--muted-foreground)" }}>{percent}% ({votes})</span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                      {totalVotes}명 참여{selectedId === undefined ? " · 옵션을 눌러 투표하세요" : ""}
-                    </p>
-                  </div>
-                );
-              })()}
-
               {post.maxParticipants && (
                 <div className="mt-2">
                   <span
@@ -1917,62 +1760,30 @@ const endDrag = () => {
 
            {/* Actions */}
 <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-  <button className="flex items-center gap-1.5"
-    onClick={() => {
-      setLikedPosts((l) => ({ ...l, [post.id]: !l[post.id] }));
-      setDislikedPosts((d) => ({ ...d, [post.id]: false }));
-    }}>
-    <Heart size={16} fill={likedPosts[post.id] ? "#3b82f6" : "none"}
-      color={likedPosts[post.id] ? "#3b82f6" : "var(--muted-foreground)"} />
-    <span className="text-xs" style={{ color: likedPosts[post.id] ? "var(--primary)" : "var(--muted-foreground)" }}>
-      {post.likes + (likedPosts[post.id] ? 1 : 0)}
+  <button className="flex items-center gap-1.5" onClick={() => handleLike(post)}>
+    <Heart size={16} fill={isLiked(post) ? "#3b82f6" : "none"}
+      color={isLiked(post) ? "#3b82f6" : "var(--muted-foreground)"} />
+    <span className="text-xs" style={{ color: isLiked(post) ? "var(--primary)" : "var(--muted-foreground)" }}>
+      {post.likes.length}
     </span>
   </button>
-  <button className="flex items-center gap-1.5"
-    onClick={() => {
-      setDislikedPosts((d) => ({ ...d, [post.id]: !d[post.id] }));
-      setLikedPosts((l) => ({ ...l, [post.id]: false }));
-    }}>
-                <ThumbsDown size={16} fill={dislikedPosts[post.id] ? "#d4183d" : "none"}
-                  color={dislikedPosts[post.id] ? "#d4183d" : "var(--muted-foreground)"} />
-                <span className="text-xs" style={{ color: dislikedPosts[post.id] ? "#d4183d" : "var(--muted-foreground)" }}>
-                  {post.dislikes + (dislikedPosts[post.id] ? 1 : 0)}
+  <button className="flex items-center gap-1.5" onClick={() => handleDislike(post)}>
+                <ThumbsDown size={16} fill={isDisliked(post) ? "#d4183d" : "none"}
+                  color={isDisliked(post) ? "#d4183d" : "var(--muted-foreground)"} />
+                <span className="text-xs" style={{ color: isDisliked(post) ? "#d4183d" : "var(--muted-foreground)" }}>
+                  {post.dislikes.length}
                 </span>
               </button>
-              <button className="flex items-center gap-1.5" onClick={() => setSelectedPost(post)}>
+              <button className="flex items-center gap-1.5" onClick={() => setSelectedPostId(post._id)}>
                 <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
                 <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(post)}</span>
               </button>
               <button className="flex items-center gap-1.5"
-                onClick={() => setSavedPosts((s) => ({ ...s, [post.id]: !s[post.id] }))}>
-                <Bookmark size={16} fill={savedPosts[post.id] ? "var(--primary)" : "none"}
-                  color={savedPosts[post.id] ? "var(--primary)" : "var(--muted-foreground)"} />
+                onClick={() => toggleSave(post._id)}>
+                <Bookmark size={16} fill={savedPosts[post._id] ? "var(--primary)" : "none"}
+                  color={savedPosts[post._id] ? "var(--primary)" : "var(--muted-foreground)"} />
               </button>
             </div>
-
-            {openComments[post.id] && (
-              <div className="mt-3 flex flex-col gap-2">
-                <div className="flex gap-2 items-start">
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm"
-                    style={{ background: "var(--muted)" }}>😊</div>
-                  <div className="flex-1 px-3 py-2 rounded-xl text-xs"
-                    style={{ background: "var(--muted)", color: "var(--foreground)" }}>
-                    <span className="font-semibold">익명1 </span>좋은 정보 감사해요!
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-1">
-                  <input
-                    placeholder="댓글 입력..."
-                    className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
-                    style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-                  />
-                  <button className="px-3 py-2 rounded-xl text-xs font-semibold"
-                    style={{ background: "var(--primary)", color: "white" }}>
-                    등록
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         ))}
       </div>
@@ -2040,8 +1851,36 @@ const endDrag = () => {
   </div>
 </div>
 
+          {friendRequests.length > 0 && (
+            <div className="flex flex-col gap-1.5 mb-2 p-2 rounded-xl" style={{ background: "var(--secondary)" }}>
+              <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>받은 친구 요청</span>
+              {friendRequests.map((r) => (
+                <div key={r._id} className="flex items-center gap-2">
+                  <span className="text-lg">{r.from.avatar ?? r.from.nickname.charAt(0)}</span>
+                  <p className="flex-1 min-w-0 text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
+                    {r.from.nickname}
+                  </p>
+                  <button
+                    onClick={() => handleAcceptFriendRequest(r._id)}
+                    className="px-2 py-1 rounded-lg text-xs font-semibold"
+                    style={{ background: "var(--primary)", color: "white" }}
+                  >
+                    수락
+                  </button>
+                  <button
+                    onClick={() => handleRejectFriendRequest(r._id)}
+                    className="px-2 py-1 rounded-lg text-xs font-semibold"
+                    style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
+                  >
+                    거절
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
           {showAddFriend && (
-            <div className="flex gap-2 mb-2">
+            <div className="flex flex-col gap-2 mb-2">
               <input
                 value={friendSearch}
                 onChange={(e) => setFriendSearch(e.target.value)}
@@ -2049,20 +1888,24 @@ const endDrag = () => {
                 className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
                 style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
               />
-              <button
-                onClick={() => {
-                  if (friendSearch.trim()) {
-                    const name = friendSearch;
-                    setFriendSearch("");
-                    setShowAddFriend(false);
-                    showAlert(`'${name}'에게 친구 신청을 보냈습니다.`);
-                  }
-                }}
-                className="px-3 py-2 rounded-xl text-xs font-semibold"
-                style={{ background: "var(--primary)", color: "white" }}
-              >
-                신청
-              </button>
+              {friendSearch.trim() && friendSearchResults.length === 0 && (
+                <p className="text-xs px-1" style={{ color: "var(--muted-foreground)" }}>검색 결과가 없습니다.</p>
+              )}
+              {friendSearchResults.map((u) => (
+                <div key={u._id} className="flex items-center gap-2 px-1">
+                  <span className="text-lg">{u.avatar ?? u.nickname.charAt(0)}</span>
+                  <p className="flex-1 min-w-0 text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
+                    {u.nickname}
+                  </p>
+                  <button
+                    onClick={() => handleSendFriendRequest(u._id)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                    style={{ background: "var(--primary)", color: "white" }}
+                  >
+                    신청
+                  </button>
+                </div>
+              ))}
             </div>
           )}
 
@@ -2070,10 +1913,10 @@ const endDrag = () => {
   const { text, time, unreadCount } = getFriendPreview(friend);
   return (
   <button
-    key={friend.id}
+    key={friend._id}
     onClick={() => {
       if (isFriendSelectMode) {
-        toggleFriendSelect(friend.id);
+        toggleFriendSelect(friend._id);
       } else {
         openFriendChat(friend);
       }
@@ -2081,7 +1924,7 @@ const endDrag = () => {
     className="flex items-center gap-3 p-2.5 rounded-xl text-left"
     style={{
       background: "var(--card)",
-      outline: isFriendSelectMode && selectedFriendIds.includes(friend.id)
+      outline: isFriendSelectMode && selectedFriendIds.includes(friend._id)
         ? "2px solid var(--primary)"
         : "none",
     }}
@@ -2090,22 +1933,22 @@ const endDrag = () => {
       <div
         className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
         style={{
-          background: selectedFriendIds.includes(friend.id) ? "var(--primary)" : "var(--muted)",
+          background: selectedFriendIds.includes(friend._id) ? "var(--primary)" : "var(--muted)",
           border: "1.5px solid var(--border)",
         }}
       >
-        {selectedFriendIds.includes(friend.id) && (
+        {selectedFriendIds.includes(friend._id) && (
           <span className="text-white text-[10px] font-bold">✓</span>
         )}
       </div>
     )}
 
     <div className="relative">
-      <span className="text-2xl">{friend.avatar}</span>
+      <span className="text-2xl">{friend.avatar ?? friend.nickname.charAt(0)}</span>
     </div>
     <div className="flex-1 min-w-0">
       <div className="flex items-center gap-1.5">
-        <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{friend.name}</p>
+        <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{friend.nickname}</p>
         {unreadCount > 0 && (
           <span
             className="text-[10px] font-bold text-white rounded-full px-1.5 py-0.5 shrink-0"
@@ -2157,53 +2000,38 @@ const endDrag = () => {
             </button>
             <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>글쓰기</h2>
             <button
+              disabled={isSubmittingPost}
               className="px-4 py-1.5 rounded-xl text-sm font-semibold"
-              style={{ background: "var(--primary)", color: "white" }}
-             onClick={() => {
+              style={{ background: "var(--primary)", color: "white", opacity: isSubmittingPost ? 0.6 : 1 }}
+             onClick={async () => {
                 if (newBoard === "event" && !isAdmin) {
                   showAlert("행사공지 게시판은 관리자만 작성할 수 있습니다.");
                   return;
                 }
-                if (!newPollEnabled && (!newTitle.trim() || !newContent.trim())) {
+                if (!newTitle.trim() || !newContent.trim()) {
                   showAlert("제목과 내용을 입력해주세요.");
                   return;
                 }
-                const validOptions = newPollOptions.map((o) => o.trim()).filter(Boolean);
-                if (newPollEnabled && (!newPollQuestion.trim() || validOptions.length < 2)) {
-                  showAlert("투표 질문과 2개 이상의 옵션을 입력해주세요.");
-                  return;
+                setIsSubmittingPost(true);
+                try {
+                  let images: string[] = [];
+                  if (newImageFile) {
+                    const imageRef = storageRef(storage, `posts/${getCurrentStudentId()}/${Date.now()}-${newImageFile.name}`);
+                    await uploadBytes(imageRef, newImageFile);
+                    images = [await getDownloadURL(imageRef)];
+                  }
+                  const res = await api.post("/posts", { board: newBoard, title: newTitle, content: newContent, images });
+                  setPosts((prev) => [res.data, ...prev]);
+                  setNewTitle("");
+                  setNewContent("");
+                  setNewImageFile(null);
+                  setNewImagePreview(null);
+                  setShowWrite(false);
+                } catch {
+                  showAlert("게시물 등록에 실패했습니다.");
+                } finally {
+                  setIsSubmittingPost(false);
                 }
-                const newPost: Post = {
-                  id: nextPostId,
-                  author: "나",
-                  avatar: "🙂",
-                  time: "방금 전",
-                  createdAt: Date.now(),
-                  title: newTitle,
-                  content: newContent,
-                  likes: 0,
-                  dislikes: 0,
-                  comments: 0,
-                  image: newImage || undefined,
-                  board: newBoard,
-                  ...(newPollEnabled
-                    ? {
-                        poll: {
-                          question: newPollQuestion.trim(),
-                          options: validOptions.map((text, i) => ({ id: i, text, votes: 0 })),
-                        },
-                      }
-                    : {}),
-                };
-                setCreatedPosts((prev) => [newPost, ...prev]);
-                setNextPostId((n) => n + 1);
-                setNewTitle("");
-                setNewContent("");
-                setNewImage(null);
-                setNewPollEnabled(false);
-                setNewPollQuestion("");
-                setNewPollOptions(["", ""]);
-                setShowWrite(false);
               }}
             >
               등록
@@ -2253,16 +2081,20 @@ const endDrag = () => {
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (!file) return;
+                setNewImageFile(file);
                 const reader = new FileReader();
-                reader.onload = () => setNewImage(reader.result as string);
+                reader.onload = () => setNewImagePreview(reader.result as string);
                 reader.readAsDataURL(file);
               }}
             />
-            {newImage ? (
+            {newImagePreview ? (
               <div className="relative rounded-2xl overflow-hidden">
-                <img src={newImage} alt="첨부 이미지" className="w-full max-h-48 object-cover rounded-2xl" />
+                <img src={newImagePreview} alt="첨부 이미지" className="w-full max-h-48 object-cover rounded-2xl" />
                 <button
-                  onClick={() => setNewImage(null)}
+                  onClick={() => {
+                    setNewImageFile(null);
+                    setNewImagePreview(null);
+                  }}
                   className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
                   style={{ background: "rgba(0,0,0,0.5)" }}
                 >
@@ -2277,69 +2109,6 @@ const endDrag = () => {
               >
                 <Image size={18} />
                 <span className="text-sm">사진 첨부</span>
-              </button>
-            )}
-
-            {/* 투표 추가 */}
-            {newPollEnabled ? (
-              <div className="p-3 rounded-2xl flex flex-col gap-2.5" style={{ background: "var(--muted)" }}>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>🗳️ 투표 만들기</span>
-                  <button
-                    onClick={() => {
-                      setNewPollEnabled(false);
-                      setNewPollQuestion("");
-                      setNewPollOptions(["", ""]);
-                    }}
-                  >
-                    <X size={16} style={{ color: "var(--muted-foreground)" }} />
-                  </button>
-                </div>
-                <input
-                  placeholder="투표 질문을 입력하세요"
-                  value={newPollQuestion}
-                  onChange={(e) => setNewPollQuestion(filterProfanity(e.target.value))}
-                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
-                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-                />
-                {newPollOptions.map((opt, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <input
-                      placeholder={`옵션 ${idx + 1}`}
-                      value={opt}
-                      onChange={(e) => {
-                        const next = [...newPollOptions];
-                        next[idx] = filterProfanity(e.target.value);
-                        setNewPollOptions(next);
-                      }}
-                      className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
-                      style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-                    />
-                    {newPollOptions.length > 2 && (
-                      <button onClick={() => setNewPollOptions(newPollOptions.filter((_, i) => i !== idx))}>
-                        <X size={16} style={{ color: "var(--muted-foreground)" }} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {newPollOptions.length < 5 && (
-                  <button
-                    onClick={() => setNewPollOptions([...newPollOptions, ""])}
-                    className="self-start text-xs font-medium px-3 py-1.5 rounded-xl"
-                    style={{ background: "var(--secondary)", color: "var(--primary)" }}
-                  >
-                    + 옵션 추가
-                  </button>
-                )}
-              </div>
-            ) : (
-              <button
-                onClick={() => setNewPollEnabled(true)}
-                className="flex items-center gap-2 px-4 py-3 rounded-2xl border border-dashed"
-                style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
-              >
-                <Plus size={18} />
-                <span className="text-sm">투표 추가</span>
               </button>
             )}
           </div>
@@ -2402,7 +2171,7 @@ const endDrag = () => {
               <button
                 key={reason}
                 onClick={() => {
-                  const targetPost = allPosts.find((p) => p.id === showReport);
+                  const targetPost = allPosts.find((p) => p._id === showReport);
                   const now = new Date();
                   const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
                   addReportToHistory({
@@ -2411,7 +2180,7 @@ const endDrag = () => {
                     target: targetPost ? targetPost.title : "게시물",
                     status: "처리 중",
                     date,
-                    postId: showReport as number,
+                    postId: showReport as string,
                     sanction: null,
                   });
                   setShowReport(null);
@@ -2422,17 +2191,17 @@ const endDrag = () => {
               >
                 {reason}
               </button>
-              
+
             ))}
           <button
               onClick={() => {
-                const targetPost = allPosts.find((p) => p.id === showReport);
+                const targetPost = allPosts.find((p) => p._id === showReport);
                 showConfirm("이 사용자를 차단하시겠습니까?", () => {
                   const now = new Date();
                   const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
                   addBlockedUser({
                     id: Date.now(),
-                    name: targetPost ? targetPost.author : "사용자",
+                    name: targetPost ? targetPost.author.nickname : "사용자",
                     reason: "게시물 신고",
                     date,
                   });
