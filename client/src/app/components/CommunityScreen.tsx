@@ -525,6 +525,10 @@ export function CommunityScreen({
     if (showChat) {
       setSelectedPost(null);
       setViewedAuthor(null);
+    } else {
+      // 커뮤니티/프로필/설정 탭으로 나가면(showChat이 꺼지면) 열려있던 1:1 대화창도 닫아서,
+      // 채팅 탭으로 돌아왔을 때 이전 대화가 아닌 채팅 목록부터 다시 보이게 한다.
+      setActiveFriend(null);
     }
   }, [showChat]);
 
