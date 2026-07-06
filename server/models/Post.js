@@ -26,7 +26,12 @@ const postSchema = new mongoose.Schema({
     required: true,
   },
   title: { type: String, required: true },
-  content: { type: String, required: true },
+  // 투표만 올리는 글은 본문 없이도 등록할 수 있어야 하므로, 투표가 없을 때만 필수로 둔다.
+  content: {
+    type: String,
+    default: "",
+    required: [function () { return !this.poll; }, "내용을 입력해주세요."],
+  },
   images: [{ type: String }],           // 서버 업로드 이미지 URL
   tags: [{ type: String }],
   poll: { type: pollSchema },

@@ -2084,8 +2084,8 @@ const endDrag = () => {
                   showAlert("행사공지 게시판은 관리자만 작성할 수 있습니다.");
                   return;
                 }
-                if (!newTitle.trim() || !newContent.trim()) {
-                  showAlert("제목과 내용을 입력해주세요.");
+                if (!newTitle.trim() || (!newPollEnabled && !newContent.trim())) {
+                  showAlert(newPollEnabled ? "제목을 입력해주세요." : "제목과 내용을 입력해주세요.");
                   return;
                 }
                 const pollOptions = newPollOptions.map((o) => o.trim()).filter(Boolean);
