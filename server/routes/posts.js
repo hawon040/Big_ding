@@ -37,9 +37,9 @@ router.get("/", auth, async (req, res) => {
 // POST /api/posts
 router.post("/", auth, upload.single("image"), profanityFilter, async (req, res) => {
   try {
-    const images = req.file
-      ? [`${req.protocol}://${req.get("host")}/uploads/posts/${req.file.filename}`]
-      : [];
+    // 호스트 부분 없이 경로만 저장한다. 절대 URL로 저장하면 업로드한 클라이언트가 접속한
+    // 호스트(예: localhost)가 그대로 박혀서, 다른 PC/네트워크에서는 그 이미지를 못 보게 된다.
+    const images = req.file ? [`/uploads/posts/${req.file.filename}`] : [];
 
     let poll;
     if (req.body.poll) {

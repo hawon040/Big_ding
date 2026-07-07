@@ -3,7 +3,7 @@ import {
   Camera, ChevronRight, Heart, FileText, Edit3, MessageCircle, Bookmark,
   Lock, Users, Globe, X, ThumbsDown, Star, MoreVertical, Trash2,
 } from "lucide-react";
-import api from "@/api";
+import api, { resolveAssetUrl } from "@/api";
 import defaultAvatar from "@/assets/default-avatar.svg";
 import {
   BOARDS, loadStoredInteractions, filterProfanity,
@@ -292,7 +292,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
               className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-md overflow-hidden"
               style={{ background: "var(--accent)", border: "3px solid var(--primary)" }}
             >
-              <img src={avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+              <img src={resolveAssetUrl(avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
             </div>
             <input
               id="avatar-upload"
@@ -542,7 +542,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                     className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
                     style={{ background: "var(--muted)" }}
                   >
-                    <img src={selectedPost.author.avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                    <img src={resolveAssetUrl(selectedPost.author.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
                   </div>
                   <div className="flex-1">
                     <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
@@ -564,7 +564,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
 
                 {selectedPost.images[0] && (
                   <img
-                    src={selectedPost.images[0]}
+                    src={resolveAssetUrl(selectedPost.images[0])}
                     alt="첨부 이미지"
                     className="mt-2 w-full max-h-72 object-cover rounded-xl"
                   />
@@ -656,7 +656,7 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
                   <div key={c._id} className="flex gap-2 items-start relative">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm overflow-hidden"
                       style={{ background: "var(--muted)" }}>
-                      <img src={c.author.avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                      <img src={resolveAssetUrl(c.author.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
                       style={{ color: "var(--foreground)" }}>

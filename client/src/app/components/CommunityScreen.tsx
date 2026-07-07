@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import defaultAvatar from "@/assets/default-avatar.svg";
-import api from "@/api";
+import api, { resolveAssetUrl } from "@/api";
 import { useSocket } from "@/hooks/useSocket";
 import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
@@ -700,8 +700,8 @@ const [viewingImage, setViewingImage] = useState<string | null>(null);
  const getCommentCount = (post: Post) => post.comments.length;
  // 내가 쓴 글은 프로필에서 업로드한 실제 프로필 사진을, 그 외에는 작성자의 avatar(아직 비어있으면 null)를 보여준다.
  const getAuthorAvatarUrl = (author: PostAuthor): string | null => {
-   if (currentUser && author._id === currentUser._id) return myAvatar ?? author.avatar ?? null;
-   return author.avatar ?? null;
+   if (currentUser && author._id === currentUser._id) return resolveAssetUrl(myAvatar ?? author.avatar) ?? null;
+   return resolveAssetUrl(author.avatar) ?? null;
  };
  // 내가 쓴 글의 아바타를 누르면 작성자 보기 화면 대신 실제 내 프로필 탭으로 이동한다.
  const openAuthor = (author: PostAuthor) => {
@@ -927,7 +927,7 @@ const endDrag = () => {
             <button onClick={() => setActiveFriend(null)} className="text-lg">←</button>
           )}
           <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
-            <img src={activeFriend.avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+            <img src={resolveAssetUrl(activeFriend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
           </div>
           <div className="flex-1">
             <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>{activeFriend.nickname}</p>
@@ -1093,7 +1093,7 @@ const endDrag = () => {
                 )}
                 {msg.image && (
                   <img
-                    src={msg.image}
+                    src={resolveAssetUrl(msg.image)}
                     alt="사진"
                     onClick={() => setViewingImage(msg.image!)}
                     className="rounded-xl max-w-full cursor-pointer"
@@ -1347,7 +1347,7 @@ const endDrag = () => {
 
             {selectedPost.images[0] && (
               <img
-                src={selectedPost.images[0]}
+                src={resolveAssetUrl(selectedPost.images[0])}
                 alt="첨부 이미지"
                 className="mt-2 w-full max-h-72 object-cover rounded-xl"
               />
@@ -1849,7 +1849,7 @@ const endDrag = () => {
 
               {post.images[0] && (
                 <img
-                  src={post.images[0]}
+                  src={resolveAssetUrl(post.images[0])}
                   alt="첨부 이미지"
                   className="mt-2 w-full max-h-48 object-cover rounded-xl"
                 />
@@ -1987,7 +1987,7 @@ const endDrag = () => {
               {friendRequests.map((r) => (
                 <div key={r._id} className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
-                    <img src={r.from.avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                    <img src={resolveAssetUrl(r.from.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
                   </div>
                   <p className="flex-1 min-w-0 text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
                     {r.from.nickname}
@@ -2026,7 +2026,7 @@ const endDrag = () => {
               {friendSearchResults.map((u) => (
                 <div key={u._id} className="flex items-center gap-2 px-1">
                   <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
-                    <img src={u.avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                    <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
                   </div>
                   <p className="flex-1 min-w-0 text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
                     {u.nickname}
@@ -2078,7 +2078,7 @@ const endDrag = () => {
     )}
 
     <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0">
-      <img src={friend.avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+      <img src={resolveAssetUrl(friend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
     </div>
     <div className="flex-1 min-w-0">
       <div className="flex items-center gap-1.5">

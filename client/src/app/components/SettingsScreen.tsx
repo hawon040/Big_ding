@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X } from "lucide-react";
-import api from "@/api";
+import api, { resolveAssetUrl } from "@/api";
 import defaultAvatar from "@/assets/default-avatar.svg";
 import {
   REPORTS_STORAGE_KEY, REPORTS_UPDATED_EVENT, loadReportHistory, removeReportFromHistory, type ReportHistoryItem,
@@ -622,7 +622,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
               <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
                 <div className="flex items-center gap-2 mb-2">
-                  <img src={viewingPost.author.avatar || defaultAvatar} alt="프로필 사진" className="w-7 h-7 rounded-full object-cover" />
+                  <img src={resolveAssetUrl(viewingPost.author.avatar) || defaultAvatar} alt="프로필 사진" className="w-7 h-7 rounded-full object-cover" />
                   <div>
                     <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{viewingPost.author.nickname}</p>
                     <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(viewingPost)}</p>
@@ -630,7 +630,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 </div>
                 <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{viewingPost.title}</h3>
                 {viewingPost.images[0] && (
-                  <img src={viewingPost.images[0]} alt="첨부 이미지" className="mt-2 w-full max-h-72 object-cover rounded-xl" />
+                  <img src={resolveAssetUrl(viewingPost.images[0])} alt="첨부 이미지" className="mt-2 w-full max-h-72 object-cover rounded-xl" />
                 )}
                 <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
                   {viewingPost.content}
@@ -644,7 +644,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 {viewingPost.comments.map((c) => (
                   <div key={c._id} className="flex gap-2 items-start">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm overflow-hidden" style={{ background: "var(--muted)" }}>
-                      <img src={c.author.avatar || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                      <img src={resolveAssetUrl(c.author.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1 px-3 py-2 rounded-xl text-xs" style={{ color: "var(--foreground)" }}>
                       <span className="font-semibold">{c.author.nickname} </span>{c.content}
