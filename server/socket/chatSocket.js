@@ -1,17 +1,33 @@
 const { Server } = require("socket.io");
 const jwt = require("jsonwebtoken");
 const Message = require("../models/Message");
+const User = require("../models/User");
 const { filterProfanity } = require("../middleware/profanityFilter");
 
 const onlineUsers = new Map(); // userId -> socketId
+let ioInstance = null;
 
-module.exports = (server) => {
+// 나와 상대방 중 한쪽이라도 상대를 차단했다면 채팅을 주고받을 수 없다.
+const isBlockedPair = async (userId, friendId) => {
+  const [me, friend] = await Promise.all([
+    User.findById(userId).select("blockedUsers"),
+    User.findById(friendId).select("blockedUsers"),
+  ]);
+  if (!me || !friend) return true;
+  return (
+    me.blockedUsers.some((id) => id.toString() === friendId) ||
+    friend.blockedUsers.some((id) => id.toString() === userId)
+  );
+};
+
+const initSocket = (server) => {
   const io = new Server(server, {
     cors: {
       origin: process.env.CLIENT_URL,
       credentials: true,
     },
   });
+  ioInstance = io;
 
   // JWT 인증
   io.use((socket, next) => {
@@ -33,6 +49,10 @@ module.exports = (server) => {
 
     // 1:1 채팅 메시지 전송
     socket.on("send_message", async ({ toId, content, image }) => {
+      if (await isBlockedPair(userId, toId)) {
+        socket.emit("message_error", { message: "차단된 상대와는 채팅할 수 없습니다." });
+        return;
+      }
       const filtered = content ? filterProfanity(content) : "";
 
       // DB 저장
@@ -67,3 +87,14 @@ module.exports = (server) => {
 
   return io;
 };
+
+// 다른 라우터(REST)에서 특정 사용자가 온라인이면 실시간 이벤트를 보낼 때 쓴다.
+const emitToUser = (userId, event, payload) => {
+  const socketId = onlineUsers.get(String(userId));
+  if (socketId && ioInstance) {
+    ioInstance.to(socketId).emit(event, payload);
+  }
+};
+
+module.exports = initSocket;
+module.exports.emitToUser = emitToUser;

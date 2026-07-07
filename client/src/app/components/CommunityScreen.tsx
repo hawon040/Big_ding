@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import defaultAvatar from "@/assets/default-avatar.svg";
 import api from "@/api";
+import { useSocket } from "@/hooks/useSocket";
 import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
   Search, Star, Send, UserPlus, ChevronDown, ChevronUp, FileText,
@@ -250,7 +251,7 @@ export const BLOCKED_STORAGE_KEY = "bigding_blocked_users_v1";
 export const BLOCKED_UPDATED_EVENT = "bigding-blocked-updated";
 
 export interface BlockedUserItem {
-  id: number;
+  id: string; // 차단된 사용자의 실제 _id (서버 차단 해제 호출에 사용)
   name: string;
   reason: string;
   date: string;
@@ -275,7 +276,7 @@ const addBlockedUser = (user: BlockedUserItem) => {
   }
 };
 
-export const removeBlockedUser = (id: number) => {
+export const removeBlockedUser = (id: string) => {
   try {
     const updated = loadBlockedUsers().filter((u) => u.id !== id);
     localStorage.setItem(scopedKey(BLOCKED_STORAGE_KEY), JSON.stringify(updated));
@@ -329,6 +330,10 @@ export function CommunityScreen({
   const [storedInit] = useState(loadStoredInteractions);
   const [currentUser] = useState(getCurrentUser);
   const isAdmin = ADMIN_STUDENT_IDS.includes(getCurrentStudentId());
+
+  // 채팅 실시간 수신용 소켓 연결 (로그인 토큰이 있는 동안만 연결된다)
+  const [authToken] = useState(() => localStorage.getItem("token"));
+  const socket = useSocket(authToken);
   const [activeBoard, setActiveBoard] = useState<BoardType>("free");
 
   // 게시물 목록은 실제 DB(GET /api/posts)에서 불러온다. 좋아요/댓글/투표처럼 다른 사람이
@@ -363,7 +368,7 @@ export function CommunityScreen({
   const [commentInput, setCommentInput] = useState("");
   const commentInputRef = useRef<HTMLInputElement>(null);
   const [openCommentMenu, setOpenCommentMenu] = useState<string | null>(null);
-  const [reportingCommentAuthor, setReportingCommentAuthor] = useState<string | null>(null);
+  const [reportingComment, setReportingComment] = useState<PostComment | null>(null);
 
   // 상대 시간("N분 전") 표시를 실시간으로 갱신하기 위한 tick
   const [nowTick, setNowTick] = useState(Date.now());
@@ -372,13 +377,13 @@ export function CommunityScreen({
     return () => clearInterval(interval);
   }, []);
 
-  const handleReportCommentAuthor = (author: string) => {
+  const handleReportCommentAuthor = (comment: PostComment) => {
     const counts = loadCommentReportCounts();
-    if ((counts[author] || 0) >= MAX_COMMENT_REPORTS_PER_AUTHOR) {
+    if ((counts[comment.author.nickname] || 0) >= MAX_COMMENT_REPORTS_PER_AUTHOR) {
       showAlert("이미 신고 가능 횟수를 모두 사용했습니다.");
       return;
     }
-    setReportingCommentAuthor(author);
+    setReportingComment(comment);
   };
   // 게시물 상세/작성자 화면은 id만 들고 있다가 posts에서 찾아 쓴다.
   // 그래야 좋아요/댓글 등으로 posts가 갱신될 때 상세 화면에도 즉시 반영된다.
@@ -610,25 +615,39 @@ const [viewingImage, setViewingImage] = useState<string | null>(null);
     };
   }, [friends, isActive, showChat]);
 
-  // 1:1 대화창이 열려 있는 동안에는 실시간 소켓 대신, 몇 초마다 새 메시지가 있는지 서버에 확인한다(폴링).
+  // 1:1 대화창을 열 때 대화 내역을 불러온다(이후 새 메시지는 소켓으로 실시간 수신).
   useEffect(() => {
     if (!activeFriend) return;
     let cancelled = false;
-    const fetchMessages = () => {
-      api.get(`/chat/${activeFriend._id}`)
+    api.get(`/chat/${activeFriend._id}`)
+      .then((res) => {
+        if (cancelled) return;
+        setChatMessages((prev) => ({ ...prev, [activeFriend._id]: mapMessages(res.data) }));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [activeFriend]);
+
+  // 소켓으로 새 메시지가 도착하면(내가 보낸 메시지는 REST 응답으로 이미 반영되므로 해당 없음)
+  // 해당 친구의 대화 내역을 다시 불러와 실시간으로 반영한다. 활성 대화창이라면 읽음 처리도 함께 된다.
+  useEffect(() => {
+    if (!socket) return;
+    const handleReceiveMessage = (msg: { from?: { _id?: string } }) => {
+      const friendId = msg?.from?._id;
+      if (!friendId) return;
+      api.get(`/chat/${friendId}`)
         .then((res) => {
-          if (cancelled) return;
-          setChatMessages((prev) => ({ ...prev, [activeFriend._id]: mapMessages(res.data) }));
+          setChatMessages((prev) => ({ ...prev, [friendId]: mapMessages(res.data) }));
         })
         .catch(() => {});
     };
-    fetchMessages();
-    const interval = setInterval(fetchMessages, 2000);
+    socket.on("receive_message", handleReceiveMessage);
     return () => {
-      cancelled = true;
-      clearInterval(interval);
+      socket.off("receive_message", handleReceiveMessage);
     };
-  }, [activeFriend]);
+  }, [socket]);
 
   // 친구 목록 카드에 보여줄 마지막 메시지 미리보기/시간/안 읽은 개수
   const getFriendPreview = (friend: Friend) => {
@@ -965,7 +984,23 @@ const endDrag = () => {
                 더 이상 채팅을 주고받을 수 없습니다.
 
                 차단하시겠습니까?`,
-                () => {
+                async () => {
+                  if (!activeFriend) return;
+                  try {
+                    await api.post(`/users/block/${activeFriend._id}`);
+                  } catch {
+                    showAlert("차단에 실패했습니다.");
+                    return;
+                  }
+                  const now = new Date();
+                  const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
+                  addBlockedUser({
+                    id: activeFriend._id,
+                    name: activeFriend.nickname,
+                    reason: "채팅에서 차단",
+                    date,
+                  });
+
                   setFriends((prev) =>
                     prev.filter((f) => f._id !== activeFriend?._id)
                   );
@@ -996,7 +1031,14 @@ const endDrag = () => {
                 {["욕설/비방", "스팸/광고", "음란물", "개인정보 침해", "기타"].map((reason) => (
                   <button
                     key={reason}
-                    onClick={() => {
+                    onClick={async () => {
+                      if (!activeFriend) return;
+                      try {
+                        await api.post("/reports", { targetType: "user", targetId: activeFriend._id, reason });
+                      } catch {
+                        showAlert("신고 접수에 실패했습니다.");
+                        return;
+                      }
                       setShowReportConfirm(false);
                       setSelectMode(false);
                       setSelectedMsgs([]);
@@ -1435,7 +1477,7 @@ const endDrag = () => {
                           <button
                             onClick={() => {
                               setOpenCommentMenu(null);
-                              handleReportCommentAuthor(c.author.nickname);
+                              handleReportCommentAuthor(c);
                             }}
                             className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
                             style={{ color: "#d4183d" }}
@@ -1480,31 +1522,37 @@ const endDrag = () => {
   </div>
 
       {/* 댓글 작성자 신고 사유 선택 팝업 */}
-      {reportingCommentAuthor && (
+      {reportingComment && (
         <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.4)" }}>
           <div className="rounded-2xl p-5 w-full" style={{ background: "var(--card)" }}>
             <p className="font-semibold text-sm text-center mb-1" style={{ color: "var(--foreground)" }}>사용자 신고</p>
             <p className="text-xs text-center mb-3" style={{ color: "var(--muted-foreground)" }}>
-              {reportingCommentAuthor}님을 신고하는 이유를 선택해주세요
+              {reportingComment.author.nickname}님을 신고하는 이유를 선택해주세요
             </p>
             <div className="flex flex-col gap-2 mb-4">
               {["욕설/비방", "스팸/광고", "음란물", "개인정보 침해", "기타"].map((reason) => (
                 <button
                   key={reason}
-                  onClick={() => {
-                    incrementCommentReportCount(reportingCommentAuthor);
+                  onClick={async () => {
+                    try {
+                      await api.post("/reports", { targetType: "comment", targetId: reportingComment._id, reason });
+                    } catch {
+                      showAlert("신고 접수에 실패했습니다.");
+                      return;
+                    }
+                    incrementCommentReportCount(reportingComment.author.nickname);
                     const now = new Date();
                     const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
                     addReportToHistory({
                       id: Date.now(),
                       type: reason,
-                      target: `"${selectedPost!.title}" 게시물 - ${reportingCommentAuthor}님의 댓글`,
+                      target: `"${selectedPost!.title}" 게시물 - ${reportingComment.author.nickname}님의 댓글`,
                       status: "처리 중",
                       date,
                       postId: selectedPost!._id,
                       sanction: null,
                     });
-                    setReportingCommentAuthor(null);
+                    setReportingComment(null);
                     showAlert(`"${reason}" 사유로 신고가 접수되었습니다.`);
                   }}
                   className="w-full py-2.5 rounded-xl text-sm text-left px-4"
@@ -1515,7 +1563,7 @@ const endDrag = () => {
               ))}
             </div>
             <button
-              onClick={() => setReportingCommentAuthor(null)}
+              onClick={() => setReportingComment(null)}
               className="w-full py-2.5 rounded-xl text-sm font-semibold"
               style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
             >
@@ -2329,8 +2377,14 @@ const endDrag = () => {
             {["스팸/도배", "욕설/비방", "음란물", "허위 정보", "기타"].map((reason) => (
               <button
                 key={reason}
-                onClick={() => {
+                onClick={async () => {
                   const targetPost = allPosts.find((p) => p._id === showReport);
+                  try {
+                    await api.post("/reports", { targetType: "post", targetId: showReport, reason });
+                  } catch {
+                    showAlert("신고 접수에 실패했습니다.");
+                    return;
+                  }
                   const now = new Date();
                   const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
                   addReportToHistory({
@@ -2355,15 +2409,27 @@ const endDrag = () => {
           <button
               onClick={() => {
                 const targetPost = allPosts.find((p) => p._id === showReport);
-                showConfirm("이 사용자를 차단하시겠습니까?", () => {
+                showConfirm("이 사용자를 차단하시겠습니까?", async () => {
+                  if (!targetPost) {
+                    setShowReport(null);
+                    return;
+                  }
+                  try {
+                    await api.post(`/users/block/${targetPost.author._id}`);
+                  } catch {
+                    showAlert("차단에 실패했습니다.");
+                    return;
+                  }
                   const now = new Date();
                   const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
                   addBlockedUser({
-                    id: Date.now(),
-                    name: targetPost ? targetPost.author.nickname : "사용자",
+                    id: targetPost.author._id,
+                    name: targetPost.author.nickname,
                     reason: "게시물 신고",
                     date,
                   });
+                  // 차단한 사용자의 글은 목록에서 즉시 사라지게 한다.
+                  setPosts((prev) => prev.filter((p) => p.author._id !== targetPost.author._id));
                   setShowReport(null);
                   showAlert("사용자가 차단되었습니다.");
                 });

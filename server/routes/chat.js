@@ -1,15 +1,33 @@
 const express = require("express");
 const router = express.Router();
 const Message = require("../models/Message");
+const User = require("../models/User");
 const auth = require("../middleware/authMiddleware");
 const upload = require("../middleware/upload")("chat");
 const { filterProfanity } = require("../middleware/profanityFilter");
+const { emitToUser } = require("../socket/chatSocket");
 
 const USER_FIELDS = "nickname avatar studentId";
+
+// 나와 상대방 중 한쪽이라도 상대를 차단했다면 채팅을 주고받을 수 없다.
+const isBlockedPair = async (userId, friendId) => {
+  const [me, friend] = await Promise.all([
+    User.findById(userId).select("blockedUsers"),
+    User.findById(friendId).select("blockedUsers"),
+  ]);
+  if (!me || !friend) return true;
+  return (
+    me.blockedUsers.some((id) => id.toString() === friendId) ||
+    friend.blockedUsers.some((id) => id.toString() === userId)
+  );
+};
 
 // GET /api/chat/:friendId - 1:1 대화 내역 조회
 router.get("/:friendId", auth, async (req, res) => {
   try {
+    if (await isBlockedPair(req.user.id, req.params.friendId)) {
+      return res.status(403).json({ message: "차단된 상대와는 채팅할 수 없습니다." });
+    }
     const messages = await Message.find({
       $or: [
         { from: req.user.id, to: req.params.friendId },
@@ -35,6 +53,9 @@ router.get("/:friendId", auth, async (req, res) => {
 // POST /api/chat/:friendId - 메시지 보내기 (텍스트: JSON, 이미지: multipart/form-data의 image 필드)
 router.post("/:friendId", auth, upload.single("image"), async (req, res) => {
   try {
+    if (await isBlockedPair(req.user.id, req.params.friendId)) {
+      return res.status(403).json({ message: "차단된 상대와는 채팅할 수 없습니다." });
+    }
     const { content } = req.body;
     const image = req.file ? `${req.protocol}://${req.get("host")}/uploads/chat/${req.file.filename}` : undefined;
     if (!content && !image) {
@@ -49,6 +70,8 @@ router.post("/:friendId", auth, upload.single("image"), async (req, res) => {
     });
     await message.populate("from", USER_FIELDS);
     await message.populate("to", USER_FIELDS);
+
+    emitToUser(req.params.friendId, "receive_message", message);
 
     res.status(201).json(message);
   } catch (err) {

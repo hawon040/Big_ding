@@ -259,7 +259,13 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 </div>
                 <button
                   onClick={() => {
-                    showConfirm(`${user.name}님의 차단을 해제하시겠습니까?`, () => {
+                    showConfirm(`${user.name}님의 차단을 해제하시겠습니까?`, async () => {
+                      try {
+                        await api.delete(`/users/block/${user.id}`);
+                      } catch {
+                        showAlert("차단 해제에 실패했습니다.");
+                        return;
+                      }
                       removeBlockedUser(user.id);
                       showAlert("차단이 해제되었습니다.");
                     });
@@ -765,7 +771,13 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                     setActiveSection("password");
                   } else if (action === "delete") {
                     showConfirm("정말로 계정을 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.", () => {
-                      showConfirm("탈퇴하시면 모든 데이터가 삭제됩니다. 계속하시겠습니까?", () => {
+                      showConfirm("탈퇴하시면 모든 데이터가 삭제됩니다. 계속하시겠습니까?", async () => {
+                        try {
+                          await api.delete("/users/account");
+                        } catch {
+                          showAlert("계정 탈퇴에 실패했습니다.");
+                          return;
+                        }
                         showAlert("계정이 탈퇴되었습니다.", () => {
                           onLogout();
                         });

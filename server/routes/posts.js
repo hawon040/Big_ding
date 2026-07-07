@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Post = require("../models/Post");
+const User = require("../models/User");
 const auth = require("../middleware/authMiddleware");
 const upload = require("../middleware/upload")("posts");
 const profanityFilter = require("../middleware/profanityFilter");
@@ -16,6 +17,13 @@ router.get("/", auth, async (req, res) => {
       { content: { $regex: search, $options: "i" } },
       { tags: { $in: [new RegExp(search, "i")] } },
     ];
+
+    // 내가 차단했거나 나를 차단한 사용자의 글은 서로 보이지 않게 제외한다.
+    const me = await User.findById(req.user.id).select("blockedUsers");
+    const blockedMe = await User.find({ blockedUsers: req.user.id }).select("_id");
+    const excludedAuthors = [...me.blockedUsers, ...blockedMe.map((u) => u._id)];
+    if (excludedAuthors.length > 0) query.author = { $nin: excludedAuthors };
+
     const posts = await Post.find(query)
       .populate("author", "nickname avatar studentId")
       .populate("comments.author", "nickname avatar")

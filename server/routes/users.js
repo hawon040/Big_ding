@@ -37,8 +37,14 @@ router.get("/search", auth, async (req, res) => {
   try {
     const q = (req.query.q || "").trim();
     if (!q) return res.json([]);
+
+    // 내가 차단했거나 나를 차단한 사용자는 검색 결과에서 제외한다.
+    const me = await User.findById(req.user.id).select("blockedUsers");
+    const blockedMe = await User.find({ blockedUsers: req.user.id }).select("_id");
+    const excludedIds = [req.user.id, ...me.blockedUsers, ...blockedMe.map((u) => u._id)];
+
     const users = await User.find({
-      _id: { $ne: req.user.id },
+      _id: { $nin: excludedIds },
       $or: [
         { studentId: { $regex: q, $options: "i" } },
         { nickname: { $regex: q, $options: "i" } },
@@ -60,7 +66,20 @@ router.post("/block/:targetId", auth, async (req, res) => {
       user.blockedUsers.push(req.params.targetId);
       await user.save();
     }
+    // 차단하면 더 이상 친구 사이가 아니게 된다.
+    await User.findByIdAndUpdate(req.user.id, { $pull: { friends: req.params.targetId } });
+    await User.findByIdAndUpdate(req.params.targetId, { $pull: { friends: req.user.id } });
     res.json({ message: "사용자가 차단되었습니다." });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// DELETE /api/users/block/:targetId - 사용자 차단 해제
+router.delete("/block/:targetId", auth, async (req, res) => {
+  try {
+    await User.findByIdAndUpdate(req.user.id, { $pull: { blockedUsers: req.params.targetId } });
+    res.json({ message: "차단이 해제되었습니다." });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }

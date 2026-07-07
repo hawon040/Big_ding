@@ -37,6 +37,12 @@ router.post("/requests/:targetId", auth, async (req, res) => {
     if (!targetUser) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
 
     const me = await User.findById(req.user.id);
+    if (
+      me.blockedUsers.includes(targetId) ||
+      targetUser.blockedUsers.some((id) => id.toString() === req.user.id)
+    ) {
+      return res.status(403).json({ message: "차단된 사용자에게는 친구 신청을 보낼 수 없습니다." });
+    }
     if (me.friends.includes(targetId)) {
       return res.status(400).json({ message: "이미 친구입니다." });
     }
