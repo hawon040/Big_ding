@@ -3,7 +3,8 @@ const router = express.Router();
 const Message = require("../models/Message");
 const User = require("../models/User");
 const auth = require("../middleware/authMiddleware");
-const upload = require("../middleware/upload")("chat");
+const upload = require("../middleware/upload");
+const { uploadImage } = require("../config/cloudinary");
 const { filterProfanity } = require("../middleware/profanityFilter");
 const { emitToUser } = require("../socket/chatSocket");
 
@@ -57,8 +58,7 @@ router.post("/:friendId", auth, upload.single("image"), async (req, res) => {
       return res.status(403).json({ message: "차단된 상대와는 채팅할 수 없습니다." });
     }
     const { content } = req.body;
-    // 호스트 없이 경로만 저장한다(클라이언트별로 접근 가능한 origin이 다를 수 있어서 프론트에서 조합한다).
-    const image = req.file ? `/uploads/chat/${req.file.filename}` : undefined;
+    const image = req.file ? (await uploadImage(req.file.buffer, "chat")).secure_url : undefined;
     if (!content && !image) {
       return res.status(400).json({ message: "내용 또는 이미지를 입력해주세요." });
     }

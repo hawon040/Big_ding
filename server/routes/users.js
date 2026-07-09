@@ -2,7 +2,8 @@ const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
 const auth = require("../middleware/authMiddleware");
-const upload = require("../middleware/upload")("avatars");
+const upload = require("../middleware/upload");
+const { uploadImage } = require("../config/cloudinary");
 
 // GET /api/users/profile - 내 프로필
 router.get("/profile", auth, async (req, res) => {
@@ -23,8 +24,7 @@ router.patch("/profile", auth, upload.single("avatar"), async (req, res) => {
     const update = {};
     if (req.body.nickname !== undefined) update.nickname = req.body.nickname;
     if (req.file) {
-      // 호스트 없이 경로만 저장한다(클라이언트별로 접근 가능한 origin이 다를 수 있어서 프론트에서 조합한다).
-      update.avatar = `/uploads/avatars/${req.file.filename}`;
+      update.avatar = (await uploadImage(req.file.buffer, "avatars")).secure_url;
     }
     const user = await User.findByIdAndUpdate(req.user.id, update, { new: true }).select("-password");
     res.json(user);

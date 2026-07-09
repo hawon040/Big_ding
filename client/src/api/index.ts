@@ -36,7 +36,11 @@ export const resolveAssetUrl = (url?: string | null): string | undefined => {
   if (!url) return undefined;
   if (!url.startsWith("http://") && !url.startsWith("https://")) return `${API_ORIGIN}${url}`;
   try {
-    return `${API_ORIGIN}${new URL(url).pathname}`;
+    const { pathname } = new URL(url);
+    // 우리 서버가 로컬 디스크에 저장한 파일(/uploads/...)만 현재 origin으로 재조합한다.
+    // Cloudinary 등 외부 스토리지 URL은 그대로 써야 하므로 건드리지 않는다.
+    if (!pathname.startsWith("/uploads/")) return url;
+    return `${API_ORIGIN}${pathname}`;
   } catch {
     return url;
   }
