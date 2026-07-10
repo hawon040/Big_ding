@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import api, { resolveAssetUrl } from "@/api";
 import defaultAvatar from "@/assets/default-avatar.svg";
+import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import {
   BOARDS, loadStoredInteractions, filterProfanity,
   STORAGE_KEY, INTERACTIONS_UPDATED_EVENT,
@@ -99,6 +100,7 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
   const [commentInput, setCommentInput] = useState("");
   const commentInputRef = useRef<HTMLInputElement>(null);
   const [openCommentMenu, setOpenCommentMenu] = useState<string | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   // 상대 시간("N분 전") 표시를 실시간으로 갱신하기 위한 tick.
   // 값 자체는 쓰지 않고, 1분마다 리렌더를 강제로 일으켜 formatRelativeTime이 다시 계산되게 한다.
@@ -324,9 +326,18 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
     <div className="relative flex flex-col flex-1 overflow-hidden">
       {/* Profile header */}
       <div
-        className="relative px-4 pt-8 pb-6 shrink-0"
+        className="relative px-4 pt-3 pb-4 shrink-0"
         style={{ background: "linear-gradient(160deg, #111a30 0%, #0a0f1f 100%)" }}
       >
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <img src={bigRoadingIcon} alt="Big Roading" className="w-7 h-7 object-cover rounded-md" />
+          <span
+            className="text-lg"
+            style={{ color: "var(--foreground)", fontFamily: "'Brush Script MT', cursive" }}
+          >
+            Big Ding
+          </span>
+        </div>
         <div className="flex items-start gap-4">
           <div className="relative">
             <div
@@ -351,7 +362,7 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
             </button>
           </div>
 
-          <div className="flex-1 pt-1">
+          <div className="flex-1">
             {editMode ? (
               <div className="flex gap-2">
                 <input
@@ -381,7 +392,7 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
           </p>
 
           {/* + 인스타 스타일 게시글 수 / 팔로워 / 팔로잉 */}
-          <div className="flex gap-4 mt-2">
+          <div className="flex gap-4 mt-1.5">
             <div className="flex flex-col items-center">
               <span className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{myPosts.length}</span>
               <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>게시글</span>
@@ -432,7 +443,7 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
       </div>
 
       {/* Tabs */}
-      <div className="grid grid-cols-3 px-4 gap-2 mb-3 mt-3 shrink-0">
+      <div className="grid grid-cols-3 px-4 gap-2 mb-3 mt-1 shrink-0">
         <button
           onClick={() => setActiveTab("posts")}
           className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all"
@@ -649,7 +660,8 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
                   <img
                     src={resolveAssetUrl(selectedPost.images[0])}
                     alt="첨부 이미지"
-                    className="mt-2 w-full max-h-72 object-cover rounded-xl"
+                    className="mt-2 w-full max-h-72 object-cover rounded-xl cursor-pointer"
+                    onClick={() => setFullscreenImage(resolveAssetUrl(selectedPost.images[0]) || null)}
                   />
                 )}
 
@@ -893,6 +905,29 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 이미지 전체화면 뷰어 (카톡처럼 클릭 시 확대) */}
+      {fullscreenImage && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.92)" }}
+          onClick={() => setFullscreenImage(null)}
+        >
+          <button
+            onClick={() => setFullscreenImage(null)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(255,255,255,0.15)" }}
+          >
+            <X size={20} color="white" />
+          </button>
+          <img
+            src={fullscreenImage}
+            alt="확대 이미지"
+            className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>
