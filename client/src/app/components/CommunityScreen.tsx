@@ -392,15 +392,6 @@ const selectedPost = selectedPostId ? posts.find((p) => p._id === selectedPostId
 const [viewedAuthor, setViewedAuthor] = useState<PostAuthor | null>(null);
 const [authorActiveTab, setAuthorActiveTab] = useState<"posts" | "scrapped">("posts");
 
-// 🔵 팔로잉 / 팔로워 (조건부 return들보다 반드시 위에 있어야 함 - Hook 규칙)
-const [following, setFollowing] = useState(0);
-const [followers, setFollowers] = useState(0);
-
-useEffect(() => {
-  api.get("/friends/following").then(res => setFollowing(res.data.length));
-  api.get("/friends/followers").then(res => setFollowers(res.data.length));
-}, []);
-
   // 다른 사용자의 프로필을 새로 열 때마다 "내 글" 탭부터 다시 보이게 한다.
   useEffect(() => {
     if (viewedAuthor) setAuthorActiveTab("posts");
@@ -450,6 +441,7 @@ useEffect(() => {
   }, [isActive]);
 
   const [showWrite, setShowWrite] = useState(false);
+  const [showFriendsList, setShowFriendsList] = useState(false);
   const [showReport, setShowReport] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
@@ -1685,12 +1677,6 @@ return (
             >
               Big Ding
             </h1>
-
-            {/* 🔵 팔로잉 / 팔로워 */}
-            <div className="flex gap-3 mt-1 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-              <span>팔로잉 {following}</span>
-              <span>팔로워 {followers}</span>
-            </div>
           </div>
         </div>
 
@@ -1712,9 +1698,15 @@ return (
 >
   <Plus size={20} color="white" />
 </button>
+            <button
+              onClick={() => setShowFriendsList(true)}
+              className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
+              style={{ background: "var(--muted)" }}
+            >
+              <Users size={18} color="var(--foreground)" />
+            </button>
           </div>
         </div>
-
         {showSearch && (
           <input
             type="text"
@@ -2517,6 +2509,52 @@ return (
                 취소
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 친구 목록 보기 (읽기 전용) */}
+      {showFriendsList && (
+        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+            <button onClick={() => setShowFriendsList(false)}>
+              <X size={20} style={{ color: "var(--foreground)" }} />
+            </button>
+            <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>친구 목록</h2>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
+            {friends.length === 0 ? (
+              <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+                아직 친구가 없습니다.
+              </p>
+            ) : (
+              friends.map((friend) => (
+                <div
+                  key={friend._id}
+                  className="flex items-center gap-3 p-2.5 rounded-xl"
+                  style={{ background: "var(--card)" }}
+                >
+                  <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+                    <img
+                      src={resolveAssetUrl(friend.avatar) || defaultAvatar}
+                      alt="프로필 사진"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
+                      {friend.nickname}
+                    </p>
+                    {friend.studentId && (
+                      <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
+                        {friend.studentId}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}
