@@ -1658,27 +1658,42 @@ const endDrag = () => {
   }
 
   // ── 커뮤니티 메인 ─────────────────────────────────────────────────────────
-  return (
-    <div className="flex flex-col flex-1 overflow-hidden relative">
+  const [following, setFollowing] = useState(0);
+const [followers, setFollowers] = useState(0);
 
-      {/* Header */}
-      <div className="px-4 pt-5 pb-3 shrink-0">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <img src={bigRoadingIcon} alt="Big Roading" className="w-14 h-14 object-cover" />
-            <div>
-              <h1
-                className="text-2xl"
-                style={{
-                  color: "var(--foreground)",
-                  fontFamily: "'Brush Script MT', cursive",
-                }}
-              >
-                Big Ding
-              </h1>
-              <p className="text-sm mt-0.5" style={{ color: "var(--muted-foreground)" }}></p>
+useEffect(() => {
+  api.get("/friends/following").then(res => setFollowing(res.data.length));
+  api.get("/friends/followers").then(res => setFollowers(res.data.length));
+}, []);
+
+  // ── 커뮤니티 메인 ─────────────────────────────────────────────────────────
+return (
+  <div className="flex flex-col flex-1 overflow-hidden relative">
+
+    {/* Header */}
+    <div className="px-4 pt-5 pb-3 shrink-0">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <img src={bigRoadingIcon} alt="Big Roading" className="w-14 h-14 object-cover" />
+          <div>
+            <h1
+              className="text-2xl"
+              style={{
+                color: "var(--foreground)",
+                fontFamily: "'Brush Script MT', cursive",
+              }}
+            >
+              Big Ding
+            </h1>
+
+            {/* 🔵 팔로잉 / 팔로워 */}
+            <div className="flex gap-3 mt-1 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+              <span>팔로잉 {following}</span>
+              <span>팔로워 {followers}</span>
             </div>
           </div>
+        </div>
+
           <div className="flex gap-2">
             <button
               onClick={() => setShowSearch(!showSearch)}
@@ -1924,35 +1939,17 @@ const endDrag = () => {
           style={{
             transform: showChat
               ? "translateY(0)"
-              : "translateY(calc(100% - 44px))",
+              : "translateY(calc(100%))",
           }}
         >
-        <button
-          onMouseDown={(e) => startDrag(e.clientY)}
-          onMouseMove={(e) => dragStartY !== null && onDrag(e.clientY)}
-          onMouseUp={endDrag}
-          onMouseLeave={() => dragStartY !== null && endDrag()}
-          onTouchStart={(e) => startDrag(e.touches[0].clientY)}
-          onTouchMove={(e) => onDrag(e.touches[0].clientY)}
-          onTouchEnd={endDrag}
-          className="w-full flex items-center justify-between px-5 py-3 rounded-t-2xl shadow-lg"
-          style={{ background: "var(--primary)", touchAction: "none", cursor: "grab" }}
-        >
-          <div className="flex items-center gap-2">
-            <MessageCircle size={16} color="white" />
-            <span className="text-sm font-semibold text-white">
-              친구 채팅
-            </span>
-          </div>
-          {showChat ? <ChevronDown size={18} color="white" /> : <ChevronUp size={18} color="white" />}
-         </button>
-
-        <div className="px-4 py-3 h-160 overflow-y-auto flex flex-col gap-2 no-scrollbar"
+       
+        <div className="px-4 py-3 h-170 overflow-y-auto flex flex-col gap-2 no-scrollbar"
           style={{ background: "var(--background)", borderTop: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between mb-1">
   <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>친구 목록</span>
   <div className="flex items-center gap-2">
     {!isFriendSelectMode ? (
+      
       <>
         <button
           onClick={() => setShowAddFriend(!showAddFriend)}
