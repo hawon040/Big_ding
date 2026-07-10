@@ -1934,7 +1934,7 @@ return (
         ))}
       </div>
 
-      {/* 친구/채팅 패널 */}
+      {/* 친구 채팅 패널 */}
         <div
           className="absolute bottom-0 left-0 right-0 z-30 transition-all duration-300"
           style={{
@@ -1948,133 +1948,17 @@ return (
           style={{ background: "var(--background)", borderTop: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between mb-1">
   <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>친구 목록</span>
-  <div className="flex items-center gap-2">
-    {!isFriendSelectMode ? (
-      
-      <>
-        <button
-          onClick={() => setShowAddFriend(!showAddFriend)}
-          className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
-          style={{ background: "var(--secondary)", color: "var(--primary)" }}
-        >
-          <UserPlus size={12} /> 친구추가
-        </button>
-        <button
-          onClick={toggleFriendSelectMode}
-          className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
-          style={{ background: "var(--secondary)", color: "#d4183d" }}
-        >
-          <Trash2 size={12} /> 친구삭제
-        </button>
-      </>
-    ) : (
-      <button
-        onClick={toggleFriendSelectMode}
-        className="text-xs px-2 py-1 rounded-lg font-medium"
-        style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
-      >
-        취소
-      </button>
-    )}
-  </div>
 </div>
-
-          {friendRequests.length > 0 && (
-            <div className="flex flex-col gap-1.5 mb-2 p-2 rounded-xl" style={{ background: "var(--secondary)" }}>
-              <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>받은 친구 요청</span>
-              {friendRequests.map((r) => (
-                <div key={r._id} className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
-                    <img src={resolveAssetUrl(r.from.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                  </div>
-                  <p className="flex-1 min-w-0 text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
-                    {r.from.nickname}
-                  </p>
-                  <button
-                    onClick={() => handleAcceptFriendRequest(r._id)}
-                    className="px-2 py-1 rounded-lg text-xs font-semibold"
-                    style={{ background: "var(--primary)", color: "white" }}
-                  >
-                    수락
-                  </button>
-                  <button
-                    onClick={() => handleRejectFriendRequest(r._id)}
-                    className="px-2 py-1 rounded-lg text-xs font-semibold"
-                    style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
-                  >
-                    거절
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {showAddFriend && (
-            <div className="flex flex-col gap-2 mb-2">
-              <input
-                value={friendSearch}
-                onChange={(e) => setFriendSearch(e.target.value)}
-                placeholder="학번 또는 닉네임 검색"
-                className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
-                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-              />
-              {friendSearch.trim() && friendSearchResults.length === 0 && (
-                <p className="text-xs px-1" style={{ color: "var(--muted-foreground)" }}>검색 결과가 없습니다.</p>
-              )}
-              {friendSearchResults.map((u) => (
-                <div key={u._id} className="flex items-center gap-2 px-1">
-                  <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
-                    <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                  </div>
-                  <p className="flex-1 min-w-0 text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
-                    {u.nickname}
-                  </p>
-                  <button
-                    onClick={() => handleSendFriendRequest(u._id)}
-                    className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-                    style={{ background: "var(--primary)", color: "white" }}
-                  >
-                    신청
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
 
          {sortedFriends.map((friend) => {
   const { text, time, unreadCount } = getFriendPreview(friend);
   return (
   <button
     key={friend._id}
-    onClick={() => {
-      if (isFriendSelectMode) {
-        toggleFriendSelect(friend._id);
-      } else {
-        openFriendChat(friend);
-      }
-    }}
+    onClick={() => openFriendChat(friend)}
     className="flex items-center gap-3 p-2.5 rounded-xl text-left"
-    style={{
-      background: "var(--card)",
-      outline: isFriendSelectMode && selectedFriendIds.includes(friend._id)
-        ? "2px solid var(--primary)"
-        : "none",
-    }}
+    style={{ background: "var(--card)" }}
   >
-    {isFriendSelectMode && (
-      <div
-        className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
-        style={{
-          background: selectedFriendIds.includes(friend._id) ? "var(--primary)" : "var(--muted)",
-          border: "1.5px solid var(--border)",
-        }}
-      >
-        {selectedFriendIds.includes(friend._id) && (
-          <span className="text-white text-[10px] font-bold">✓</span>
-        )}
-      </div>
-    )}
-
     <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0">
       <img src={resolveAssetUrl(friend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
     </div>
@@ -2110,16 +1994,6 @@ return (
   </button>
   );
 })}
-
-{isFriendSelectMode && selectedFriendIds.length > 0 && (
-  <button
-    onClick={handleDeleteFriends}
-    className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm font-semibold"
-    style={{ background: "#d4183d", color: "white" }}
-  >
-    {selectedFriendIds.length}명 삭제
-  </button>
-)}
         </div>
       </div>
 
@@ -2522,7 +2396,7 @@ return (
         </div>
       )}
 
-      {/* 친구 목록 보기 (읽기 전용) */}
+      {/* 친구 목록 (친구 추가/삭제 관리) */}
       {showFriendsList && (
         <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
           <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
@@ -2530,20 +2404,135 @@ return (
               <X size={20} style={{ color: "var(--foreground)" }} />
             </button>
             <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>친구 목록</h2>
+            {!isFriendSelectMode ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowAddFriend(!showAddFriend)}
+                  className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+                  style={{ background: "var(--secondary)", color: "var(--primary)" }}
+                >
+                  <UserPlus size={12} /> 친구추가
+                </button>
+                <button
+                  onClick={toggleFriendSelectMode}
+                  className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+                  style={{ background: "var(--secondary)", color: "#d4183d" }}
+                >
+                  <Trash2 size={12} /> 친구삭제
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={toggleFriendSelectMode}
+                className="text-xs px-2 py-1 rounded-lg font-medium"
+                style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
+              >
+                취소
+              </button>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
+            {friendRequests.length > 0 && (
+              <div className="flex flex-col gap-1.5 mb-2 p-2 rounded-xl" style={{ background: "var(--secondary)" }}>
+                <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>받은 친구 요청</span>
+                {friendRequests.map((r) => (
+                  <div key={r._id} className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
+                      <img src={resolveAssetUrl(r.from.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                    </div>
+                    <p className="flex-1 min-w-0 text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
+                      {r.from.nickname}
+                    </p>
+                    <button
+                      onClick={() => handleAcceptFriendRequest(r._id)}
+                      className="px-2 py-1 rounded-lg text-xs font-semibold"
+                      style={{ background: "var(--primary)", color: "white" }}
+                    >
+                      수락
+                    </button>
+                    <button
+                      onClick={() => handleRejectFriendRequest(r._id)}
+                      className="px-2 py-1 rounded-lg text-xs font-semibold"
+                      style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
+                    >
+                      거절
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {showAddFriend && (
+              <div className="flex flex-col gap-2 mb-2">
+                <input
+                  value={friendSearch}
+                  onChange={(e) => setFriendSearch(e.target.value)}
+                  placeholder="학번 또는 닉네임 검색"
+                  className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
+                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                />
+                {friendSearch.trim() && friendSearchResults.length === 0 && (
+                  <p className="text-xs px-1" style={{ color: "var(--muted-foreground)" }}>검색 결과가 없습니다.</p>
+                )}
+                {friendSearchResults.map((u) => (
+                  <div key={u._id} className="flex items-center gap-2 px-1">
+                    <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
+                      <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                    </div>
+                    <p className="flex-1 min-w-0 text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
+                      {u.nickname}
+                    </p>
+                    <button
+                      onClick={() => handleSendFriendRequest(u._id)}
+                      className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+                      style={{ background: "var(--primary)", color: "white" }}
+                    >
+                      신청
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {friends.length === 0 ? (
               <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
                 아직 친구가 없습니다.
               </p>
             ) : (
               friends.map((friend) => (
-                <div
-                  key={friend._id}
-                  className="flex items-center gap-3 p-2.5 rounded-xl"
-                  style={{ background: "var(--card)" }}
+  <button
+    key={friend._id}
+    onClick={() => {
+  if (isFriendSelectMode) {
+    toggleFriendSelect(friend._id);
+  } else {
+    // 친구 목록은 닫지 않고 그대로 둔다. 프로필 화면(viewedAuthor)이 먼저 그려지고,
+    // 뒤로가기로 viewedAuthor가 null이 되면 아직 열려있는 친구 목록 화면으로 돌아가게 된다.
+    openAuthor(friend);
+  }
+}}
+    className="flex items-center gap-3 p-2.5 rounded-xl text-left"
+                  style={{
+                    background: "var(--card)",
+                    outline: isFriendSelectMode && selectedFriendIds.includes(friend._id)
+                      ? "2px solid var(--primary)"
+                      : "none",
+                  }}
                 >
+                  {isFriendSelectMode && (
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                      style={{
+                        background: selectedFriendIds.includes(friend._id) ? "var(--primary)" : "var(--muted)",
+                        border: "1.5px solid var(--border)",
+                      }}
+                    >
+                      {selectedFriendIds.includes(friend._id) && (
+                        <span className="text-white text-[10px] font-bold">✓</span>
+                      )}
+                    </div>
+                  )}
                   <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
                     <img
                       src={resolveAssetUrl(friend.avatar) || defaultAvatar}
@@ -2561,8 +2550,18 @@ return (
                       </p>
                     )}
                   </div>
-                </div>
+                </button>
               ))
+            )}
+
+            {isFriendSelectMode && selectedFriendIds.length > 0 && (
+              <button
+                onClick={handleDeleteFriends}
+                className="w-full mt-1 px-4 py-2.5 rounded-xl text-sm font-semibold"
+                style={{ background: "#d4183d", color: "white" }}
+              >
+                {selectedFriendIds.length}명 삭제
+              </button>
             )}
           </div>
         </div>
