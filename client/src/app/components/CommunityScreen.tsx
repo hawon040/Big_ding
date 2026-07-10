@@ -524,6 +524,7 @@ const [selectedMsgs, setSelectedMsgs] = useState<string[]>([]);
 const hiddenMessageIdsRef = useRef<Set<string>>(new Set());
 const [showReportConfirm, setShowReportConfirm] = useState(false);
 const [viewingImage, setViewingImage] = useState<string | null>(null);
+const [fullscreenPostImage, setFullscreenPostImage] = useState<string | null>(null);
 
   // 친구 목록 / 받은 친구 신청은 실제 DB(GET /api/friends, /api/friends/requests)에서 불러온다.
   // 친구 신청이 오거나 수락되는 것도 새로고침 없이 보이도록 몇 초마다 다시 불러온다(폴링).
@@ -1359,7 +1360,8 @@ const endDrag = () => {
               <img
                 src={resolveAssetUrl(selectedPost.images[0])}
                 alt="첨부 이미지"
-                className="mt-2 w-full max-h-72 object-cover rounded-xl"
+                className="mt-2 w-full max-h-72 object-cover rounded-xl cursor-pointer"
+                onClick={() => setFullscreenPostImage(resolveAssetUrl(selectedPost.images[0]) || null)}
               />
             )}
 
@@ -1663,6 +1665,28 @@ const endDrag = () => {
           </div>
         </div>
       )}
+     {/* 이미지 전체화면 뷰어 (카톡처럼 클릭 시 확대) */}
+      {fullscreenPostImage && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.92)" }}
+          onClick={() => setFullscreenPostImage(null)}
+        >
+          <button
+            onClick={() => setFullscreenPostImage(null)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(255,255,255,0.15)" }}
+          >
+            <X size={20} color="white" />
+          </button>
+          <img
+            src={fullscreenPostImage}
+            alt="확대 이미지"
+            className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
 </div>
     );
   }
@@ -1867,7 +1891,11 @@ return (
                 <img
                   src={resolveAssetUrl(post.images[0])}
                   alt="첨부 이미지"
-                  className="mt-2 w-full max-h-48 object-cover rounded-xl"
+                  className="mt-2 w-full max-h-48 object-cover rounded-xl cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFullscreenPostImage(resolveAssetUrl(post.images[0]) || null);
+                  }}
                 />
               )}
 
@@ -2564,6 +2592,29 @@ return (
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* 이미지 전체화면 뷰어 (카톡처럼 클릭 시 확대) */}
+      {fullscreenPostImage && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.92)" }}
+          onClick={() => setFullscreenPostImage(null)}
+        >
+          <button
+            onClick={() => setFullscreenPostImage(null)}
+            className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+            style={{ background: "rgba(255,255,255,0.15)" }}
+          >
+            <X size={20} color="white" />
+          </button>
+          <img
+            src={fullscreenPostImage}
+            alt="확대 이미지"
+            className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
     </div>
