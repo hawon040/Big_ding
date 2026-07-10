@@ -56,7 +56,15 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
   const [studentId] = useState(loadStudentId);
   const [showVisibilityModal, setShowVisibilityModal] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(currentUser?.avatar ?? null);
-  const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>(loadPostVisibility);
+  // + 닉네임 변경 검증용 상태
+const [nicknameInput, setNicknameInput] = useState(nickname);
+const [nicknameChecked, setNicknameChecked] = useState(false);
+
+// + 팔로우/팔로워 상태
+const [followerCount, setFollowerCount] = useState(currentUser?.followers?.length ?? 0);
+const [followingCount, setFollowingCount] = useState(currentUser?.following?.length ?? 0);
+
+const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>(loadPostVisibility);
 
   // 게시물 목록은 실제 DB(GET /api/posts)에서 불러온다. 좋아요/댓글/투표처럼 다른 사람이
   // 바꾼 내용도 새로고침 없이 보이도록, 이 화면에 머무르는 동안 몇 초마다 다시 불러온다(폴링).
@@ -279,6 +287,39 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
   };
   const closeConfirm = () => setConfirmState(null);
 
+  // + 닉네임 검증 함수
+  const validateNickname = (value: string): string | null => {
+    if (!value.trim()) {
+      return "닉네임을 작성해주세요.";
+    }
+    const validPattern = /^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9\s]+$/;
+    if (!validPattern.test(value) || value.length > 10) {
+      return "특수문자를 제외한 띄어쓰기 포함 10자 이내로 적어주세요.";
+    }
+    return null;
+  };
+
+  const checkNicknameDuplicate = async () => {
+    const error = validateNickname(nicknameInput);
+    if (error) {
+      showAlert(error);
+      return;
+    }
+    if (nicknameInput.trim() === nickname.trim()) {
+      setNicknameChecked(true);
+      showAlert("현재 사용 중인 닉네임입니다.");
+      return;
+    }
+    try {
+      const res = await api.post("/auth/check-nickname", { nickname: nicknameInput.trim() });
+      setNicknameChecked(true);
+      showAlert(res.data.message);
+    } catch (err: any) {
+      setNicknameChecked(false);
+      showAlert(err?.response?.data?.message || "이미 사용 중인 닉네임입니다.");
+    }
+  };
+
   return (
     <div className="relative flex flex-col flex-1 overflow-hidden">
       {/* Profile header */}
@@ -312,12 +353,25 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
 
           <div className="flex-1 pt-1">
             {editMode ? (
-              <input
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                className="font-bold text-lg border-b-2 outline-none bg-transparent w-full"
-                style={{ color: "var(--foreground)", borderColor: "var(--primary)" }}
-              />
+              <div className="flex gap-2">
+                <input
+                  value={nicknameInput}
+                  onChange={(e) => {
+                    setNicknameInput(e.target.value);
+                    setNicknameChecked(false);
+                  }}
+                  maxLength={10}
+                  className="font-bold text-lg border-b-2 outline-none bg-transparent flex-1 min-w-0"
+                  style={{ color: "var(--foreground)", borderColor: "var(--primary)" }}
+                />
+                <button
+                  onClick={checkNicknameDuplicate}
+                  className="px-2 py-1 rounded-lg text-xs font-semibold shrink-0"
+                  style={{ background: "var(--primary)", color: "white" }}
+                >
+                  중복확인
+                </button>
+              </div>
             ) : (
              <h2 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>{nickname}</h2>
            )}
@@ -325,20 +379,49 @@ export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
          <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
           #{studentId ? studentId.slice(2, 4) : "23"}학번
           </p>
+
+          {/* + 인스타 스타일 게시글 수 / 팔로워 / 팔로잉 */}
+          <div className="flex gap-4 mt-2">
+            <div className="flex flex-col items-center">
+              <span className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{myPosts.length}</span>
+              <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>게시글</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{followerCount}</span>
+              <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로워</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{followingCount}</span>
+              <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로잉</span>
+            </div>
+          </div>
           </div>
 
           <button
             onClick={async () => {
-              if (editMode && nickname.trim()) {
+              if (editMode) {
+                const error = validateNickname(nicknameInput);
+                if (error) {
+                  showAlert(error);
+                  return;
+                }
+                if (nicknameInput.trim() !== nickname.trim() && !nicknameChecked) {
+                  showAlert("닉네임 중복확인을 먼저 해주세요.");
+                  return;
+                }
                 try {
-                  const res = await api.patch("/users/profile", { nickname: nickname.trim() });
+                  const res = await api.patch("/users/profile", { nickname: nicknameInput.trim() });
                   setNickname(res.data.nickname);
                   updateStoredUser({ nickname: res.data.nickname });
+                  setEditMode(false);
                 } catch {
                   showAlert("닉네임 변경에 실패했습니다.");
                 }
+                return;
               }
-              setEditMode(!editMode);
+              setNicknameInput(nickname);
+              setNicknameChecked(false);
+              setEditMode(true);
             }}
             className="w-9 h-9 rounded-xl flex items-center justify-center"
             style={{ background: "var(--card)" }}

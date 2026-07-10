@@ -34,6 +34,8 @@ export interface CurrentUser {
   nickname: string;
   avatar?: string;
   studentId: string;
+  followers?: string[];
+  following?: string[];
 }
 
 // 로그인 시 서버에서 받아 localStorage에 저장해 둔 사용자 정보를 그대로 "현재 로그인한 나"로 사용한다.
@@ -43,7 +45,14 @@ export const getCurrentUser = (): CurrentUser | null => {
     if (!raw) return null;
     const user = JSON.parse(raw);
     if (!user?._id) return null;
-    return { _id: user._id, nickname: user.nickname, avatar: user.avatar, studentId: user.studentId };
+    return { 
+  _id: user._id,
+  nickname: user.nickname,
+  avatar: user.avatar,
+  studentId: user.studentId,
+  followers: user.followers,
+  following: user.following
+};
   } catch {
     return null;
   }

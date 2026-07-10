@@ -5,13 +5,66 @@ const auth = require("../middleware/authMiddleware");
 const upload = require("../middleware/upload");
 const { uploadImage } = require("../config/cloudinary");
 
-// GET /api/users/profile - 내 프로필
+// GET /api/users/profile - 내 프로필 (팔로워/팔로잉 수 포함)
 router.get("/profile", auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
       .select("-password")
       .populate("friends", "nickname avatar");
     res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// POST /api/users/follow/:targetId - 팔로우
+router.post("/follow/:targetId", auth, async (req, res) => {
+  try {
+    const { targetId } = req.params;
+    if (targetId === req.user.id) {
+      return res.status(400).json({ message: "자기 자신은 팔로우할 수 없습니다." });
+    }
+    const target = await User.findById(targetId);
+    if (!target) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+
+    await User.findByIdAndUpdate(req.user.id, { $addToSet: { following: targetId } });
+    await User.findByIdAndUpdate(targetId, { $addToSet: { followers: req.user.id } });
+
+    res.json({ message: "팔로우했습니다." });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// DELETE /api/users/follow/:targetId - 언팔로우
+router.delete("/follow/:targetId", auth, async (req, res) => {
+  try {
+    const { targetId } = req.params;
+    await User.findByIdAndUpdate(req.user.id, { $pull: { following: targetId } });
+    await User.findByIdAndUpdate(targetId, { $pull: { followers: req.user.id } });
+    res.json({ message: "언팔로우했습니다." });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// GET /api/users/:id/followers - 팔로워 목록
+router.get("/:id/followers", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).populate("followers", "nickname avatar studentId");
+    if (!user) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    res.json(user.followers);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// GET /api/users/:id/following - 팔로잉 목록
+router.get("/:id/following", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).populate("following", "nickname avatar studentId");
+    if (!user) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    res.json(user.following);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }

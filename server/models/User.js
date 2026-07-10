@@ -33,6 +33,12 @@ const userSchema = new mongoose.Schema({
   // 차단한 사용자 목록
   blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 
+  // 나를 팔로우하는 사용자 목록
+  followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+  // 내가 팔로우하는 사용자 목록
+  following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
 }, { timestamps: true }); // createdAt, updatedAt 자동 생성
 
 // 저장 전 비밀번호 자동 해시 암호화
