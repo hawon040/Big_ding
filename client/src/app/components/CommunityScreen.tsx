@@ -388,9 +388,18 @@ export function CommunityScreen({
   // 게시물 상세/작성자 화면은 id만 들고 있다가 posts에서 찾아 쓴다.
   // 그래야 좋아요/댓글 등으로 posts가 갱신될 때 상세 화면에도 즉시 반영된다.
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
-  const selectedPost = selectedPostId ? posts.find((p) => p._id === selectedPostId) ?? null : null;
-  const [viewedAuthor, setViewedAuthor] = useState<PostAuthor | null>(null);
-  const [authorActiveTab, setAuthorActiveTab] = useState<"posts" | "scrapped">("posts");
+const selectedPost = selectedPostId ? posts.find((p) => p._id === selectedPostId) ?? null : null;
+const [viewedAuthor, setViewedAuthor] = useState<PostAuthor | null>(null);
+const [authorActiveTab, setAuthorActiveTab] = useState<"posts" | "scrapped">("posts");
+
+// 🔵 팔로잉 / 팔로워 (조건부 return들보다 반드시 위에 있어야 함 - Hook 규칙)
+const [following, setFollowing] = useState(0);
+const [followers, setFollowers] = useState(0);
+
+useEffect(() => {
+  api.get("/friends/following").then(res => setFollowing(res.data.length));
+  api.get("/friends/followers").then(res => setFollowers(res.data.length));
+}, []);
 
   // 다른 사용자의 프로필을 새로 열 때마다 "내 글" 탭부터 다시 보이게 한다.
   useEffect(() => {
@@ -1656,15 +1665,6 @@ const endDrag = () => {
 </div>
     );
   }
-
-  // ── 커뮤니티 메인 ─────────────────────────────────────────────────────────
-  const [following, setFollowing] = useState(0);
-const [followers, setFollowers] = useState(0);
-
-useEffect(() => {
-  api.get("/friends/following").then(res => setFollowing(res.data.length));
-  api.get("/friends/followers").then(res => setFollowers(res.data.length));
-}, []);
 
   // ── 커뮤니티 메인 ─────────────────────────────────────────────────────────
 return (

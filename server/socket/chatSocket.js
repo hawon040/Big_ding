@@ -22,11 +22,13 @@ const isBlockedPair = async (userId, friendId) => {
 
 const initSocket = (server) => {
   const io = new Server(server, {
-    cors: {
-      origin: process.env.CLIENT_URL,
-      credentials: true,
-    },
-  });
+  // Express CORS와 동일한 이유로, 특정 origin 하나만 허용하면 다른 기기/IP로 접속했을 때
+  // 소켓 연결(및 실시간 채팅/알림)이 막힐 수 있어 요청 origin을 그대로 허용한다.
+  cors: {
+    origin: true,
+    credentials: true,
+  },
+});
   ioInstance = io;
 
   // JWT 인증
