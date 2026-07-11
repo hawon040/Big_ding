@@ -749,10 +749,10 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
                 </div>
               </div>
 
-              <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-                <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
-                  댓글 {getCommentCount(selectedPost)}개
-                </p>
+              <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3" style={{ background: "var(--card)" }}>
+  <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+    댓글 {getCommentCount(selectedPost)}개
+  </p>
 
                 {selectedPost.comments.map((c) => (
                   <div key={c._id} className="flex gap-2 items-start relative">

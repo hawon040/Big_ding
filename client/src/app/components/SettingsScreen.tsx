@@ -8,6 +8,17 @@ import {
   getDisplayTime, type Post, scopedKey, updateStoredUser,
 } from "./CommunityScreen";
 
+// 로그인한 사용자의 학번을 가져온다. (ProfileScreen과 동일한 방식으로 studentId 3~4번째 자리 = 입학연도)
+const loadStudentId = (): string => {
+  try {
+    const raw = localStorage.getItem("user");
+    if (!raw) return "";
+    return JSON.parse(raw)?.studentId || "";
+  } catch {
+    return "";
+  }
+};
+
 interface SettingsScreenProps {
   darkMode: boolean;
   onToggleDark: () => void;
@@ -78,6 +89,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [editingNickname, setEditingNickname] = useState(false);
   const [nicknameInput, setNicknameInput] = useState(nickname);
   const [nicknameChecked, setNicknameChecked] = useState(false);
+  const [studentId] = useState(loadStudentId);
   const [reportHistory, setReportHistory] = useState<ReportHistoryItem[]>([]);
   const [inquiryHistory, setInquiryHistory] = useState<InquiryHistoryItem[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUserItem[]>([]);
@@ -757,7 +769,9 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           {/* 전공 (변경 불가, 기존 그대로) */}
           <div className="rounded-2xl p-4 flex items-center justify-between shadow-sm" style={{ background: "var(--card)" }}>
             <span className="text-sm" style={{ color: "var(--muted-foreground)" }}>전공</span>
-            <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>AI빅데이터전공 27학번</span>
+            <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+              AI빅데이터전공 {studentId ? studentId.slice(2, 4) : "23"}학번
+            </span>
           </div>
           <div className="rounded-2xl overflow-hidden shadow-sm mt-2">
             {[
