@@ -324,12 +324,12 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
 
   return (
     <div className="relative flex flex-col flex-1 overflow-hidden">
-      {/* Profile header */}
+      {/* Profile header (Instagram 스타일) */}
       <div
-        className="relative px-4 pt-3 pb-4 shrink-0"
-        style={{ background: "linear-gradient(160deg, #111a30 0%, #0a0f1f 100%)" }}
+        className="relative px-4 pt-3 pb-3 shrink-0"
+        style={{ background: "linear-gradient(160deg, var(--background) 0%, #0a0f1f 100%)" }}
       >
-        <div className="flex items-center gap-1.5 mb-3">
+        <div className="flex items-center gap-1.5 mb-4">
           <img src={bigRoadingIcon} alt="Big Roading" className="w-7 h-7 object-cover rounded-md" />
           <span
             className="text-lg"
@@ -338,8 +338,10 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
             Big Ding
           </span>
         </div>
+
+        {/* 아바타 + (닉네임/학번 위, 게시글/팔로워/팔로잉 아래) */}
         <div className="flex items-start gap-6">
-          <div className="relative">
+          <div className="relative shrink-0">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-md overflow-hidden"
               style={{ background: "var(--accent)", border: "3px solid var(--primary)" }}
@@ -362,132 +364,133 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
             </button>
           </div>
 
-          <div className="flex-1 h-20 flex flex-col justify-between">
-  {/* 위 여백: 이름을 아바타 중간쯤으로 내리기 위한 스페이서 */}
-  <div />
+          <div className="flex-1 flex flex-col gap-1.5 pt-1">
+            {/* 닉네임 / 학번 (아바타 오른쪽 위) */}
+            {editMode ? (
+              <div className="flex items-center">
+                <input
+                  value={nicknameInput}
+                  onChange={(e) => {
+                    setNicknameInput(e.target.value);
+                    setNicknameChecked(false);
+                  }}
+                  maxLength={10}
+                  className="font-bold text-base border-b-2 outline-none bg-transparent"
+                  style={{ color: "var(--foreground)", borderColor: "var(--primary)", width: "160px" }}
+                />
+                <button
+                  onClick={checkNicknameDuplicate}
+                  className="rounded-lg text-xs font-semibold whitespace-nowrap"
+                  style={{ background: "var(--primary)", color: "white", marginLeft: "10px", padding: "4px 8px" }}
+                >
+                  중복확인
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-baseline gap-2">
+                <h2 className="font-bold text-base" style={{ color: "var(--foreground)" }}>{nickname}</h2>
+                {/* 로그인 시 입력한 학번의 3~4번째 자리(입학연도)를 이름 옆에 표시 */}
+                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  #{studentId ? studentId.slice(2, 4) : "23"}학번
+                </span>
+              </div>
+            )}
 
-  <div className="flex items-baseline gap-2.5">
-    {editMode ? (
-  <div className="flex items-center">
-    <input
-      value={nicknameInput}
-      onChange={(e) => {
-        setNicknameInput(e.target.value);
-        setNicknameChecked(false);
-      }}
-      maxLength={10}
-      className="font-bold text-lg border-b-2 outline-none bg-transparent"
-      style={{ color: "var(--foreground)", borderColor: "var(--primary)", width: "160px" }}
-    />
-    <button
-      onClick={checkNicknameDuplicate}
-      className="rounded-lg text-xs font-semibold whitespace-nowrap"
-      style={{ background: "var(--primary)", color: "white", marginLeft: "10px", padding: "4px 8px" }}
-    >
-      중복확인
-    </button>
-  </div>
-) : (
-      <>
-        <h2 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>{nickname}</h2>
-        {/* 로그인 시 입력한 학번의 3~4번째 자리(입학연도)를 이름 옆에 표시 */}
-        <span className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-          #{studentId ? studentId.slice(2, 4) : "23"}학번
-        </span>
-      </>
-    )}
-  </div>
+            {/* 게시글/팔로워/팔로잉 (닉네임 아래, 닉네임과 왼쪽 맞춤) */}
+            <div className="flex items-center gap-10">
+              <div className="flex flex-col items-center gap-0.2">
+                <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{myPosts.length}</span>
+                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>게시글</span>
+              </div>
+              <div className="flex flex-col items-center gap-0.2">
+                <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{followerCount}</span>
+                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로워</span>
+              </div>
+              <div className="flex flex-col items-center gap-0.2">
+                <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{followingCount}</span>
+                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로잉</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-  {/* + 인스타 스타일 게시글 수 / 팔로워 / 팔로잉: 아바타 하단선과 맞춤 */}
-  <div className="flex gap-4">
-    <div className="flex flex-col items-start">
-      <span className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{myPosts.length}</span>
-      <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>게시글</span>
-    </div>
-    <div className="flex flex-col items-start">
-      <span className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{followerCount}</span>
-      <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로워</span>
-    </div>
-    <div className="flex flex-col items-start">
-      <span className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{followingCount}</span>
-      <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로잉</span>
-    </div>
-  </div>
-</div>
-
-          <button
-            onClick={async () => {
-              if (editMode) {
-                const error = validateNickname(nicknameInput);
-                if (error) {
-                  showAlert(error);
-                  return;
-                }
-                if (nicknameInput.trim() !== nickname.trim() && !nicknameChecked) {
-                  showAlert("닉네임 중복확인을 먼저 해주세요.");
-                  return;
-                }
-                try {
-                  const res = await api.patch("/users/profile", { nickname: nicknameInput.trim() });
-                  setNickname(res.data.nickname);
-                  updateStoredUser({ nickname: res.data.nickname });
-                  setEditMode(false);
-                } catch {
-                  showAlert("닉네임 변경에 실패했습니다.");
-                }
+        {/* 프로필 편집 버튼 (인스타의 "프로필 편집" 버튼처럼 가로 전체) */}
+        <button
+          onClick={async () => {
+            if (editMode) {
+              const error = validateNickname(nicknameInput);
+              if (error) {
+                showAlert(error);
                 return;
               }
-              setNicknameInput(nickname);
-              setNicknameChecked(false);
-              setEditMode(true);
-            }}
-            className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ background: "var(--card)" }}
-          >
-            <Edit3 size={22} color="white" />
-          </button>
-        </div>
+              if (nicknameInput.trim() !== nickname.trim() && !nicknameChecked) {
+                showAlert("닉네임 중복확인을 먼저 해주세요.");
+                return;
+              }
+              try {
+                const res = await api.patch("/users/profile", { nickname: nicknameInput.trim() });
+                setNickname(res.data.nickname);
+                updateStoredUser({ nickname: res.data.nickname });
+                setEditMode(false);
+              } catch {
+                showAlert("닉네임 변경에 실패했습니다.");
+              }
+              return;
+            }
+            setNicknameInput(nickname);
+            setNicknameChecked(false);
+            setEditMode(true);
+          }}
+          className="w-full mt-3 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5"
+          style={{ background: "var(--muted)", color: "var(--foreground)" }}
+        >
+          {editMode ? (
+            "완료"
+          ) : (
+            <>
+              <Edit3 size={14} />
+              프로필 편집
+            </>
+          )}
+        </button>
       </div>
 
-      {/* Tabs */}
-      <div className="grid grid-cols-3 px-4 gap-2 mb-3 mt-1 shrink-0">
+      {/* Tabs (인스타 그리드 탭처럼 아이콘 + 밑줄) */}
+      <div className="grid grid-cols-3 shrink-0 border-t border-b" style={{ borderColor: "var(--border)" }}>
         <button
           onClick={() => setActiveTab("posts")}
-          className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all"
+          className="flex items-center justify-center py-3"
           style={{
-            background: activeTab === "posts" ? "var(--primary)" : "var(--muted)",
-            color: activeTab === "posts" ? "white" : "var(--muted-foreground)",
+            borderBottom: activeTab === "posts" ? "2px solid var(--foreground)" : "2px solid transparent",
+            color: activeTab === "posts" ? "var(--foreground)" : "var(--muted-foreground)",
           }}
         >
-          <FileText size={14} />
-          <span>내 글</span>
+          <FileText size={18} />
         </button>
         <button
           onClick={() => setActiveTab("comments")}
-          className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all"
+          className="flex items-center justify-center py-3"
           style={{
-            background: activeTab === "comments" ? "var(--primary)" : "var(--muted)",
-            color: activeTab === "comments" ? "white" : "var(--muted-foreground)",
+            borderBottom: activeTab === "comments" ? "2px solid var(--foreground)" : "2px solid transparent",
+            color: activeTab === "comments" ? "var(--foreground)" : "var(--muted-foreground)",
           }}
         >
-          <MessageCircle size={14} />
-          <span>댓글</span>
+          <MessageCircle size={18} />
         </button>
         <button
           onClick={() => setActiveTab("scrapped")}
-          className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all"
+          className="flex items-center justify-center py-3"
           style={{
-            background: activeTab === "scrapped" ? "var(--primary)" : "var(--muted)",
-            color: activeTab === "scrapped" ? "white" : "var(--muted-foreground)",
+            borderBottom: activeTab === "scrapped" ? "2px solid var(--foreground)" : "2px solid transparent",
+            color: activeTab === "scrapped" ? "var(--foreground)" : "var(--muted-foreground)",
           }}
         >
-          <Bookmark size={14} />
-          <span>스크랩</span>
+          <Bookmark size={18} />
         </button>
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-6 flex flex-col gap-3">
+      <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-3 pb-6 flex flex-col gap-3">
         {activeTab === "posts" && (
           postsLoading && myPosts.length === 0 ? (
             <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>

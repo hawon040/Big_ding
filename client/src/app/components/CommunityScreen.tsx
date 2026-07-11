@@ -1977,7 +1977,7 @@ return (
         <div className="px-4 py-3 h-170 overflow-y-auto flex flex-col gap-2 no-scrollbar"
           style={{ background: "var(--background)", borderTop: "1px solid var(--border)" }}>
           <div className="flex items-center justify-between mb-1">
-  <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>친구 목록</span>
+  <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>채팅 목록</span>
 </div>
 
          {sortedFriends.map((friend) => {
