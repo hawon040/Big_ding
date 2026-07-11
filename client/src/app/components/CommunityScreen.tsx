@@ -1231,10 +1231,13 @@ const endDrag = () => {
               >
                 <img src={getAuthorAvatarUrl(viewedAuthor) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
               </div>
-              <div className="flex-1 pt-1">
+              <div className="flex-1 pt-4">
                 <h2 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>
                   {viewedAuthor.nickname}
                 </h2>
+                <p className="text-sm mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+    #{viewedAuthor.studentId ? viewedAuthor.studentId.slice(2, 4) : "23"}학번
+  </p>
               </div>
             </div>
           </div>
@@ -1330,7 +1333,6 @@ const endDrag = () => {
             <div className="flex items-center gap-2 mb-3">
               <button
                 onClick={() => {
-                  setSelectedPostId(null);
                   openAuthor(selectedPost.author);
                 }}
                 className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"

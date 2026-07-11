@@ -329,7 +329,7 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
         className="relative px-4 pt-3 pb-4 shrink-0"
         style={{ background: "linear-gradient(160deg, #111a30 0%, #0a0f1f 100%)" }}
       >
-        <div className="flex items-center gap-1.5 mb-1.5">
+        <div className="flex items-center gap-1.5 mb-3">
           <img src={bigRoadingIcon} alt="Big Roading" className="w-7 h-7 object-cover rounded-md" />
           <span
             className="text-lg"
@@ -338,7 +338,7 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
             Big Ding
           </span>
         </div>
-        <div className="flex items-start gap-4">
+        <div className="flex items-start gap-6">
           <div className="relative">
             <div
               className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-md overflow-hidden"
@@ -362,51 +362,58 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
             </button>
           </div>
 
-          <div className="flex-1">
-            {editMode ? (
-              <div className="flex gap-2">
-                <input
-                  value={nicknameInput}
-                  onChange={(e) => {
-                    setNicknameInput(e.target.value);
-                    setNicknameChecked(false);
-                  }}
-                  maxLength={10}
-                  className="font-bold text-lg border-b-2 outline-none bg-transparent flex-1 min-w-0"
-                  style={{ color: "var(--foreground)", borderColor: "var(--primary)" }}
-                />
-                <button
-                  onClick={checkNicknameDuplicate}
-                  className="px-2 py-1 rounded-lg text-xs font-semibold shrink-0"
-                  style={{ background: "var(--primary)", color: "white" }}
-                >
-                  중복확인
-                </button>
-              </div>
-            ) : (
-             <h2 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>{nickname}</h2>
-           )}
-           {/* 로그인 시 입력한 학번의 3~4번째 자리(입학연도)를 고정으로 표시 */}
-         <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
-          #{studentId ? studentId.slice(2, 4) : "23"}학번
-          </p>
+          <div className="flex-1 h-20 flex flex-col justify-between">
+  {/* 위 여백: 이름을 아바타 중간쯤으로 내리기 위한 스페이서 */}
+  <div />
 
-          {/* + 인스타 스타일 게시글 수 / 팔로워 / 팔로잉 */}
-          <div className="flex gap-4 mt-1.5">
-            <div className="flex flex-col items-center">
-              <span className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{myPosts.length}</span>
-              <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>게시글</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{followerCount}</span>
-              <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로워</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{followingCount}</span>
-              <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로잉</span>
-            </div>
-          </div>
-          </div>
+  <div className="flex items-baseline gap-2.5">
+    {editMode ? (
+  <div className="flex items-center">
+    <input
+      value={nicknameInput}
+      onChange={(e) => {
+        setNicknameInput(e.target.value);
+        setNicknameChecked(false);
+      }}
+      maxLength={10}
+      className="font-bold text-lg border-b-2 outline-none bg-transparent"
+      style={{ color: "var(--foreground)", borderColor: "var(--primary)", width: "160px" }}
+    />
+    <button
+      onClick={checkNicknameDuplicate}
+      className="rounded-lg text-xs font-semibold whitespace-nowrap"
+      style={{ background: "var(--primary)", color: "white", marginLeft: "10px", padding: "4px 8px" }}
+    >
+      중복확인
+    </button>
+  </div>
+) : (
+      <>
+        <h2 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>{nickname}</h2>
+        {/* 로그인 시 입력한 학번의 3~4번째 자리(입학연도)를 이름 옆에 표시 */}
+        <span className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+          #{studentId ? studentId.slice(2, 4) : "23"}학번
+        </span>
+      </>
+    )}
+  </div>
+
+  {/* + 인스타 스타일 게시글 수 / 팔로워 / 팔로잉: 아바타 하단선과 맞춤 */}
+  <div className="flex gap-4">
+    <div className="flex flex-col items-start">
+      <span className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{myPosts.length}</span>
+      <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>게시글</span>
+    </div>
+    <div className="flex flex-col items-start">
+      <span className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{followerCount}</span>
+      <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로워</span>
+    </div>
+    <div className="flex flex-col items-start">
+      <span className="font-bold text-sm" style={{ color: "var(--foreground)" }}>{followingCount}</span>
+      <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로잉</span>
+    </div>
+  </div>
+</div>
 
           <button
             onClick={async () => {
@@ -796,7 +803,7 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
             className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3"
             style={{ background: "var(--background)" }}
           >
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 ">
               <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>공개 범위 설정</h3>
               <button onClick={() => setShowVisibilityModal(null)}>
                 <X size={20} style={{ color: "var(--foreground)" }} />
