@@ -13,6 +13,12 @@ export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("community");
   const [showChatPanel, setShowChatPanel] = useState(false);
+  const [writeSignal, setWriteSignal] = useState(0);
+  const handleWriteClick = () => {
+    setActiveTab("community");
+    setShowChatPanel(false);
+    setWriteSignal((n) => n + 1);
+  };
 
   const handleTabChange = (tab: Tab) => {
     if (tab === "chat") {
@@ -230,6 +236,7 @@ const [currentTime, setCurrentTime] = useState("");
             setShowChat={setShowChatPanel}
 isActive={activeTab === "community" || activeTab === "chat"}
 onViewOwnProfile={() => handleTabChange("profile")}
+openWriteSignal={writeSignal}
           />
         </div>
 
@@ -270,6 +277,7 @@ onViewOwnProfile={() => handleTabChange("profile")}
         active={activeTab}
         onChange={handleTabChange}
         unreadChatCount={unreadChatCount}
+        onWriteClick={handleWriteClick}
       />
 
       {/* Home indicator */}

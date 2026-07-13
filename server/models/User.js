@@ -36,8 +36,14 @@ const userSchema = new mongoose.Schema({
   // 나를 팔로우하는 사용자 목록
   followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 
-  // 내가 팔로우하는 사용자 목록
+ // 내가 팔로우하는 사용자 목록
   following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+
+  // 탈퇴 여부 (탈퇴해도 게시글/댓글은 남기기 위해 문서를 삭제하지 않고 익명화한다)
+  isWithdrawn: { type: Boolean, default: false },
+
+  // 탈퇴 처리된 시각
+  withdrawnAt: { type: Date },
 
 }, { timestamps: true }); // createdAt, updatedAt 자동 생성
 

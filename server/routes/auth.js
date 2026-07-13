@@ -125,6 +125,11 @@ router.post("/login", async (req, res) => {
     const user = await User.findOne({ studentId });
     if (!user) return res.status(401).json({ message: "학번이 올바르지 않습니다." });
 
+    // 1-1. 탈퇴한 계정은 로그인 불가
+    if (user.isWithdrawn) {
+      return res.status(401).json({ message: "탈퇴한 계정입니다." });
+    }
+
     // 2. 비밀번호 검증
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(401).json({ message: "비밀번호가 올바르지 않습니다." });

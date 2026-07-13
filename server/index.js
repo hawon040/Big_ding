@@ -25,7 +25,7 @@ app.use("/api/chat", require("./routes/chat"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/friends", require("./routes/friends"));
 app.use("/api/reports", require("./routes/reports"));
-
+app.use("/api/notifications", require("./routes/notifications"));
 // 새 이미지는 전부 Cloudinary로 올라간다. 이 라우트는 마이그레이션 전 로컬 디스크에
 // 저장된 기존 아바타/채팅/게시글 이미지를 계속 보여주기 위한 하위 호환용이다.
 app.use("/uploads", express.static("uploads"));
