@@ -65,6 +65,27 @@ const [nicknameChecked, setNicknameChecked] = useState(false);
 const [followerCount, setFollowerCount] = useState(currentUser?.followers?.length ?? 0);
 const [followingCount, setFollowingCount] = useState(currentUser?.following?.length ?? 0);
 
+// + 팔로워/팔로잉 수를 몇 초마다 다시 불러와 실시간처럼 반영한다.
+// (다른 사람이 나를 팔로우해도, currentUser는 로그인 시점 캐시라서 저절로 갱신되지 않음)
+useEffect(() => {
+  let cancelled = false;
+  const fetchFollowCounts = () => {
+    api.get("/users/profile")
+      .then((res) => {
+        if (cancelled) return;
+        setFollowerCount((res.data.followers || []).length);
+        setFollowingCount((res.data.following || []).length);
+      })
+      .catch(() => {});
+  };
+  fetchFollowCounts();
+  const interval = setInterval(fetchFollowCounts, 2000);
+  return () => {
+    cancelled = true;
+    clearInterval(interval);
+  };
+}, []);
+
 const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>(loadPostVisibility);
 
   // 게시물 목록은 실제 DB(GET /api/posts)에서 불러온다. 좋아요/댓글/투표처럼 다른 사람이
