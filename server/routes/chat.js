@@ -23,6 +23,16 @@ const isBlockedPair = async (userId, friendId) => {
   );
 };
 
+// GET /api/chat/unread-count - 전체 안 읽은 메시지 개수 (읽음 처리하지 않음, 뱃지 표시 전용)
+router.get("/unread-count", auth, async (req, res) => {
+  try {
+    const count = await Message.countDocuments({ to: req.user.id, read: false });
+    res.json({ count });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 // GET /api/chat/:friendId - 1:1 대화 내역 조회
 router.get("/:friendId", auth, async (req, res) => {
   try {

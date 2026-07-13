@@ -314,9 +314,9 @@ export const loadStoredInteractions = (): StoredInteractions => {
 
 export const BOARDS = [
   { id: "free" as BoardType, label: "전체 게시판", emoji: "💬", icon: MessageCircle },
+  { id: "event" as BoardType, label: "행사공지", emoji: "📢", icon: Megaphone },
   { id: "qna" as BoardType, label: "선배들 작품 전시 공간", emoji: "🏆", icon: Users },
   { id: "contest" as BoardType, label: "학업", emoji: "📖", icon: Trophy },
-  { id: "event" as BoardType, label: "행사공지", emoji: "📢", icon: Megaphone },
   { id: "lecture" as BoardType, label: "전공 강의평가", emoji: "⭐", icon: BookOpen },
   { id: "meeting" as BoardType, label: "공강모임", emoji: "☕", icon: Coffee },
 ];
@@ -400,6 +400,24 @@ export function CommunityScreen({
 const selectedPost = selectedPostId ? posts.find((p) => p._id === selectedPostId) ?? null : null;
 const [viewedAuthor, setViewedAuthor] = useState<PostAuthor | null>(null);
 const [authorActiveTab, setAuthorActiveTab] = useState<"posts" | "scrapped">("posts");
+const [authorFollowers, setAuthorFollowers] = useState<{ _id: string; nickname: string; avatar?: string; studentId?: string }[]>([]);
+const [authorFollowing, setAuthorFollowing] = useState<{ _id: string; nickname: string; avatar?: string; studentId?: string }[]>([]);
+const [showAuthorFollowList, setShowAuthorFollowList] = useState<"followers" | "following" | null>(null);
+// 상대 프로필의 팔로워/팔로잉을 몇 초마다 다시 불러와 실시간처럼 반영한다.
+useEffect(() => {
+  if (!viewedAuthor) return;
+  let cancelled = false;
+  const fetchFollowData = () => {
+    api.get(`/users/${viewedAuthor._id}/followers`).then((res) => { if (!cancelled) setAuthorFollowers(res.data); }).catch(() => {});
+    api.get(`/users/${viewedAuthor._id}/following`).then((res) => { if (!cancelled) setAuthorFollowing(res.data); }).catch(() => {});
+  };
+  fetchFollowData();
+  const interval = setInterval(fetchFollowData, 2000);
+  return () => {
+    cancelled = true;
+    clearInterval(interval);
+  };
+}, [viewedAuthor]);
 
   // 다른 사용자의 프로필을 새로 열 때마다 "내 글" 탭부터 다시 보이게 한다.
   useEffect(() => {
@@ -817,7 +835,10 @@ const [fullscreenPostImage, setFullscreenPostImage] = useState<string | null>(nu
         p.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
       )
-    : allPosts.filter((p) => p.board === activeBoard);
+    // 전체 게시판(free) 탭에서는 행사공지(event) 글도 함께 보이게 한다.
+    : activeBoard === "free"
+      ? allPosts.filter((p) => p.board === "free" || p.board === "event")
+      : allPosts.filter((p) => p.board === activeBoard);
 
   const toggleFriendSelectMode = () => {
   setIsFriendSelectMode((prev) => !prev);
@@ -1219,50 +1240,79 @@ const endDrag = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto no-scrollbar">
-          {/* 프로필 상단 카드: 내 프로필(ProfileScreen)과 동일한 위치 구성 */}
+          {/* 프로필 상단 카드: 내 프로필(ProfileScreen)과 동일한 인스타 스타일 + 팔로우 연동 */}
           <div
-            className="relative px-4 pt-8 pb-6"
-            style={{ background: "linear-gradient(160deg, #111a30 0%, #0a0f1f 100%)" }}
+            className="relative px-4 pt-3 pb-3"
+            style={{ background: "linear-gradient(160deg, var(--background) 0%, #0a0f1f 100%)" }}
           >
-            <div className="flex items-start gap-4">
-              <div
-                className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-md overflow-hidden"
-                style={{ background: "var(--accent)", border: "3px solid var(--primary)" }}
+            <div className="flex items-center gap-1.5 mb-4">
+              <img src={bigRoadingIcon} alt="Big Roading" className="w-7 h-7 object-cover rounded-md" />
+              <span
+                className="text-lg"
+                style={{ color: "var(--foreground)", fontFamily: "'Brush Script MT', cursive" }}
               >
-                <img src={getAuthorAvatarUrl(viewedAuthor) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                Big Ding
+              </span>
+            </div>
+
+            <div className="flex items-start gap-6">
+              <div className="relative shrink-0">
+                <div
+                  className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-md overflow-hidden"
+                  style={{ background: "var(--accent)", border: "3px solid var(--primary)" }}
+                >
+                  <img src={getAuthorAvatarUrl(viewedAuthor) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                </div>
               </div>
-              <div className="flex-1 pt-4">
-                <h2 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>
-                  {viewedAuthor.nickname}
-                </h2>
-                <p className="text-sm mt-0.5" style={{ color: "var(--muted-foreground)" }}>
-    #{viewedAuthor.studentId ? viewedAuthor.studentId.slice(2, 4) : "23"}학번
-  </p>
+
+              <div className="flex-1 flex flex-col gap-1.5 pt-1">
+                <div className="flex items-baseline gap-2">
+                  <h2 className="font-bold text-base" style={{ color: "var(--foreground)" }}>{viewedAuthor.nickname}</h2>
+                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    #{viewedAuthor.studentId ? viewedAuthor.studentId.slice(2, 4) : "23"}학번
+                  </span>
+                </div>
+
+                {/* 게시글/팔로워/팔로잉 (실시간 반영) */}
+                <div className="flex items-center gap-10">
+                  <div className="flex flex-col items-center gap-0.2">
+                    <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>
+                      {allPosts.filter((p) => p.author._id === viewedAuthor._id).length}
+                    </span>
+                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>게시글</span>
+                  </div>
+                  <button className="flex flex-col items-center gap-0.2" onClick={() => setShowAuthorFollowList("followers")}>
+                    <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{authorFollowers.length}</span>
+                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로워</span>
+                  </button>
+                  <button className="flex flex-col items-center gap-0.2" onClick={() => setShowAuthorFollowList("following")}>
+                    <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{authorFollowing.length}</span>
+                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로잉</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* 탭: 다른 사용자의 프로필에서는 댓글 내역을 노출하지 않는다 */}
-          <div className="grid grid-cols-2 px-4 gap-2 mb-3 mt-3">
+          {/* 탭: 다른 사용자의 프로필에서는 댓글 내역을 노출하지 않는다 (아이콘 + 밑줄 스타일) */}
+          <div className="grid grid-cols-2 shrink-0 border-t border-b" style={{ borderColor: "var(--border)" }}>
             {[
-              { key: "posts" as const, label: "내 글", Icon: FileText },
-              { key: "scrapped" as const, label: "스크랩", Icon: Bookmark },
-            ].map(({ key, label, Icon }) => (
+              { key: "posts" as const, Icon: FileText },
+              { key: "scrapped" as const, Icon: Bookmark },
+            ].map(({ key, Icon }) => (
               <button
                 key={key}
                 onClick={() => setAuthorActiveTab(key)}
-                className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all"
+                className="flex items-center justify-center py-3"
                 style={{
-                  background: authorActiveTab === key ? "var(--primary)" : "var(--muted)",
-                  color: authorActiveTab === key ? "white" : "var(--muted-foreground)",
+                  borderBottom: authorActiveTab === key ? "2px solid var(--foreground)" : "2px solid transparent",
+                  color: authorActiveTab === key ? "var(--foreground)" : "var(--muted-foreground)",
                 }}
               >
-                <Icon size={14} />
-                <span>{label}</span>
+                <Icon size={18} />
               </button>
             ))}
           </div>
-
           {/* 탭 내용 */}
           <div className="px-4 pb-6 flex flex-col gap-3">
             {authorActiveTab === "posts" && (
@@ -1313,6 +1363,47 @@ const endDrag = () => {
             )}
           </div>
         </div>
+
+        {/* 팔로워/팔로잉 목록 */}
+        {showAuthorFollowList && (
+          <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+              <button onClick={() => setShowAuthorFollowList(null)} className="text-lg">←</button>
+              <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>
+                {showAuthorFollowList === "followers" ? "팔로워" : "팔로잉"}
+              </h2>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
+              {(showAuthorFollowList === "followers" ? authorFollowers : authorFollowing).length === 0 ? (
+                <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+                  {showAuthorFollowList === "followers" ? "아직 팔로워가 없습니다." : "아직 팔로잉한 사용자가 없습니다."}
+                </p>
+              ) : (
+                (showAuthorFollowList === "followers" ? authorFollowers : authorFollowing).map((u) => (
+                  <button
+                    key={u._id}
+                    onClick={() => {
+                      setShowAuthorFollowList(null);
+                      openAuthor(u);
+                    }}
+                    className="flex items-center gap-3 p-2.5 rounded-xl text-left"
+                    style={{ background: "var(--card)" }}
+                  >
+                    <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+                      <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
+                      {u.studentId && (
+                        <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{u.studentId}</p>
+                      )}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }

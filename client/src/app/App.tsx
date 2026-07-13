@@ -5,6 +5,7 @@ import { ProfileScreen } from "./components/ProfileScreen";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { BottomNav } from "./components/BottomNav";
 import { PasswordChangeScreen } from "./components/PasswordChangeScreen";
+import api from "@/api";
 
 type Tab = "community" | "chat" | "profile" | "settings";
 
@@ -42,6 +43,28 @@ export default function App() {
   // 프로필/설정 화면에 보여줄 닉네임은 회원가입 때 설정한 실제 닉네임을 기본값으로 쓴다.
   const [nickname, setNickname] = useState(() => getCurrentUser()?.nickname ?? "");
 
+  // 안 읽은 채팅 메시지 총 개수 (하단 네비게이션 채팅 탭 뱃지용).
+  // 채팅 탭에 들어가 있는 동안(showChatPanel === true)은 메시지를 열면 바로 읽음 처리되므로
+  // 그 사이엔 폴링을 잠깐 멈춰도 되지만, 여기선 단순하게 로그인 상태에서 항상 폴링한다.
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  useEffect(() => {
+    if (!loggedIn) {
+      setUnreadChatCount(0);
+      return;
+    }
+    let cancelled = false;
+    const fetchUnreadCount = () => {
+      api.get("/chat/unread-count")
+        .then((res) => { if (!cancelled) setUnreadChatCount(res.data.count); })
+        .catch(() => {});
+    };
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [loggedIn]);
 const [currentTime, setCurrentTime] = useState("");
 
   useEffect(() => {
@@ -246,6 +269,7 @@ onViewOwnProfile={() => handleTabChange("profile")}
       <BottomNav
         active={activeTab}
         onChange={handleTabChange}
+        unreadChatCount={unreadChatCount}
       />
 
       {/* Home indicator */}
