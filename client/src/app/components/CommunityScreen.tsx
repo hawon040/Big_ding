@@ -484,6 +484,7 @@ const [authorActiveTab, setAuthorActiveTab] = useState<"posts" | "scrapped">("po
   const [showFriendsList, setShowFriendsList] = useState(false);
   const [showReport, setShowReport] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
+  const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
@@ -1726,7 +1727,7 @@ const endDrag = () => {
   }
 
   // ── 커뮤니티 메인 ─────────────────────────────────────────────────────────
-const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
+
 
   return (
   <div className="flex flex-col flex-1 overflow-hidden relative">
