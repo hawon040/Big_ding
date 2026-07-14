@@ -80,7 +80,21 @@ router.get("/:id/following", auth, async (req, res) => {
 router.patch("/profile", auth, upload.single("avatar"), async (req, res) => {
   try {
     const update = {};
-    if (req.body.nickname !== undefined) update.nickname = req.body.nickname;
+    if (req.body.nickname !== undefined) {
+      const nickname = req.body.nickname.trim();
+
+      // 저장 직전, 다른 사람이 이미 쓰고 있는 닉네임인지 다시 한번 확인한다.
+      // (본인이 원래 쓰던 닉네임으로 "그대로" 저장하는 경우는 제외)
+      const existing = await User.findOne({
+        nickname,
+        _id: { $ne: req.user.id },
+      });
+      if (existing) {
+        return res.status(409).json({ message: "이미 사용 중인 닉네임입니다." });
+      }
+
+      update.nickname = nickname;
+    }
     if (req.file) {
       update.avatar = (await uploadImage(req.file.buffer, "avatars")).secure_url;
     }

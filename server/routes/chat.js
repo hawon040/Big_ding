@@ -39,6 +39,16 @@ router.get("/:friendId", auth, async (req, res) => {
     if (await isBlockedPair(req.user.id, req.params.friendId)) {
       return res.status(403).json({ message: "차단된 상대와는 채팅할 수 없습니다." });
     }
+
+    // preview=true (채팅 목록 미리보기)일 때는 읽음 처리하지 않는다.
+    // 실제 채팅방을 열 때만(preview 없음) 읽음 처리를 먼저 하고 나서 조회한다.
+    if (req.query.preview !== "true") {
+      await Message.updateMany(
+        { from: req.params.friendId, to: req.user.id, read: false },
+        { read: true }
+      );
+    }
+
     const messages = await Message.find({
       $or: [
         { from: req.user.id, to: req.params.friendId },
@@ -48,12 +58,6 @@ router.get("/:friendId", auth, async (req, res) => {
       .populate("from", USER_FIELDS)
       .populate("to", USER_FIELDS)
       .sort({ createdAt: 1 });
-
-    // 상대가 보낸 메시지를 읽음 처리
-    await Message.updateMany(
-      { from: req.params.friendId, to: req.user.id, read: false },
-      { read: true }
-    );
 
     res.json(messages);
   } catch (err) {

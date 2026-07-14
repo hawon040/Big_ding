@@ -683,7 +683,7 @@ const [fullscreenPostImage, setFullscreenPostImage] = useState<string | null>(nu
     if (!isActive || !showChat || friends.length === 0) return;
     let cancelled = false;
     friends.forEach((friend) => {
-      api.get(`/chat/${friend._id}`)
+      api.get(`/chat/${friend._id}?preview=true`)
         .then((res) => {
           if (cancelled) return;
           setChatMessages((prev) => ({ ...prev, [friend._id]: mapMessages(res.data) }));
@@ -717,7 +717,8 @@ const [fullscreenPostImage, setFullscreenPostImage] = useState<string | null>(nu
     const handleReceiveMessage = (msg: { from?: { _id?: string } }) => {
       const friendId = msg?.from?._id;
       if (!friendId) return;
-      api.get(`/chat/${friendId}`)
+      const isViewing = activeFriend?._id ===friendId;
+      api.get(`/chat/${friendId}${isViewing ? "" : "?preview=true"}`)
         .then((res) => {
           setChatMessages((prev) => ({ ...prev, [friendId]: mapMessages(res.data) }));
         })
@@ -727,7 +728,7 @@ const [fullscreenPostImage, setFullscreenPostImage] = useState<string | null>(nu
     return () => {
       socket.off("receive_message", handleReceiveMessage);
     };
-  }, [socket]);
+  }, [socket, activeFriend]);
 
   // 친구 목록 카드에 보여줄 마지막 메시지 미리보기/시간/안 읽은 개수
   const getFriendPreview = (friend: Friend) => {
@@ -2460,46 +2461,56 @@ return (
       )}
 
       {/* 수정 모달 */}
-      {editingPost && (
-        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-          <div className="flex items-center gap-3 px-4 py-4 border-b" style={{ borderColor: "var(--border)" }}>
-            <button onClick={() => setEditingPost(null)}>
-              <X size={20} style={{ color: "var(--foreground)" }} />
-            </button>
-            <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>게시물 수정</h2>
-            <button
-              className="px-4 py-1.5 rounded-xl text-sm font-semibold"
-              style={{ background: "var(--primary)", color: "white" }}
-              onClick={() => {
-                if (!editTitle.trim() || !editContent.trim()) {
-                  showAlert("제목과 내용을 입력해주세요.");
-                  return;
-                }
-                showAlert("게시물이 수정되었습니다.", () => setEditingPost(null));
-              }}
-            >
-              완료
-            </button>
-          </div>
-          <div className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto no-scrollbar">
-            <input
-              placeholder="제목을 입력하세요"
-              value={editTitle}
-              onChange={(e) => setEditTitle(filterProfanity(e.target.value))}
-              className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
-              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-            />
-            <textarea
-              placeholder="내용을 입력하세요"
-              value={editContent}
-              onChange={(e) => setEditContent(filterProfanity(e.target.value))}
-              rows={8}
-              className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
-              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-            />
-          </div>
-        </div>
-      )}
+{editingPost && (
+  <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+    <div className="flex items-center gap-3 px-4 py-4 border-b" style={{ borderColor: "var(--border)" }}>
+      <button onClick={() => setEditingPost(null)}>
+        <X size={20} style={{ color: "var(--foreground)" }} />
+      </button>
+      <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>게시물 수정</h2>
+      <button
+        className="px-4 py-1.5 rounded-xl text-sm font-semibold"
+        style={{ background: "var(--primary)", color: "white" }}
+        onClick={async () => {
+          if (!editTitle.trim() || !editContent.trim()) {
+            showAlert("제목과 내용을 입력해주세요.");
+            return;
+          }
+          if (!editingPost) return;
+          try {
+            const res = await api.patch(`/posts/${editingPost._id}`, {
+              title: editTitle.trim(),
+              content: editContent.trim(),
+            });
+            setPosts((prev) => prev.map((p) => (p._id === editingPost._id ? res.data : p)));
+            showAlert("게시물이 수정되었습니다.", () => setEditingPost(null));
+          } catch (err: any) {
+            showAlert(err?.response?.data?.message || "게시물 수정에 실패했습니다.");
+          }
+        }}
+      >
+        완료
+      </button>
+    </div>
+    <div className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto no-scrollbar">
+      <input
+        placeholder="제목을 입력하세요"
+        value={editTitle}
+        onChange={(e) => setEditTitle(filterProfanity(e.target.value))}
+        className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
+        style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+      />
+      <textarea
+        placeholder="내용을 입력하세요"
+        value={editContent}
+        onChange={(e) => setEditContent(filterProfanity(e.target.value))}
+        rows={8}
+        className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
+        style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+      />
+    </div>
+  </div>
+)}
 
       {/* 신고 모달 */}
       {showReport && (

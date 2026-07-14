@@ -453,8 +453,8 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
                 setNickname(res.data.nickname);
                 updateStoredUser({ nickname: res.data.nickname });
                 setEditMode(false);
-              } catch {
-                showAlert("닉네임 변경에 실패했습니다.");
+              } catch (err: any) {
+                showAlert(err?.response?.data?.message || "닉네임 변경에 실패했습니다.");
               }
               return;
             }

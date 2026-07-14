@@ -154,6 +154,26 @@ router.delete("/:id/comments/:commentId", auth, async (req, res) => {
   }
 });
 
+// PATCH /api/posts/:id - 게시물 수정 (작성자만 가능)
+router.patch("/:id", auth, profanityFilter, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "게시물을 찾을 수 없습니다." });
+    if (post.author.toString() !== req.user.id)
+      return res.status(403).json({ message: "권한이 없습니다." });
+
+    if (req.body.title !== undefined) post.title = req.body.title;
+    if (req.body.content !== undefined) post.content = req.body.content;
+
+    await post.save();
+    await post.populate("author", "nickname avatar studentId");
+    await post.populate("comments.author", "nickname avatar");
+    res.json(post);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 // DELETE /api/posts/:id
 router.delete("/:id", auth, async (req, res) => {
   try {
