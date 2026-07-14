@@ -6,13 +6,14 @@ import { useSocket } from "@/hooks/useSocket";
 import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
   Search, Star, Send, UserPlus, ChevronDown, ChevronUp, FileText,
-  Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, Edit2, Trash2, AlertTriangle, Bell
+  Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, Edit2, Trash2, AlertTriangle
 } from "lucide-react";
 
 export type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting";
 
 // "행사공지" 게시판은 관리자 학번만 글을 작성할 수 있다.
 const ADMIN_STUDENT_IDS = ["20232023"];
+
 
 // 좋아요/신고/차단/건의 등 계정별 데이터가 다른 계정으로 로그인해도 섞이지 않도록,
 // localStorage 키에 현재 로그인한 학번을 붙여 계정별로 분리해서 저장한다.
@@ -108,14 +109,6 @@ export interface PostAuthor {
   nickname: string;
   avatar?: string;
   studentId?: string;
-}
-
-export interface AppNotification {
-  _id: string;
-  type: "follow";
-  sender: PostAuthor;
-  read: boolean;
-  createdAt: string;
 }
 
 export interface PostComment {
@@ -322,9 +315,9 @@ export const loadStoredInteractions = (): StoredInteractions => {
 
 export const BOARDS = [
   { id: "free" as BoardType, label: "전체 게시판", emoji: "💬", icon: MessageCircle },
-  { id: "event" as BoardType, label: "행사공지", emoji: "📢", icon: Megaphone },
   { id: "qna" as BoardType, label: "선배들 작품 전시 공간", emoji: "🏆", icon: Users },
   { id: "contest" as BoardType, label: "학업", emoji: "📖", icon: Trophy },
+  { id: "event" as BoardType, label: "행사공지", emoji: "📢", icon: Megaphone },
   { id: "lecture" as BoardType, label: "전공 강의평가", emoji: "⭐", icon: BookOpen },
   { id: "meeting" as BoardType, label: "공강모임", emoji: "☕", icon: Coffee },
 ];
@@ -333,7 +326,6 @@ interface CommunityScreenProps {
   setShowChat: React.Dispatch<React.SetStateAction<boolean>>;
   isActive: boolean;
   onViewOwnProfile: () => void;
-  openWriteSignal?: number;
 }
 
 export function CommunityScreen({
@@ -341,7 +333,6 @@ export function CommunityScreen({
   setShowChat,
   isActive,
   onViewOwnProfile,
-  openWriteSignal,
 }: CommunityScreenProps) {
 
   // 좋아요/싫어요/댓글/스크랩/새 글 등은 로컬 저장소에서 초기값을 불러와
@@ -410,24 +401,6 @@ export function CommunityScreen({
 const selectedPost = selectedPostId ? posts.find((p) => p._id === selectedPostId) ?? null : null;
 const [viewedAuthor, setViewedAuthor] = useState<PostAuthor | null>(null);
 const [authorActiveTab, setAuthorActiveTab] = useState<"posts" | "scrapped">("posts");
-const [authorFollowers, setAuthorFollowers] = useState<{ _id: string; nickname: string; avatar?: string; studentId?: string }[]>([]);
-const [authorFollowing, setAuthorFollowing] = useState<{ _id: string; nickname: string; avatar?: string; studentId?: string }[]>([]);
-const [showAuthorFollowList, setShowAuthorFollowList] = useState<"followers" | "following" | null>(null);
-// 상대 프로필의 팔로워/팔로잉을 몇 초마다 다시 불러와 실시간처럼 반영한다.
-useEffect(() => {
-  if (!viewedAuthor) return;
-  let cancelled = false;
-  const fetchFollowData = () => {
-    api.get(`/users/${viewedAuthor._id}/followers`).then((res) => { if (!cancelled) setAuthorFollowers(res.data); }).catch(() => {});
-    api.get(`/users/${viewedAuthor._id}/following`).then((res) => { if (!cancelled) setAuthorFollowing(res.data); }).catch(() => {});
-  };
-  fetchFollowData();
-  const interval = setInterval(fetchFollowData, 2000);
-  return () => {
-    cancelled = true;
-    clearInterval(interval);
-  };
-}, [viewedAuthor]);
 
   // 다른 사용자의 프로필을 새로 열 때마다 "내 글" 탭부터 다시 보이게 한다.
   useEffect(() => {
@@ -447,6 +420,36 @@ useEffect(() => {
       setActiveFriend(null);
     }
   }, [showChat]);
+
+  const [showMore, setShowMore] = useState(false);
+
+{selectedPost && (
+  <div className="flex flex-col">
+  <div className="w-full"></div>
+<div className={showMore ? "break-all" : "line-clamp-7 break-all whitespace-normal"}>
+      {selectedPost.content}
+    </div>
+
+    {!showMore && (
+      <button
+        className="text-blue-500 mt-2"
+        onClick={() => setShowMore(true)}
+      >
+        더보기
+      </button>
+    )}
+
+    {showMore && (
+      <button
+        className="text-blue-500 mt-2"
+        onClick={() => setShowMore(false)}
+      >
+        접기
+      </button>
+    )}
+  </div>
+)}
+
 
   // ProfileScreen에서 업로드한 프로필 사진을 "나"가 쓴 글의 아바타에도 반영한다.
   // 서버(User.avatar)가 기준값이고, 이 상태는 같은 세션에서 즉시 반영하기 위한 캐시일 뿐이다.
@@ -479,41 +482,6 @@ useEffect(() => {
 
   const [showWrite, setShowWrite] = useState(false);
   const [showFriendsList, setShowFriendsList] = useState(false);
-
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
-  const [showNotifications, setShowNotifications] = useState(false);
-  const [myFollowing, setMyFollowing] = useState<string[]>(currentUser?.following ?? []);
-
-  useEffect(() => {
-    let cancelled = false;
-    const fetchUnreadNotifCount = () => {
-      api.get("/notifications/unread-count").then((res) => { if (!cancelled) setUnreadNotifCount(res.data.count); }).catch(() => {});
-    };
-    fetchUnreadNotifCount();
-    const interval = setInterval(fetchUnreadNotifCount, 5000);
-    return () => { cancelled = true; clearInterval(interval); };
-  }, []);
-
-  useEffect(() => {
-    if (!showNotifications) return;
-    let cancelled = false;
-    api.get("/notifications").then((res) => { if (!cancelled) setNotifications(res.data); }).catch(() => {});
-    api.get("/users/profile").then((res) => {
-      if (!cancelled) setMyFollowing((res.data.following || []).map((f: any) => (typeof f === "string" ? f : f._id)));
-    }).catch(() => {});
-    api.patch("/notifications/read-all").then(() => { if (!cancelled) setUnreadNotifCount(0); }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [showNotifications]);
-
-  const handleFollowBackFromNotif = async (targetId: string) => {
-    try {
-      await api.post(`/users/follow/${targetId}`);
-      setMyFollowing((prev) => [...prev, targetId]);
-    } catch {
-      showAlert("맞팔로우에 실패했습니다.");
-    }
-  };
   const [showReport, setShowReport] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
@@ -524,12 +492,6 @@ useEffect(() => {
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newBoard, setNewBoard] = useState<BoardType>("free");
-
-  useEffect(() => {
-    if (!openWriteSignal) return;
-    setNewBoard(activeBoard === "event" && !isAdmin ? "free" : activeBoard);
-    setShowWrite(true);
-  }, [openWriteSignal]);
   const [newImageFile, setNewImageFile] = useState<File | null>(null);
   const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
@@ -792,21 +754,6 @@ const [fullscreenPostImage, setFullscreenPostImage] = useState<string | null>(nu
      setViewedAuthor(author);
    }
  };
- const isFollowingAuthor = !!currentUser && authorFollowers.some((f) => f._id === currentUser._id);
- const handleToggleFollowAuthor = async () => {
-   if (!viewedAuthor || !currentUser) return;
-   try {
-     if (isFollowingAuthor) {
-       await api.delete(`/users/follow/${viewedAuthor._id}`);
-       setAuthorFollowers((prev) => prev.filter((f) => f._id !== currentUser._id));
-     } else {
-       await api.post(`/users/follow/${viewedAuthor._id}`);
-       setAuthorFollowers((prev) => [...prev, { _id: currentUser._id, nickname: currentUser.nickname, avatar: currentUser.avatar }]);
-     }
-   } catch {
-     showAlert("팔로우 처리에 실패했습니다.");
-   }
- };
  const isLiked = (post: Post) => !!currentUser && post.likes.includes(currentUser._id);
  const isDisliked = (post: Post) => !!currentUser && post.dislikes.includes(currentUser._id);
 
@@ -902,10 +849,7 @@ const [fullscreenPostImage, setFullscreenPostImage] = useState<string | null>(nu
         p.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
       )
-    // 전체 게시판(free) 탭에서는 행사공지(event) 글도 함께 보이게 한다.
-    : activeBoard === "free"
-      ? allPosts.filter((p) => p.board === "free" || p.board === "event")
-      : allPosts.filter((p) => p.board === activeBoard);
+    : allPosts.filter((p) => p.board === activeBoard);
 
   const toggleFriendSelectMode = () => {
   setIsFriendSelectMode((prev) => !prev);
@@ -1307,90 +1251,50 @@ const endDrag = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto no-scrollbar">
-          {/* 프로필 상단 카드: 내 프로필(ProfileScreen)과 동일한 인스타 스타일 + 팔로우 연동 */}
+          {/* 프로필 상단 카드: 내 프로필(ProfileScreen)과 동일한 위치 구성 */}
           <div
-            className="relative px-4 pt-3 pb-3"
-            style={{ background: "linear-gradient(160deg, var(--background) 0%, #0a0f1f 100%)" }}
+            className="relative px-4 pt-8 pb-6"
+            style={{ background: "linear-gradient(160deg, #111a30 0%, #0a0f1f 100%)" }}
           >
-            <div className="flex items-center gap-1.5 mb-4">
-              <img src={bigRoadingIcon} alt="Big Roading" className="w-7 h-7 object-cover rounded-md" />
-              <span
-                className="text-lg"
-                style={{ color: "var(--foreground)", fontFamily: "'Brush Script MT', cursive" }}
+            <div className="flex items-start gap-4">
+              <div
+                className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-md overflow-hidden"
+                style={{ background: "var(--accent)", border: "3px solid var(--primary)" }}
               >
-                Big Ding
-              </span>
-            </div>
-
-            <div className="flex items-start gap-6">
-              <div className="relative shrink-0">
-                <div
-                  className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-md overflow-hidden"
-                  style={{ background: "var(--accent)", border: "3px solid var(--primary)" }}
-                >
-                  <img src={getAuthorAvatarUrl(viewedAuthor) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                </div>
+                <img src={getAuthorAvatarUrl(viewedAuthor) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
               </div>
-
-              <div className="flex-1 flex flex-col gap-1.5 pt-1">
-                <div className="flex items-baseline gap-2">
-                  <h2 className="font-bold text-base" style={{ color: "var(--foreground)" }}>{viewedAuthor.nickname}</h2>
-                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                    #{viewedAuthor.studentId ? viewedAuthor.studentId.slice(2, 4) : "23"}학번
-                  </span>
-                </div>
-
-                {/* 게시글/팔로워/팔로잉 (실시간 반영) */}
-                <div className="flex items-center gap-10">
-                  <div className="flex flex-col items-center gap-0.2">
-                    <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>
-                      {allPosts.filter((p) => p.author._id === viewedAuthor._id).length}
-                    </span>
-                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>게시글</span>
-                  </div>
-                  <button className="flex flex-col items-center gap-0.2" onClick={() => setShowAuthorFollowList("followers")}>
-                    <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{authorFollowers.length}</span>
-                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로워</span>
-                  </button>
-                  <button className="flex flex-col items-center gap-0.2" onClick={() => setShowAuthorFollowList("following")}>
-                    <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{authorFollowing.length}</span>
-                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로잉</span>
-                  </button>
-                </div>
-
-                <button
-                  onClick={handleToggleFollowAuthor}
-                  className="mt-1 px-4 py-1.5 rounded-xl text-xs font-semibold self-start"
-                  style={{
-                    background: isFollowingAuthor ? "var(--muted)" : "var(--primary)",
-                    color: isFollowingAuthor ? "var(--muted-foreground)" : "white",
-                  }}
-                >
-                  {isFollowingAuthor ? "팔로잉" : "팔로우"}
-                </button>
+              <div className="flex-1 pt-4">
+                <h2 className="font-bold text-lg" style={{ color: "var(--foreground)" }}>
+                  {viewedAuthor.nickname}
+                </h2>
+                <p className="text-sm mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+    #{viewedAuthor.studentId ? viewedAuthor.studentId.slice(2, 4) : "23"}학번
+  </p>
               </div>
             </div>
           </div>
 
-          {/* 탭: 다른 사용자의 프로필에서는 댓글 내역을 노출하지 않는다 (아이콘 + 밑줄 스타일) */}
-          <div className="grid grid-cols-2 shrink-0 border-t border-b" style={{ borderColor: "var(--border)" }}>
+          {/* 탭: 다른 사용자의 프로필에서는 댓글 내역을 노출하지 않는다 */}
+          <div className="grid grid-cols-2 px-4 gap-2 mb-3 mt-3">
             {[
-              { key: "posts" as const, Icon: FileText },
-              { key: "scrapped" as const, Icon: Bookmark },
-            ].map(({ key, Icon }) => (
+              { key: "posts" as const, label: "내 글", Icon: FileText },
+              { key: "scrapped" as const, label: "스크랩", Icon: Bookmark },
+            ].map(({ key, label, Icon }) => (
               <button
                 key={key}
                 onClick={() => setAuthorActiveTab(key)}
-                className="flex items-center justify-center py-3"
+                className="flex flex-col items-center justify-center gap-1 py-2.5 rounded-xl text-xs font-semibold transition-all"
                 style={{
-                  borderBottom: authorActiveTab === key ? "2px solid var(--foreground)" : "2px solid transparent",
-                  color: authorActiveTab === key ? "var(--foreground)" : "var(--muted-foreground)",
+                  background: authorActiveTab === key ? "var(--primary)" : "var(--muted)",
+                  color: authorActiveTab === key ? "white" : "var(--muted-foreground)",
                 }}
               >
-                <Icon size={18} />
+                <Icon size={14} />
+                <span>{label}</span>
               </button>
             ))}
           </div>
+
           {/* 탭 내용 */}
           <div className="px-4 pb-6 flex flex-col gap-3">
             {authorActiveTab === "posts" && (
@@ -1441,47 +1345,6 @@ const endDrag = () => {
             )}
           </div>
         </div>
-
-        {/* 팔로워/팔로잉 목록 */}
-        {showAuthorFollowList && (
-          <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-              <button onClick={() => setShowAuthorFollowList(null)} className="text-lg">←</button>
-              <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>
-                {showAuthorFollowList === "followers" ? "팔로워" : "팔로잉"}
-              </h2>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
-              {(showAuthorFollowList === "followers" ? authorFollowers : authorFollowing).length === 0 ? (
-                <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
-                  {showAuthorFollowList === "followers" ? "아직 팔로워가 없습니다." : "아직 팔로잉한 사용자가 없습니다."}
-                </p>
-              ) : (
-                (showAuthorFollowList === "followers" ? authorFollowers : authorFollowing).map((u) => (
-                  <button
-                    key={u._id}
-                    onClick={() => {
-                      setShowAuthorFollowList(null);
-                      openAuthor(u);
-                    }}
-                    className="flex items-center gap-3 p-2.5 rounded-xl text-left"
-                    style={{ background: "var(--card)" }}
-                  >
-                    <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                      <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
-                      {u.studentId && (
-                        <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{u.studentId}</p>
-                      )}
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        )}
       </div>
     );
   }
@@ -1836,69 +1699,7 @@ const endDrag = () => {
           </div>
         </div>
       )}
-     {/* 알림 (팔로우 알림: 프로필 보기 / 맞팔로우) */}
-      {showNotifications && (
-        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-            <button onClick={() => setShowNotifications(false)}>
-              <X size={20} style={{ color: "var(--foreground)" }} />
-            </button>
-            <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>알림</h2>
-          </div>
-
-          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
-            {notifications.length === 0 ? (
-              <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
-                아직 알림이 없습니다.
-              </p>
-            ) : (
-              notifications.map((n) => {
-                const isMutual = myFollowing.includes(n.sender._id);
-                return (
-                  <div
-                    key={n._id}
-                    className="flex items-center gap-3 p-2.5 rounded-xl"
-                    style={{ background: n.read ? "var(--card)" : "var(--secondary)" }}
-                  >
-                    <button
-                      onClick={() => { setShowNotifications(false); openAuthor(n.sender); }}
-                      className="w-10 h-10 rounded-full overflow-hidden shrink-0"
-                    >
-                      <img src={resolveAssetUrl(n.sender.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                    </button>
-                    <button
-                      onClick={() => { setShowNotifications(false); openAuthor(n.sender); }}
-                      className="flex-1 min-w-0 text-left"
-                    >
-                      <p className="text-sm" style={{ color: "var(--foreground)" }}>
-                        <span className="font-semibold">{n.sender.nickname}</span>님이 나를 팔로우했습니다
-                      </p>
-                      <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                        {formatMessageTime(n.createdAt)}
-                      </p>
-                    </button>
-                    {isMutual ? (
-                      <span className="px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0" style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}>
-                        맞팔로우 중
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleFollowBackFromNotif(n.sender._id)}
-                        className="px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0"
-                        style={{ background: "var(--primary)", color: "white" }}
-                      >
-                        맞팔로우
-                      </button>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 이미지 전체화면 뷰어 (카톡처럼 클릭 시 확대) */}
+     {/* 이미지 전체화면 뷰어 (카톡처럼 클릭 시 확대) */}
       {fullscreenPostImage && (
         <div
           className="fixed inset-0 z-[80] flex items-center justify-center"
@@ -1925,7 +1726,9 @@ const endDrag = () => {
   }
 
   // ── 커뮤니티 메인 ─────────────────────────────────────────────────────────
-return (
+const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
+
+  return (
   <div className="flex flex-col flex-1 overflow-hidden relative">
 
     {/* Header */}
@@ -1955,19 +1758,14 @@ return (
               <Search size={18} color={showSearch ? "white" : "var(--foreground)"} />
             </button>
             <button
-  onClick={() => setShowNotifications(true)}
-  className="relative w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
-  style={{ background: "var(--muted)" }}
+  onClick={() => {
+    setNewBoard(activeBoard === "event" && !isAdmin ? "free" : activeBoard);
+    setShowWrite(true);
+  }}
+  className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
+  style={{ background: "var(--primary)" }}
 >
-  <Bell size={18} color="var(--foreground)" />
-  {unreadNotifCount > 0 && (
-    <span
-      className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold text-white flex items-center justify-center"
-      style={{ background: "#d4183d", lineHeight: 1 }}
-    >
-      {unreadNotifCount > 99 ? "99+" : unreadNotifCount}
-    </span>
-  )}
+  <Plus size={20} color="white" />
 </button>
             <button
               onClick={() => setShowFriendsList(true)}
@@ -2150,7 +1948,6 @@ return (
                 </div>
               )}
 
-              <p className="text-sm leading-relaxed" style={{ color: "var(--muted-foreground)" }}>{post.content}</p>
 
               {post.maxParticipants && (
                 <div className="mt-2">
@@ -2169,6 +1966,32 @@ return (
             </div>
 
             {renderPoll(post)}
+<div
+  style={{
+    maxHeight: expandedPostId === String(post._id) ? undefined : "120px",
+    overflow: expandedPostId === String(post._id) ? "visible" : "hidden",
+    wordBreak: "break-all",
+    whiteSpace: "pre-wrap",
+    color: "var(--muted-foreground)",
+    transition: "max-height 0.25s ease",
+  }}
+  className="text-sm leading-relaxed mt-1"
+>
+  {post.content}
+</div>
+
+{post.content.length > 80 && (
+  <button
+    className="text-blue-500 text-xs mt-2"
+    onClick={() =>
+      setExpandedPostId(
+        expandedPostId === String(post._id) ? null : String(post._id)
+      )
+    }
+  >
+    {expandedPostId === String(post._id) ? "접기" : "더보기"}
+  </button>
+)}
 
            {/* Actions */}
 <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
@@ -2200,15 +2023,14 @@ return (
         ))}
       </div>
 
-      {/* 친구 채팅 패널 */}
-        <div
-          className="absolute bottom-0 left-0 right-0 z-30 transition-all duration-300"
-          style={{
-            transform: showChat
-              ? "translateY(0)"
-              : "translateY(calc(100%))",
-          }}
-        >
+        {/* 친구 채팅 패널 */}
+<div
+  className="absolute bottom-0 left-0 right-0 z-30"
+  style={{
+    transform: showChat ? "translateY(0)" : "translateY(100%)",
+  }}
+>
+
        
         <div className="px-4 py-3 h-170 overflow-y-auto flex flex-col gap-2 no-scrollbar"
           style={{ background: "var(--background)", borderTop: "1px solid var(--border)" }}>
@@ -2842,67 +2664,7 @@ return (
           </div>
         </div>
       )}
-{/* 알림 (팔로우 알림: 프로필 보기 / 맞팔로우) - 커뮤니티 메인 화면의 종 버튼용 */}
-      {showNotifications && (
-        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-            <button onClick={() => setShowNotifications(false)}>
-              <X size={20} style={{ color: "var(--foreground)" }} />
-            </button>
-            <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>알림</h2>
-          </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2">
-            {notifications.length === 0 ? (
-              <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
-                아직 알림이 오지 않았습니다.
-              </p>
-            ) : (
-              notifications.map((n) => {
-                const isMutual = myFollowing.includes(n.sender._id);
-                return (
-                  <div
-                    key={n._id}
-                    className="flex items-center gap-3 p-2.5 rounded-xl"
-                    style={{ background: n.read ? "var(--card)" : "var(--secondary)" }}
-                  >
-                    <button
-                      onClick={() => { setShowNotifications(false); openAuthor(n.sender); }}
-                      className="w-10 h-10 rounded-full overflow-hidden shrink-0"
-                    >
-                      <img src={resolveAssetUrl(n.sender.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                    </button>
-                    <button
-                      onClick={() => { setShowNotifications(false); openAuthor(n.sender); }}
-                      className="flex-1 min-w-0 text-left"
-                    >
-                      <p className="text-sm" style={{ color: "var(--foreground)" }}>
-                        <span className="font-semibold">{n.sender.nickname}</span>님이 나를 팔로우했습니다
-                      </p>
-                      <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                        {formatMessageTime(n.createdAt)}
-                      </p>
-                    </button>
-                    {isMutual ? (
-                      <span className="px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0" style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}>
-                        맞팔로우 중
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleFollowBackFromNotif(n.sender._id)}
-                        className="px-3 py-1.5 rounded-xl text-xs font-semibold shrink-0"
-                        style={{ background: "var(--primary)", color: "white" }}
-                      >
-                        맞팔로우
-                      </button>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
       {/* 이미지 전체화면 뷰어 (카톡처럼 클릭 시 확대) */}
       {fullscreenPostImage && (
         <div
