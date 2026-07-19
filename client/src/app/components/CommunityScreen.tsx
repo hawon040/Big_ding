@@ -326,6 +326,7 @@ interface CommunityScreenProps {
   setShowChat: React.Dispatch<React.SetStateAction<boolean>>;
   isActive: boolean;
   onViewOwnProfile: () => void;
+  openWriteSignal?: number;
 }
 
 export function CommunityScreen({
@@ -333,8 +334,8 @@ export function CommunityScreen({
   setShowChat,
   isActive,
   onViewOwnProfile,
+  openWriteSignal,
 }: CommunityScreenProps) {
-
   // 좋아요/싫어요/댓글/스크랩/새 글 등은 로컬 저장소에서 초기값을 불러와
   // 새로고침해도 그대로 유지되도록 한다.
   const [storedInit] = useState(loadStoredInteractions);
@@ -481,6 +482,13 @@ const [authorActiveTab, setAuthorActiveTab] = useState<"posts" | "scrapped">("po
   }, [isActive]);
 
   const [showWrite, setShowWrite] = useState(false);
+
+  // 하단 네비게이션의 펜 버튼(BottomNav)을 눌렀을 때도 헤더 + 버튼과 동일하게 글쓰기 모달을 연다.
+  useEffect(() => {
+    if (openWriteSignal === undefined || openWriteSignal === 0) return;
+    setNewBoard(activeBoard === "event" && !isAdmin ? "free" : activeBoard);
+    setShowWrite(true);
+  }, [openWriteSignal]);
   const [showFriendsList, setShowFriendsList] = useState(false);
   const [showReport, setShowReport] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
@@ -1726,6 +1734,95 @@ const endDrag = () => {
     );
   }
 
+  // ── 검색 화면 ─────────────────────────────────────────────────────────────
+  if (showSearch) {
+    const getBoardLabel = (board?: BoardType) => BOARDS.find((b) => b.id === board)?.label ?? "";
+
+    return (
+      <div className="flex flex-col flex-1 overflow-hidden">
+        {/* 헤더 */}
+        <div
+          className="flex items-center gap-2 px-4 py-4 border-b shrink-0"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <button
+            onClick={() => { setShowSearch(false); setSearchQuery(""); }}
+            className="text-lg shrink-0"
+            style={{ color: "var(--foreground)" }}
+          >
+            ←
+          </button>
+          <div className="flex-1 relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--muted-foreground)" }} />
+            <input
+              type="text"
+              autoFocus
+              placeholder="게시물 검색..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm outline-none"
+              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* 검색 결과 */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 no-scrollbar">
+          {!searchQuery.trim() && (
+            <p className="text-center text-sm py-10" style={{ color: "var(--muted-foreground)" }}>
+              검색어를 입력해주세요.
+            </p>
+          )}
+          {searchQuery.trim() && visiblePosts.length === 0 && (
+            <p className="text-center text-sm py-10" style={{ color: "var(--muted-foreground)" }}>
+              검색 결과가 없어요.
+            </p>
+          )}
+          {searchQuery.trim() && visiblePosts.map((post) => (
+            <div
+              key={post._id}
+              onClick={() => {
+                setSelectedPostId(post._id);
+              }}
+              className="p-4 rounded-2xl cursor-pointer"
+              style={{ background: "var(--card)" }}
+            >
+              <p className="text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>
+                {getBoardLabel(post.board)}
+              </p>
+              <h3 className="font-semibold text-sm mb-1" style={{ color: "var(--foreground)" }}>
+                {post.title}
+              </h3>
+              <p className="text-xs leading-relaxed mb-2" style={{ color: "var(--muted-foreground)" }}>
+                {post.content}
+              </p>
+              <div className="flex items-center gap-3">
+                <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
+                  <Heart size={12} /> {post.likes.length}
+                </span>
+                <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
+                  <MessageCircle size={12} /> {getCommentCount(post)}
+                </span>
+                <span className="text-xs ml-auto" style={{ color: "var(--muted-foreground)" }}>
+                  {getDisplayTime(post, nowTick)}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // ── 커뮤니티 메인 ─────────────────────────────────────────────────────────
 
 
@@ -1759,16 +1856,6 @@ const endDrag = () => {
               <Search size={18} color={showSearch ? "white" : "var(--foreground)"} />
             </button>
             <button
-  onClick={() => {
-    setNewBoard(activeBoard === "event" && !isAdmin ? "free" : activeBoard);
-    setShowWrite(true);
-  }}
-  className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
-  style={{ background: "var(--primary)" }}
->
-  <Plus size={20} color="white" />
-</button>
-            <button
               onClick={() => setShowFriendsList(true)}
               className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
               style={{ background: "var(--muted)" }}
@@ -1777,16 +1864,7 @@ const endDrag = () => {
             </button>
           </div>
         </div>
-        {showSearch && (
-          <input
-            type="text"
-            placeholder="게시물 검색..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2.5 rounded-xl text-sm outline-none mb-2"
-            style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-          />
-        )}
+        
       </div>
 
       {/* Board tabs */}

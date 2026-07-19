@@ -5,9 +5,11 @@ import { ProfileScreen } from "./components/ProfileScreen";
 import { SettingsScreen } from "./components/SettingsScreen";
 import { BottomNav } from "./components/BottomNav";
 import { PasswordChangeScreen } from "./components/PasswordChangeScreen";
+import { LunchScreen } from "./components/LunchScreen";
+import { Utensils } from "lucide-react";
 import api from "@/api";
 
-type Tab = "community" | "chat" | "profile" | "settings";
+type Tab = "community" | "chat" | "profile" | "settings" | "lunch";
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -249,6 +251,14 @@ openWriteSignal={writeSignal}
             <ProfileScreen nickname={nickname} setNickname={setNickname} />
           </div>
         )}
+        {activeTab === "lunch" && (
+          <div
+            className="absolute inset-0 overflow-hidden flex flex-col"
+            style={{ background: "var(--background)" }}
+          >
+            <LunchScreen onBack={() => setActiveTab("community")} />
+          </div>
+        )}
         {activeTab === "settings" && (
           <div
             className="absolute inset-0 overflow-hidden flex flex-col"
@@ -269,6 +279,17 @@ openWriteSignal={writeSignal}
               setNickname={setNickname}
             />
           </div>
+        )}
+
+        {/* 점심메뉴 추천 플로팅 버튼: 하단 네비게이션 바로 위, 우측 */}
+        {activeTab !== "lunch" && (
+          <button
+            onClick={() => handleTabChange("lunch")}
+            className="absolute bottom-3 right-3 w-14 h-14 flex items-center justify-center shadow-lg z-40"
+            style={{ background: "var(--primary)", borderRadius: "18px 18px 18px 5px" }}
+          >
+            <Utensils size={22} color="white" />
+          </button>
         )}
       </div>
 

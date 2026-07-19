@@ -1,6 +1,6 @@
 import { Users, MessageCircle, User, Settings, SquarePen } from "lucide-react";
 
-type Tab = "community" | "chat" | "profile" | "settings";
+type Tab = "community" | "chat" | "profile" | "settings" | "lunch";
 
 interface BottomNavProps {
   active: Tab;
