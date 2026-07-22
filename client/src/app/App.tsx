@@ -8,6 +8,7 @@ import { PasswordChangeScreen } from "./components/PasswordChangeScreen";
 import { LunchScreen } from "./components/LunchScreen";
 import { Utensils } from "lucide-react";
 import api from "@/api";
+import { useSocket } from "@/hooks/useSocket";
 
 type Tab = "community" | "chat" | "profile" | "settings" | "lunch";
 
@@ -73,6 +74,22 @@ export default function App() {
       clearInterval(interval);
     };
   }, [loggedIn]);
+
+  // 소켓으로 메시지가 도착하면 2초 폴링을 기다리지 않고 뱃지 숫자를 즉시 다시 불러온다.
+  const chatSocketToken = loggedIn ? localStorage.getItem("token") : null;
+  const chatSocket = useSocket(chatSocketToken);
+  useEffect(() => {
+    if (!chatSocket) return;
+    const handleReceiveMessage = () => {
+      api.get("/chat/unread-count")
+        .then((res) => setUnreadChatCount(res.data.count))
+        .catch(() => {});
+    };
+    chatSocket.on("receive_message", handleReceiveMessage);
+    return () => {
+      chatSocket.off("receive_message", handleReceiveMessage);
+    };
+  }, [chatSocket]);
 const [currentTime, setCurrentTime] = useState("");
 
   useEffect(() => {

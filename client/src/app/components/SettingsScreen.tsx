@@ -5,8 +5,10 @@ import defaultAvatar from "@/assets/default-avatar.svg";
 import {
   REPORTS_STORAGE_KEY, REPORTS_UPDATED_EVENT, loadReportHistory, removeReportFromHistory, type ReportHistoryItem,
   BLOCKED_STORAGE_KEY, BLOCKED_UPDATED_EVENT, loadBlockedUsers, removeBlockedUser, type BlockedUserItem,
-  getDisplayTime, type Post, scopedKey, updateStoredUser,
+  getDisplayTime, type Post, scopedKey, updateStoredUser, getCurrentUser,
 } from "./CommunityScreen";
+
+const PROFESSORS = ["유진호", "차대현", "홍진근"];
 
 
 interface SettingsScreenProps {
@@ -79,6 +81,12 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [editingNickname, setEditingNickname] = useState(false);
   const [nicknameInput, setNicknameInput] = useState(nickname);
   const [nicknameChecked, setNicknameChecked] = useState(false);
+  // + 담당 교수 변경용 상태
+  const [professor, setProfessor] = useState(() => getCurrentUser()?.professor ?? "");
+  const [editingProfessor, setEditingProfessor] = useState(false);
+  const [professorInput, setProfessorInput] = useState(professor);
+  // + 비공개 계정 여부 (비공개면 친구가 아닌 사람에게 글/북마크/팔로워·팔로잉 목록이 자물쇠로 가려짐)
+  const [isPrivate, setIsPrivate] = useState(() => getCurrentUser()?.isPrivate ?? false);
   const [reportHistory, setReportHistory] = useState<ReportHistoryItem[]>([]);
   const [inquiryHistory, setInquiryHistory] = useState<InquiryHistoryItem[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUserItem[]>([]);
@@ -161,7 +169,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
         body: JSON.stringify({ nickname: nicknameInput }),
       });
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.available) {
         setNicknameChecked(true);
       }
       showAlert(data.message);
@@ -630,12 +638,12 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                   </div>
                 </div>
                 <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{viewingPost.title}</h3>
-                {viewingPost.images[0] && (
-                  <img src={resolveAssetUrl(viewingPost.images[0])} alt="첨부 이미지" className="mt-2 w-full max-h-72 object-cover rounded-xl" />
-                )}
                 <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
                   {viewingPost.content}
                 </p>
+                {viewingPost.images[0] && (
+                  <img src={resolveAssetUrl(viewingPost.images[0])} alt="첨부 이미지" className="mt-2 w-full max-h-72 object-cover rounded-xl" />
+                )}
               </div>
 
               <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3" style={{ background: "var(--card)" }}>
@@ -753,6 +761,99 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 </div>
               </div>
             )}
+          </div>
+
+          {/* 담당 교수 변경 카드 */}
+          <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm" style={{ color: "var(--muted-foreground)" }}>담당 교수</span>
+              {!editingProfessor && (
+                <button
+                  onClick={() => {
+                    setProfessorInput(professor);
+                    setEditingProfessor(true);
+                  }}
+                  className="text-xs font-semibold px-3 py-1 rounded-full"
+                  style={{ background: "var(--secondary)", color: "var(--primary)" }}
+                >
+                  변경
+                </button>
+              )}
+            </div>
+
+            {!editingProfessor ? (
+              <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{professor || "-"}</span>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <select
+                  value={professorInput}
+                  onChange={(e) => setProfessorInput(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl text-sm outline-none"
+                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                >
+                  {PROFESSORS.map((p) => (
+                    <option key={p} value={p}>{p} 교수</option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await api.patch("/users/profile", { professor: professorInput });
+                        setProfessor(res.data.professor);
+                        updateStoredUser({ professor: res.data.professor });
+                        setEditingProfessor(false);
+                        showAlert("담당 교수가 변경되었습니다.");
+                      } catch {
+                        showAlert("담당 교수 변경에 실패했습니다.");
+                      }
+                    }}
+                    className="flex-1 py-2 rounded-xl font-semibold text-xs"
+                    style={{ background: "var(--primary)", color: "white" }}
+                  >
+                    저장
+                  </button>
+                  <button
+                    onClick={() => setEditingProfessor(false)}
+                    className="flex-1 py-2 rounded-xl font-semibold text-xs"
+                    style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 비공개 계정 토글 */}
+          <div className="rounded-2xl p-4 shadow-sm flex items-center gap-3" style={{ background: "var(--card)" }}>
+            <Lock size={18} style={{ color: "var(--muted-foreground)" }} />
+            <div className="flex-1">
+              <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>비공개 계정</p>
+              <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+                켜면 친구가 아닌 사람에게는 기본 정보만 보이고, 글/북마크/팔로워·팔로잉 목록은 가려집니다.
+              </p>
+            </div>
+            <button
+              onClick={async () => {
+                const next = !isPrivate;
+                setIsPrivate(next);
+                try {
+                  const res = await api.patch("/users/profile", { isPrivate: next });
+                  updateStoredUser({ isPrivate: res.data.isPrivate });
+                } catch {
+                  setIsPrivate(!next);
+                  showAlert("설정 변경에 실패했습니다.");
+                }
+              }}
+              className="relative w-12 h-6 rounded-full transition-all duration-300 shrink-0"
+              style={{ background: isPrivate ? "var(--primary)" : "var(--muted-foreground)" }}
+            >
+              <div
+                className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-300"
+                style={{ left: isPrivate ? "calc(100% - 22px)" : "2px" }}
+              />
+            </button>
           </div>
 
           <div className="rounded-2xl overflow-hidden shadow-sm mt-2">

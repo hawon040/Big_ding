@@ -17,6 +17,9 @@ const userSchema = new mongoose.Schema({
   // 프로필 사진 URL (Firebase Storage)
   avatar: { type: String },
 
+  // 비공개 계정 여부 (비공개면 친구가 아닌 사람에게는 글/북마크/팔로워·팔로잉 목록을 숨긴다)
+  isPrivate: { type: Boolean, default: false },
+
   // 담당 교수 (3명 중 1명만 허용)
   professor: {
     type: String,

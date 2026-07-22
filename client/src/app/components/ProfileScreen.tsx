@@ -11,7 +11,8 @@ import {
   STORAGE_KEY, INTERACTIONS_UPDATED_EVENT,
   AVATAR_UPDATED_EVENT, scopedKey,
   getCurrentUser, getDisplayTime, updateStoredUser,
-  type Post, type StoredInteractions,
+  OtherUserProfile,
+  type Post, type StoredInteractions, type Friend, type PostAuthor,
 } from "./CommunityScreen";
 
 const VISIBILITY_STORAGE_KEY = "bigding_post_visibility_v1";
@@ -65,6 +66,22 @@ const [nicknameChecked, setNicknameChecked] = useState(false);
 const [followerCount, setFollowerCount] = useState(currentUser?.followers?.length ?? 0);
 const [followingCount, setFollowingCount] = useState(currentUser?.following?.length ?? 0);
 
+// + 팔로워/팔로잉 목록 모달 + 목록에서 클릭한 사용자 프로필 보기
+const [userListModal, setUserListModal] = useState<"followers" | "following" | null>(null);
+const [userList, setUserList] = useState<Friend[]>([]);
+const [viewingUser, setViewingUser] = useState<PostAuthor | null>(null);
+
+const openUserList = async (kind: "followers" | "following") => {
+  setUserListModal(kind);
+  if (!currentUser) return;
+  try {
+    const res = await api.get(`/users/${currentUser._id}/${kind}`);
+    setUserList(res.data);
+  } catch {
+    setUserList([]);
+  }
+};
+
 // + 팔로워/팔로잉 수를 몇 초마다 다시 불러와 실시간처럼 반영한다.
 // (다른 사람이 나를 팔로우해도, currentUser는 로그인 시점 캐시라서 저절로 갱신되지 않음)
 useEffect(() => {
@@ -90,15 +107,23 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
 
   // 게시물 목록은 실제 DB(GET /api/posts)에서 불러온다. 좋아요/댓글/투표처럼 다른 사람이
   // 바꾼 내용도 새로고침 없이 보이도록, 이 화면에 머무르는 동안 몇 초마다 다시 불러온다(폴링).
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPostsRaw] = useState<Post[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
+  // 좋아요/댓글/삭제 등으로 posts를 직접 바꾼 시각을 기록해, 그 이전에 이미 날아가 있던
+  // 폴링 응답이 뒤늦게 도착해 방금 반영한 변경을 덮어쓰지 않게 한다.
+  const lastLocalMutationRef = useRef(0);
+  const setPosts = (updater: React.SetStateAction<Post[]>) => {
+    lastLocalMutationRef.current = Date.now();
+    setPostsRaw(updater);
+  };
   useEffect(() => {
     let cancelled = false;
     const fetchPosts = (isInitial: boolean) => {
       if (isInitial) setPostsLoading(true);
+      const requestedAt = Date.now();
       api.get("/posts")
         .then((res) => {
-          if (!cancelled) setPosts(res.data);
+          if (!cancelled && requestedAt >= lastLocalMutationRef.current) setPostsRaw(res.data);
         })
         .catch(() => {})
         .finally(() => {
@@ -423,14 +448,14 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
                 <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{myPosts.length}</span>
                 <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>게시글</span>
               </div>
-              <div className="flex flex-col items-center gap-0.2">
+              <button onClick={() => openUserList("followers")} className="flex flex-col items-center gap-0.2">
                 <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{followerCount}</span>
                 <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로워</span>
-              </div>
-              <div className="flex flex-col items-center gap-0.2">
+              </button>
+              <button onClick={() => openUserList("following")} className="flex flex-col items-center gap-0.2">
                 <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{followingCount}</span>
                 <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로잉</span>
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -687,15 +712,6 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
 
                 <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h3>
 
-                {selectedPost.images[0] && (
-                  <img
-                    src={resolveAssetUrl(selectedPost.images[0])}
-                    alt="첨부 이미지"
-                    className="mt-2 w-full max-h-72 object-cover rounded-xl cursor-pointer"
-                    onClick={() => setFullscreenImage(resolveAssetUrl(selectedPost.images[0]) || null)}
-                  />
-                )}
-
                 {selectedPost.rating && (
                   <div className="flex items-center gap-1 mb-1.5 mt-2">
                     {[...Array(5)].map((_, i) => (
@@ -712,6 +728,15 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
                 <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
                   {selectedPost.content}
                 </p>
+
+                {selectedPost.images[0] && (
+                  <img
+                    src={resolveAssetUrl(selectedPost.images[0])}
+                    alt="첨부 이미지"
+                    className="mt-2 w-full max-h-72 object-cover rounded-xl cursor-pointer"
+                    onClick={() => setFullscreenImage(resolveAssetUrl(selectedPost.images[0]) || null)}
+                  />
+                )}
 
                 {selectedPost.tags && (
                   <div className="flex flex-wrap gap-1.5 mt-2">
@@ -820,6 +845,65 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
           </div>
         )}
       </div>
+      {/* 팔로워/팔로잉 목록 */}
+      {userListModal && (
+        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+            <button onClick={() => setUserListModal(null)}>
+              <X size={20} style={{ color: "var(--foreground)" }} />
+            </button>
+            <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>
+              {userListModal === "followers" ? "팔로워" : "팔로잉"}
+            </h2>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar">
+            {userList.length === 0 ? (
+              <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+                {userListModal === "followers" ? "아직 팔로워가 없습니다." : "아직 팔로잉하는 사람이 없습니다."}
+              </p>
+            ) : (
+              userList.map((u) => (
+                <button
+                  key={u._id}
+                  onClick={() => {
+                    setUserListModal(null);
+                    setViewingUser(u);
+                  }}
+                  className="flex items-center gap-3 p-2.5 rounded-xl text-left"
+                  style={{ background: "var(--card)" }}
+                >
+                  <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+                    <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
+                    {u.studentId && (
+                      <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{u.studentId}</p>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 목록에서 클릭한 사용자의 프로필 */}
+      {viewingUser && (
+        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+          <OtherUserProfile
+            author={viewingUser}
+            posts={posts}
+            currentUserId={currentUser?._id}
+            onBack={() => setViewingUser(null)}
+            onOpenPost={(postId) => {
+              setViewingUser(null);
+              setSelectedPostId(postId);
+            }}
+          />
+        </div>
+      )}
+
       {/* Visibility modal */}
       {showVisibilityModal && (
         <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
@@ -942,7 +1026,7 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
       {/* 이미지 전체화면 뷰어 (카톡처럼 클릭 시 확대) */}
       {fullscreenImage && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center"
+          className="absolute inset-0 z-[80] flex items-center justify-center"
           style={{ background: "rgba(0,0,0,0.92)" }}
           onClick={() => setFullscreenImage(null)}
         >

@@ -70,7 +70,7 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
 
       const data = await res.json();
 
-      if (res.ok) {
+      if (res.ok && data.available) {
         setNicknameChecked(true);
       }
 

@@ -53,11 +53,22 @@ router.delete("/follow/:targetId", auth, async (req, res) => {
   }
 });
 
+// 비공개 계정의 팔로워/팔로잉 "목록"은 본인이거나 친구가 아니면 볼 수 없다.
+// (팔로우 여부/팔로워·팔로잉 숫자는 GET /api/users/:id에서 항상 내려준다 - 인스타와 동일)
+const canViewFollowLists = (user, viewerId) => {
+  if (String(user._id) === String(viewerId)) return true;
+  if (!user.isPrivate) return true;
+  return user.friends.some((id) => String(id) === String(viewerId));
+};
+
 // GET /api/users/:id/followers - 팔로워 목록
 router.get("/:id/followers", auth, async (req, res) => {
   try {
     const user = await User.findById(req.params.id).populate("followers", "nickname avatar studentId");
     if (!user) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    if (!canViewFollowLists(user, req.user.id)) {
+      return res.status(403).json({ message: "비공개 계정입니다." });
+    }
     res.json(user.followers);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
@@ -69,6 +80,9 @@ router.get("/:id/following", auth, async (req, res) => {
   try {
     const user = await User.findById(req.params.id).populate("following", "nickname avatar studentId");
     if (!user) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    if (!canViewFollowLists(user, req.user.id)) {
+      return res.status(403).json({ message: "비공개 계정입니다." });
+    }
     res.json(user.following);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
@@ -94,6 +108,15 @@ router.patch("/profile", auth, upload.single("avatar"), async (req, res) => {
       }
 
       update.nickname = nickname;
+    }
+    if (req.body.professor !== undefined) {
+      if (!["유진호", "차대현", "홍진근"].includes(req.body.professor)) {
+        return res.status(400).json({ message: "올바른 담당 교수를 선택해주세요." });
+      }
+      update.professor = req.body.professor;
+    }
+    if (req.body.isPrivate !== undefined) {
+      update.isPrivate = req.body.isPrivate === true || req.body.isPrivate === "true";
     }
     if (req.file) {
       update.avatar = (await uploadImage(req.file.buffer, "avatars")).secure_url;
@@ -204,6 +227,29 @@ router.delete("/account", auth, async (req, res) => {
     await user.save();
 
     res.json({ message: "계정이 탈퇴되었습니다." });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// GET /api/users/:id - 다른 사용자의 공개 프로필 정보
+// 비공개 계정이어도 팔로우 여부/팔로워·팔로잉 "숫자"는 인스타처럼 항상 내려준다.
+// (실제 목록은 GET /:id/followers, /:id/following 에서 친구 여부에 따라 막힌다)
+router.get("/:id", auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("nickname avatar studentId isPrivate followers following friends");
+    if (!user) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    res.json({
+      _id: user._id,
+      nickname: user.nickname,
+      avatar: user.avatar,
+      studentId: user.studentId,
+      isPrivate: !!user.isPrivate,
+      followerCount: user.followers.length,
+      followingCount: user.following.length,
+      isFollowedByMe: user.followers.some((id) => String(id) === String(req.user.id)),
+      isFriend: user.friends.some((id) => String(id) === String(req.user.id)),
+    });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }
