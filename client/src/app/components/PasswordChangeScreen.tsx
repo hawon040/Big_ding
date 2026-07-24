@@ -246,7 +246,6 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
                 <input
                   type="text"
                   disabled={verified}
-                  placeholder="예) 11"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   maxLength={2}
