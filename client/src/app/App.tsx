@@ -17,6 +17,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("community");
   const [showChatPanel, setShowChatPanel] = useState(false);
   const [writeSignal, setWriteSignal] = useState(0);
+  const [navSignal, setNavSignal] = useState(0);
   const handleWriteClick = () => {
     setActiveTab("community");
     setShowChatPanel(false);
@@ -24,6 +25,7 @@ export default function App() {
   };
 
   const handleTabChange = (tab: Tab) => {
+    setNavSignal((n) => n + 1);
     if (tab === "chat") {
       if (activeTab === "chat") {
         setShowChatPanel((prev) => !prev);
@@ -256,6 +258,7 @@ const [currentTime, setCurrentTime] = useState("");
 isActive={activeTab === "community" || activeTab === "chat"}
 onViewOwnProfile={() => handleTabChange("profile")}
 openWriteSignal={writeSignal}
+navSignal={navSignal}
           />
         </div>
 

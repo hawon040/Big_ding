@@ -359,6 +359,7 @@ interface CommunityScreenProps {
   isActive: boolean;
   onViewOwnProfile: () => void;
   openWriteSignal?: number;
+  navSignal?: number;
 }
 
 // 다른 사용자의 프로필 화면. 내 프로필(ProfileScreen)과 동일한 인스타 스타일 레이아웃을 쓰되,
@@ -679,6 +680,7 @@ export function CommunityScreen({
   isActive,
   onViewOwnProfile,
   openWriteSignal,
+  navSignal,
 }: CommunityScreenProps) {
   // 좋아요/싫어요/댓글/스크랩/새 글 등은 로컬 저장소에서 초기값을 불러와
   // 새로고침해도 그대로 유지되도록 한다.
@@ -807,6 +809,13 @@ const [viewedAuthor, setViewedAuthor] = useState<PostAuthor | null>(null);
     setNewBoard(activeBoard === "event" && !isAdmin ? "free" : activeBoard);
     setShowWrite(true);
   }, [openWriteSignal]);
+
+  // 글쓰기 모달이 열린 상태에서 하단 네비게이션(커뮤니티/채팅)을 누르면
+  // 모달이 화면을 덮은 채로 남아 이동한 것처럼 보이지 않는 문제를 막는다.
+  useEffect(() => {
+    if (navSignal === undefined || navSignal === 0) return;
+    setShowWrite(false);
+  }, [navSignal]);
   const [showReport, setShowReport] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
