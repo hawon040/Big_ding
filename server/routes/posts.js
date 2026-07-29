@@ -67,30 +67,33 @@ router.post("/", auth, upload.array("images", 5), profanityFilter, async (req, r
     }
 
     const { tags: _rawTags, ...restBody } = req.body;
-    const post = await Post.create({ ...restBody, images, poll, tags, author: req.user.id });
+    // 공강모임은 작성자 본인도 참여 인원에 포함되므로, 생성 시점에 참여자 목록에 넣어둔다.
+    const participants = restBody.board === "meeting" ? [req.user.id] : undefined;
+
+    const post = await Post.create({ ...restBody, images, poll, tags, participants, author: req.user.id });
     await post.populate("author", "nickname avatar");
     res.status(201).json(post);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }
 });
-// POST /api/posts/:id/poll/vote - 투표하기 (이미 투표했다면 선택한 옵션으로 옮겨진다)
-router.post("/:id/poll/vote", auth, async (req, res) => {
+
+// POST /api/posts/:id/join - 공강모임 참여하기
+router.post("/:id/join", auth, async (req, res) => {
   try {
-    const { optionIndex } = req.body;
     const post = await Post.findById(req.params.id);
-    if (!post || !post.poll) {
-      return res.status(404).json({ message: "투표를 찾을 수 없습니다." });
+    if (!post || post.board !== "meeting") {
+      return res.status(404).json({ message: "모임 게시물을 찾을 수 없습니다." });
     }
-    if (typeof optionIndex !== "number" || optionIndex < 0 || optionIndex >= post.poll.options.length) {
-      return res.status(400).json({ message: "잘못된 옵션입니다." });
+    const alreadyJoined = post.participants.some((id) => id.toString() === req.user.id);
+    if (alreadyJoined) {
+      return res.status(400).json({ message: "이미 참여한 모임입니다." });
     }
-
-    post.poll.options.forEach((opt) => {
-      opt.votes = opt.votes.filter((v) => v.toString() !== req.user.id);
-    });
-    post.poll.options[optionIndex].votes.push(req.user.id);
-
+    if (post.maxParticipants && post.participants.length >= post.maxParticipants) {
+      return res.status(400).json({ message: "모집 인원이 모두 찼습니다." });
+    }
+    post.participants.push(req.user.id);
+    post.currentParticipants = post.participants.length;
     await post.save();
     await post.populate("author", "nickname avatar");
     await post.populate("comments.author", "nickname avatar");
@@ -99,7 +102,6 @@ router.post("/:id/poll/vote", auth, async (req, res) => {
     res.status(500).json({ message: "서버 오류" });
   }
 });
-
 // POST /api/posts/:id/like
 router.post("/:id/like", auth, async (req, res) => {
   try {
@@ -138,6 +140,24 @@ router.post("/:id/dislike", auth, async (req, res) => {
   }
 });
 
+// POST /api/posts/:id/scrap - 스크랩(북마크) 토글
+router.post("/:id/scrap", auth, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "게시물을 찾을 수 없습니다." });
+    const idx = post.scraps.indexOf(req.user.id);
+    if (idx === -1) {
+      post.scraps.push(req.user.id);
+    } else {
+      post.scraps.splice(idx, 1);
+    }
+    await post.save();
+    res.json({ scraps: post.scraps });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 // POST /api/posts/:id/comments
 router.post("/:id/comments", auth, profanityFilter, async (req, res) => {
   try {
@@ -168,19 +188,37 @@ router.delete("/:id/comments/:commentId", auth, async (req, res) => {
   }
 });
 
-// PATCH /api/posts/:id - 게시물 수정 (작성자만 가능)
-router.patch("/:id", auth, profanityFilter, async (req, res) => {
+/// POST /api/posts/:id/poll/vote - 투표하기.
+// 다른 옵션을 눌렀다면 그 옵션으로 옮기고, 이미 투표한 옵션을 다시 누르면 투표를 취소한다.
+router.post("/:id/poll/vote", auth, async (req, res) => {
   try {
+    const { optionIndex } = req.body;
     const post = await Post.findById(req.params.id);
-    if (!post) return res.status(404).json({ message: "게시물을 찾을 수 없습니다." });
-    if (post.author.toString() !== req.user.id)
-      return res.status(403).json({ message: "권한이 없습니다." });
+    if (!post || !post.poll) {
+      return res.status(404).json({ message: "투표를 찾을 수 없습니다." });
+    }
+    if (typeof optionIndex !== "number" || optionIndex < 0 || optionIndex >= post.poll.options.length) {
+      return res.status(400).json({ message: "잘못된 옵션입니다." });
+    }
 
-    if (req.body.title !== undefined) post.title = req.body.title;
-    if (req.body.content !== undefined) post.content = req.body.content;
+    // 지금 누른 옵션에 내가 이미 투표해뒀었는지 먼저 확인해둔다.
+    const alreadyVotedThisOption = post.poll.options[optionIndex].votes.some(
+      (v) => v.toString() === req.user.id
+    );
+
+    // 어느 옵션에 투표했었든 일단 내 투표를 전부 지운다.
+    post.poll.options.forEach((opt) => {
+      opt.votes = opt.votes.filter((v) => v.toString() !== req.user.id);
+    });
+
+    // 방금 누른 옵션에 이미 투표해뒀던 게 아니라면(= 새 옵션이거나 처음 투표라면) 다시 넣어준다.
+    // 이미 투표해뒀던 옵션을 다시 눌렀다면 여기서 아무것도 안 넣어서 투표가 취소된다.
+    if (!alreadyVotedThisOption) {
+      post.poll.options[optionIndex].votes.push(req.user.id);
+    }
 
     await post.save();
-    await post.populate("author", "nickname avatar studentId");
+    await post.populate("author", "nickname avatar");
     await post.populate("comments.author", "nickname avatar");
     res.json(post);
   } catch (err) {

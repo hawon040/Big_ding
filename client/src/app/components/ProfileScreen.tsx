@@ -48,9 +48,12 @@ const loadStudentId = (): string => {
 interface ProfileScreenProps {
   nickname: string;
   setNickname: (name: string) => void;
+  // 커뮤니티(게시물/댓글 작성자 아바타)에서 "내 프로필"을 눌러 들어온 경우에만 전달된다.
+  // 존재하면 헤더에 뒤로가기 버튼을 보여주고, 눌렀을 때 커뮤니티로 돌아간다.
+  onBack?: () => void;
 }
 
-export function ProfileScreen({ nickname, setNickname }: ProfileScreenProps) {
+export function ProfileScreen({ nickname, setNickname, onBack }: ProfileScreenProps) {
   const [activeTab, setActiveTab] = useState<"posts" | "comments" | "scrapped">("posts");
   const [currentUser] = useState(getCurrentUser);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
@@ -376,6 +379,11 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
         style={{ background: "linear-gradient(160deg, var(--background) 0%, #0a0f1f 100%)" }}
       >
         <div className="flex items-center gap-1.5 mb-4">
+          {onBack && (
+            <button onClick={onBack} className="mr-1 text-lg" style={{ color: "var(--foreground)" }}>
+              ←
+            </button>
+          )}
           <img src={bigRoadingIcon} alt="Big Roading" className="w-7 h-7 object-cover rounded-md" />
           <span
             className="text-lg"

@@ -38,9 +38,11 @@ const postSchema = new mongoose.Schema({
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   dislikes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   comments: [commentSchema],
-  rating: { type: Number, min: 0.5, max: 5 },           // 강의평가
+  rating: { type: Number, min: 0.5, max: 5 },          // 강의평가
   maxParticipants: { type: Number },                   // 공강모임
   currentParticipants: { type: Number, default: 1 },
+  participants: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // 공강모임 참여자 목록(중복 참여 방지용)
+  scraps: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],       // 스크랩(북마크)한 사용자 목록. 인기순 정렬에 사용
   price: { type: Number },
   isBlocked: { type: Boolean, default: false },
 }, { timestamps: true });

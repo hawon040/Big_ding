@@ -146,6 +146,8 @@ export interface Post {
   rating?: number;
   maxParticipants?: number;
   currentParticipants?: number;
+  participants?: string[];
+  scraps?: string[];
   price?: number;
   board: BoardType;
   poll?: Poll;
@@ -704,7 +706,9 @@ export function CommunityScreen({
   const CONTEST_FILTERS = ["자격증", "공모전", "학업"] as const;
   const [activeContestFilter, setActiveContestFilter] = useState<string | null>(null);
   const [showContestFilterMenu, setShowContestFilterMenu] = useState(false);
-
+// 모든 게시판 공통: 최신순/인기순 정렬
+  const [sortOrder, setSortOrder] = useState<"latest" | "popular">("latest");
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
   // 게시판을 옮길 때마다 필터를 초기화해서, 다른 게시판으로 갔다가 다시 꿀팁 게시판으로
   // 돌아와도 이전에 선택했던 필터가 남아있지 않게 한다.
   useEffect(() => {
@@ -850,11 +854,17 @@ useEffect(() => {
     setNewPollEnabled(false);
     setNewPollQuestion("");
     setNewPollOptions(["", ""]);
+    setNewPollDeleteMode(false);
     setNewLectureGrade("");
     setNewLectureName("");
     setNewLectureProfessor("");
     setNewLectureRating(0);
     setNewLectureContent("");
+    setNewMeetingTitle("");
+    setNewMeetingContent("");
+    setNewMeetingTime("");
+    setNewMeetingPlace("");
+    setNewMeetingCount(null);
   };
 
   const closeWriteModal = () => {
@@ -880,6 +890,14 @@ useEffect(() => {
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
+  // 투표가 있는 게시물을 수정할 때, 질문/옵션 텍스트도 함께 수정할 수 있게 한다.
+  const [editPollQuestion, setEditPollQuestion] = useState("");
+  const [editPollOptions, setEditPollOptions] = useState<string[]>([]);
+  const [editPollDeleteMode, setEditPollDeleteMode] = useState(false);
+  // 투표 자체를 통째로 삭제하는 기능. X 버튼 → 확인 팝업 → "네"를 누르면 투표 섹션이 사라지고
+  // 저장 시 서버에 poll: null로 전달해 게시물에서 투표를 완전히 제거한다.
+  const [editPollDeleted, setEditPollDeleted] = useState(false);
+  const [showPollDeleteConfirm, setShowPollDeleteConfirm] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   // 최근 검색어(에타 스타일): 검색창에 아직 아무것도 입력하지 않았을 때 보여준다.
@@ -909,6 +927,8 @@ useEffect(() => {
   const [newPollEnabled, setNewPollEnabled] = useState(false);
   const [newPollQuestion, setNewPollQuestion] = useState("");
   const [newPollOptions, setNewPollOptions] = useState<string[]>(["", ""]);
+  // 평소에는 "옵션 추가"만 가능하고, "수정" 버튼을 눌러야 각 옵션 옆에 삭제(X) 버튼이 나타난다.
+  const [newPollDeleteMode, setNewPollDeleteMode] = useState(false);
 
   // 전공 강의평가(lecture) 전용 글쓰기 폼 상태
   const LECTURE_GRADES = ["1학년", "2학년", "3학년", "4학년"];
@@ -924,11 +944,22 @@ useEffect(() => {
   // 글쓰기 모달에서 게시판을 "전공 강의평가"로 선택하면 서버에서 교수님 목록을 불러온다.
   // 교수님 목록: User 모델(server/models/User.js)의 professor enum과 동일하게 고정 목록 사용
   const PROFESSOR_LIST = ["유진호", "차대현", "홍진근"];
-
+// 공강모임(meeting) 전용 글쓰기 폼 상태
+  const MEETING_TIMES = Array.from({ length: 15 }, (_, i) => `${String(i + 9).padStart(2, "0")}:00`); // 09:00~23:00, 1시간 단위
+  const MEETING_COUNTS = Array.from({ length: 9 }, (_, i) => i + 2); // 2명~10명(본인 포함)
+  const [newMeetingTitle, setNewMeetingTitle] = useState("");
+  const [newMeetingContent, setNewMeetingContent] = useState("");
+  const [newMeetingTime, setNewMeetingTime] = useState("");
+  const [newMeetingPlace, setNewMeetingPlace] = useState("");
+  const [newMeetingCount, setNewMeetingCount] = useState<number | null>(null);
+  const [showMeetingTimeDropdown, setShowMeetingTimeDropdown] = useState(false);
+  const [showMeetingCountDropdown, setShowMeetingCountDropdown] = useState(false);
   // 게시판을 바꾸면 열려있던 드롭다운은 닫는다.
   useEffect(() => {
     setShowGradeDropdown(false);
     setShowProfessorDropdown(false);
+    setShowMeetingTimeDropdown(false);
+    setShowMeetingCountDropdown(false);
   }, [newBoard]);
 
   // 별점 입력 UI: 별 5개, 절반 단위(0.5)로 클릭 가능. 각 별을 왼쪽/오른쪽 절반으로
@@ -1479,7 +1510,22 @@ const renderRatingStars = (rating: number, size: number = 14) => (
    }
  };
 
- const toggleSave = (postId: string) => setSavedPosts((s) => ({ ...s, [postId]: !s[postId] }));
+ const toggleSave = (postId: string) => {
+   const wasSaved = !!savedPosts[postId];
+   setSavedPosts((s) => ({ ...s, [postId]: !s[postId] }));
+
+   // 인기순 정렬에 쓰이는 게시물별 스크랩 수를 서버와 동기화한다.
+   if (!currentUser) return;
+   const uid = currentUser._id;
+   setPosts((prev) => prev.map((p) => {
+     if (p._id !== postId) return p;
+     const scraps = wasSaved
+       ? (p.scraps || []).filter((id) => id !== uid)
+       : [...(p.scraps || []), uid];
+     return { ...p, scraps };
+   }));
+   api.post(`/posts/${postId}/scrap`).catch(() => {});
+ };
 
  // 투표하기: 이미 다른 옵션에 투표했었다면 서버에서 자동으로 옮겨준다.
  const handleVote = async (post: Post, optionIndex: number) => {
@@ -1491,7 +1537,19 @@ const renderRatingStars = (rating: number, size: number = 14) => (
      showAlert("투표에 실패했습니다.");
    }
  };
+// 공강모임 참여하기
+ const handleJoinMeeting = async (post: Post) => {
+   if (!currentUser) return;
+   try {
+     const res = await api.post(`/posts/${post._id}/join`);
+     setPosts((prev) => prev.map((p) => (p._id === post._id ? res.data : p)));
+   } catch (err: any) {
+     showAlert(err.response?.data?.message || "참여에 실패했습니다.");
+   }
+ };
 
+ const hasJoinedMeeting = (post: Post) => !!currentUser && !!post.participants?.includes(currentUser._id);
+ const isMeetingFull = (post: Post) => !!post.maxParticipants && (post.participants?.length ?? post.currentParticipants ?? 0) >= post.maxParticipants;
  const renderPoll = (post: Post) => {
    if (!post.poll) return null;
    const { poll } = post;
@@ -1539,8 +1597,8 @@ const renderRatingStars = (rating: number, size: number = 14) => (
       )
     : allPosts
         .filter((p) =>
-          // 전체 게시판에는 행사공지·강의평가도 함께 노출한다.
-          activeBoard === "free" ? (p.board === "free" || p.board === "event" || p.board === "lecture") : p.board === activeBoard
+          // "게시판" 탭은 모든 게시판의 글이 모이는 통합 피드로 보여준다.
+          activeBoard === "free" ? true : p.board === activeBoard
         )
         .filter((p) =>
           // 꿀팁 게시판에서 카테고리 필터를 선택했다면 해당 태그가 붙은 게시물만 남긴다.
@@ -1548,6 +1606,12 @@ const renderRatingStars = (rating: number, size: number = 14) => (
             ? p.tags?.includes(activeContestFilter)
             : true
         );
+
+ // 인기순 = 좋아요 수 + 스크랩 수 합산이 높은 순
+ const getPopularityScore = (post: Post) => post.likes.length + (post.scraps?.length ?? 0);
+ const sortedVisiblePosts = sortOrder === "popular"
+   ? [...visiblePosts].sort((a, b) => getPopularityScore(b) - getPopularityScore(a))
+   : visiblePosts;
 
   const toggleFriendSelectMode = () => {
   setIsFriendSelectMode((prev) => !prev);
@@ -2184,6 +2248,11 @@ const handleDeleteFriends = () => {
 
         <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h3>
 
+        {selectedPost.board === "meeting" && selectedPost.tags && selectedPost.tags.length >= 2 && (
+          <p className="text-xs mb-1.5 mt-2" style={{ color: "var(--muted-foreground)" }}>
+            ⏰ {selectedPost.tags[0]} · 📍 {selectedPost.tags[1]}
+          </p>
+        )}
         {selectedPost.board === "lecture" && selectedPost.tags && selectedPost.tags.length >= 2 && (
           <p className="text-xs mb-1.5 mt-2" style={{ color: "var(--muted-foreground)" }}>
             {selectedPost.tags[0]} · {selectedPost.tags[1]} 교수님
@@ -2252,7 +2321,7 @@ const handleDeleteFriends = () => {
             )}
           </div>
         )}
-        {selectedPost.tags && selectedPost.board !== "lecture" && (
+        {selectedPost.tags && selectedPost.board !== "lecture" && selectedPost.board !== "meeting" && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {selectedPost.tags.map((tag, i) => (
               <span key={i} className="text-xs px-2 py-0.5 rounded-full"
@@ -2307,6 +2376,21 @@ const handleDeleteFriends = () => {
             <Bookmark size={16} fill={savedPosts[selectedPost._id] ? "var(--primary)" : "none"}
               color={savedPosts[selectedPost._id] ? "var(--primary)" : "var(--muted-foreground)"} />
           </button>
+
+          {selectedPost.board === "meeting" && currentUser && selectedPost.author._id !== currentUser._id && (
+            <button
+              onClick={() => handleJoinMeeting(selectedPost)}
+              disabled={hasJoinedMeeting(selectedPost) || isMeetingFull(selectedPost)}
+              className="ml-auto px-3 py-1.5 rounded-xl text-xs font-semibold"
+              style={{
+                background: hasJoinedMeeting(selectedPost) || isMeetingFull(selectedPost) ? "var(--muted)" : "var(--primary)",
+                color: hasJoinedMeeting(selectedPost) || isMeetingFull(selectedPost) ? "var(--muted-foreground)" : "white",
+                cursor: hasJoinedMeeting(selectedPost) || isMeetingFull(selectedPost) ? "not-allowed" : "pointer",
+              }}
+            >
+              {hasJoinedMeeting(selectedPost) ? "참여중" : isMeetingFull(selectedPost) ? "모집완료" : "참여"}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -2558,84 +2642,123 @@ const handleDeleteFriends = () => {
         </div>
       )}
 
-      {/* 꿀팁 게시판 카테고리 필터: 버튼을 누르면 아래로 목록이 펼쳐진다 */}
-      {!showSearch && activeBoard === "contest" && (
-        <div className="relative flex justify-end px-4 pb-3 shrink-0">
-          <button
-            onClick={() => setShowContestFilterMenu((v) => !v)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap"
-            style={{
-              background: activeContestFilter ? "var(--primary)" : "var(--muted)",
-              color: activeContestFilter ? "white" : "var(--muted-foreground)",
-            }}
-          >
-            {activeContestFilter ?? "필터"}
-            {showContestFilterMenu ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
-
-          {showContestFilterMenu && (
-            <div
-              className="absolute right-4 top-full mt-1 z-20 rounded-xl shadow-lg py-1 min-w-[110px]"
-              style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-            >
+      {/* 정렬(모든 게시판) + 꿀팁 게시판 카테고리 필터 */}
+      {!showSearch && (
+        <div className="relative flex justify-end items-center gap-2 px-4 pb-3 shrink-0">
+          {activeBoard === "contest" && (
+            <div className="relative">
               <button
-                onClick={() => {
-                  setActiveContestFilter(null);
-                  setShowContestFilterMenu(false);
+                onClick={() => setShowContestFilterMenu((v) => !v)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap"
+                style={{
+                  background: activeContestFilter ? "var(--primary)" : "var(--muted)",
+                  color: activeContestFilter ? "white" : "var(--muted-foreground)",
                 }}
-                className="w-full px-3 py-2 text-xs text-left"
-                style={{ color: activeContestFilter === null ? "var(--primary)" : "var(--foreground)" }}
               >
-                전체
+                {activeContestFilter ?? "필터"}
+                {showContestFilterMenu ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
               </button>
-              {CONTEST_FILTERS.map((filter) => (
-                <button
-                  key={filter}
-                  onClick={() => {
-                    setActiveContestFilter(filter);
-                    setShowContestFilterMenu(false);
-                  }}
-                  className="w-full px-3 py-2 text-xs text-left"
-                  style={{ color: activeContestFilter === filter ? "var(--primary)" : "var(--foreground)" }}
+
+              {showContestFilterMenu && (
+                <div
+                  className="absolute right-0 top-full mt-1 z-20 rounded-xl shadow-lg py-1 min-w-[110px]"
+                  style={{ background: "var(--card)", border: "1px solid var(--border)" }}
                 >
-                  {filter}
-                </button>
-              ))}
+                  <button
+                    onClick={() => {
+                      setActiveContestFilter(null);
+                      setShowContestFilterMenu(false);
+                    }}
+                    className="w-full px-3 py-2 text-xs text-left"
+                    style={{ color: activeContestFilter === null ? "var(--primary)" : "var(--foreground)" }}
+                  >
+                    전체
+                  </button>
+                  {CONTEST_FILTERS.map((filter) => (
+                    <button
+                      key={filter}
+                      onClick={() => {
+                        setActiveContestFilter(filter);
+                        setShowContestFilterMenu(false);
+                      }}
+                      className="w-full px-3 py-2 text-xs text-left"
+                      style={{ color: activeContestFilter === filter ? "var(--primary)" : "var(--foreground)" }}
+                    >
+                      {filter}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
+
+          {/* 최신순/인기순 정렬: 모든 게시판에서 노출 */}
+          <div className="relative">
+            <button
+              onClick={() => setShowSortDropdown((v) => !v)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap"
+              style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
+            >
+              {sortOrder === "latest" ? "최신순" : "인기순"}
+              {showSortDropdown ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+
+            {showSortDropdown && (
+              <div
+                className="absolute right-0 top-full mt-1 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
+                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+              >
+                <button
+                  onClick={() => { setSortOrder("latest"); setShowSortDropdown(false); }}
+                  className="w-full px-3 py-2 text-xs text-left"
+                  style={{ color: sortOrder === "latest" ? "var(--primary)" : "var(--foreground)" }}
+                >
+                  최신순
+                </button>
+                <button
+                  onClick={() => { setSortOrder("popular"); setShowSortDropdown(false); }}
+                  className="w-full px-3 py-2 text-xs text-left"
+                  style={{ color: sortOrder === "popular" ? "var(--primary)" : "var(--foreground)" }}
+                >
+                  인기순
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* 더보기 메뉴 / 꿀팁 필터 메뉴 외부 클릭 닫기 */}
-      {(showMoreMenu !== null || showContestFilterMenu) && (
+      {/* 더보기 메뉴 / 꿀팁 필터 메뉴 / 정렬 메뉴 외부 클릭 닫기 */}
+      {(showMoreMenu !== null || showContestFilterMenu || showSortDropdown) && (
         <div
           className="absolute inset-0 z-10"
           onClick={() => {
             setShowMoreMenu(null);
             setShowContestFilterMenu(false);
+            setShowSortDropdown(false);
           }}
         />
       )}
       {/* Posts */}
 <div className="flex-1 overflow-y-auto px-4 pb-20 flex flex-col gap-3 no-scrollbar">
-        {postsLoading && visiblePosts.length === 0 && (
+        {postsLoading && sortedVisiblePosts.length === 0 && (
           <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
             게시물을 불러오는 중...
           </p>
         )}
-        {!postsLoading && visiblePosts.length === 0 && (
+        {!postsLoading && sortedVisiblePosts.length === 0 && (
           <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
             아직 게시물이 없어요.
           </p>
         )}
-        {visiblePosts.map((post) => (
+        {sortedVisiblePosts.map((post) => (
          <div
   key={post._id}
   className="rounded-2xl p-4 shadow-sm relative flex flex-col shrink-0"
   style={
   post.board === "event" || post.board === "qna"
     ? { background: "var(--card)" }
-    : post.poll || post.board === "lecture"
+    : post.poll || post.board === "lecture" || post.board === "meeting"
       ? { background: "var(--card)", minHeight: "184px" }
       : { background: "var(--card)", height: "184px", overflow: "hidden" }
 }
@@ -2714,6 +2837,11 @@ const handleDeleteFriends = () => {
                           setEditingPost(post);
                           setEditTitle(post.title);
                           setEditContent(post.content);
+                          setEditPollQuestion(post.poll?.question ?? "");
+                          setEditPollOptions(post.poll ? post.poll.options.map((o) => o.text) : []);
+                          setEditPollDeleteMode(false);
+                          setEditPollDeleted(false);
+                          setShowPollDeleteConfirm(false);
                           setShowMoreMenu(null);
                         }}
                         className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
@@ -2843,7 +2971,12 @@ const handleDeleteFriends = () => {
       <div className="flex-1 min-w-0">
         <h3 className="font-semibold mb-1 truncate" style={{ color: "var(--foreground)" }}>{post.title}</h3>
 
-       {post.board === "lecture" && post.tags && post.tags.length >= 2 && (
+        {post.board === "meeting" && post.tags && post.tags.length >= 2 && (
+          <p className="text-xs mb-1.5" style={{ color: "var(--muted-foreground)" }}>
+            ⏰ {post.tags[0]} · 📍 {post.tags[1]}
+          </p>
+        )}
+        {post.board === "lecture" && post.tags && post.tags.length >= 2 && (
           <p className="text-xs mb-1.5" style={{ color: "var(--muted-foreground)" }}>
             {post.tags[0]} · {post.tags[1]} 교수님
           </p>
@@ -2938,6 +3071,24 @@ const handleDeleteFriends = () => {
         <Bookmark size={16} fill={savedPosts[post._id] ? "var(--primary)" : "none"}
           color={savedPosts[post._id] ? "var(--primary)" : "var(--muted-foreground)"} />
       </button>
+
+      {post.board === "meeting" && currentUser && post.author._id !== currentUser._id && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleJoinMeeting(post);
+          }}
+          disabled={hasJoinedMeeting(post) || isMeetingFull(post)}
+          className="ml-auto px-3 py-1.5 rounded-xl text-xs font-semibold"
+          style={{
+            background: hasJoinedMeeting(post) ? "var(--muted)" : isMeetingFull(post) ? "var(--muted)" : "var(--primary)",
+            color: hasJoinedMeeting(post) ? "var(--muted-foreground)" : isMeetingFull(post) ? "var(--muted-foreground)" : "white",
+            cursor: hasJoinedMeeting(post) || isMeetingFull(post) ? "not-allowed" : "pointer",
+          }}
+        >
+          {hasJoinedMeeting(post) ? "참여중" : isMeetingFull(post) ? "모집완료" : "참여"}
+        </button>
+      )}
     </div>
   </>
 )}
@@ -3152,6 +3303,33 @@ const handleDeleteFriends = () => {
                   return;
                 }
 
+                if (newBoard === "meeting") {
+                  if (!newMeetingTitle.trim()) { showAlert("제목을 입력해주세요."); return; }
+                  if (!newMeetingTime) { showAlert("시간을 선택해주세요."); return; }
+                  if (!newMeetingPlace.trim()) { showAlert("장소를 입력해주세요."); return; }
+                  if (!newMeetingCount) { showAlert("인원을 선택해주세요."); return; }
+                  if (!newMeetingContent.trim()) { showAlert("내용을 입력해주세요."); return; }
+                  setIsSubmittingPost(true);
+                  try {
+                    const formData = new FormData();
+                    formData.append("board", "meeting");
+                    formData.append("title", newMeetingTitle.trim());
+                    formData.append("content", newMeetingContent.trim());
+                    formData.append("maxParticipants", String(newMeetingCount));
+                    formData.append("currentParticipants", "1");
+                    formData.append("tags", JSON.stringify([newMeetingTime, newMeetingPlace.trim()]));
+                    const res = await api.post("/posts", formData);
+                    setPosts((prev) => [res.data, ...prev]);
+                    resetWriteForm();
+                    setShowWrite(false);
+                  } catch (err: any) {
+                    showAlert(err.response?.data?.message || "게시물 등록에 실패했습니다.");
+                  } finally {
+                    setIsSubmittingPost(false);
+                  }
+                  return;
+                }
+
                 if (newBoard === "lecture") {
                   if (!newLectureGrade) { showAlert("학년을 선택해주세요."); return; }
                   if (!newLectureName.trim()) { showAlert("강의명을 입력해주세요."); return; }
@@ -3224,9 +3402,14 @@ const handleDeleteFriends = () => {
               등록
             </button>
           </div>
-          <div
+         <div
             className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto no-scrollbar"
-            onClick={() => { setShowGradeDropdown(false); setShowProfessorDropdown(false); }}
+            onClick={() => {
+              setShowGradeDropdown(false);
+              setShowProfessorDropdown(false);
+              setShowMeetingTimeDropdown(false);
+              setShowMeetingCountDropdown(false);
+            }}
           >
             <div>
               <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
@@ -3249,7 +3432,112 @@ const handleDeleteFriends = () => {
               </div>
             </div>
 
-            {newBoard === "lecture" ? (
+            {newBoard === "meeting" ? (
+              <div className="flex flex-col gap-4">
+                <input
+                  placeholder="제목을 입력하세요"
+                  value={newMeetingTitle}
+                  onChange={(e) => setNewMeetingTitle(e.target.value)}
+                  className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
+                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                />
+
+                <div className="flex gap-2">
+                  {/* 시간: 1시간 단위 드롭다운 */}
+                  <div className="flex-1">
+                    <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>시간</label>
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => setShowMeetingTimeDropdown((v) => !v)}
+                        className="w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm"
+                        style={{
+                          background: "var(--input-background)",
+                          color: newMeetingTime ? "var(--foreground)" : "var(--muted-foreground)",
+                          border: "1.5px solid var(--border)",
+                        }}
+                      >
+                        {newMeetingTime || "시간 선택"}
+                        {showMeetingTimeDropdown ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                      {showMeetingTimeDropdown && (
+                        <div
+                          className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl shadow-lg py-1 max-h-48 overflow-y-auto no-scrollbar"
+                          style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                        >
+                          {MEETING_TIMES.map((t) => (
+                            <button
+                              key={t}
+                              onClick={() => { setNewMeetingTime(t); setShowMeetingTimeDropdown(false); }}
+                              className="w-full px-4 py-2.5 text-sm text-left"
+                              style={{ color: newMeetingTime === t ? "var(--primary)" : "var(--foreground)" }}
+                            >
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 장소: 직접 입력 */}
+                  <div className="flex-1">
+                    <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>장소</label>
+                    <input
+                      placeholder="장소를 입력하세요"
+                      value={newMeetingPlace}
+                      onChange={(e) => setNewMeetingPlace(e.target.value)}
+                      className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
+                      style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                    />
+                  </div>
+                </div>
+
+                {/* 인원: 2명~10명(본인 포함) 드롭다운 */}
+                <div>
+                  <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>인원 (본인 포함)</label>
+                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => setShowMeetingCountDropdown((v) => !v)}
+                      className="w-40 flex items-center justify-between px-4 py-3 rounded-2xl text-sm"
+                      style={{
+                        background: "var(--input-background)",
+                        color: newMeetingCount ? "var(--foreground)" : "var(--muted-foreground)",
+                        border: "1.5px solid var(--border)",
+                      }}
+                    >
+                      {newMeetingCount ? `${newMeetingCount}명` : "인원 선택"}
+                      {showMeetingCountDropdown ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+                    {showMeetingCountDropdown && (
+                      <div
+                        className="absolute left-0 top-full mt-1 z-20 w-40 rounded-xl shadow-lg py-1 max-h-48 overflow-y-auto no-scrollbar"
+                        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                      >
+                        {MEETING_COUNTS.map((c) => (
+                          <button
+                            key={c}
+                            onClick={() => { setNewMeetingCount(c); setShowMeetingCountDropdown(false); }}
+                            className="w-full px-4 py-2.5 text-sm text-left"
+                            style={{ color: newMeetingCount === c ? "var(--primary)" : "var(--foreground)" }}
+                          >
+                            {c}명
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <textarea
+                  placeholder="내용을 입력하세요"
+                  value={newMeetingContent}
+                  onChange={(e) => setNewMeetingContent(e.target.value)}
+                  rows={8}
+                  className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
+                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                />
+              </div>
+            ) : newBoard === "lecture" ? (
               <div className="flex flex-col gap-4">
                 {/* 학년 드롭다운 */}
                 <div>
@@ -3495,22 +3783,34 @@ const handleDeleteFriends = () => {
       className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
       style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
     />
-    {newPollOptions.length > 2 && (
+    {newPollDeleteMode && newPollOptions.length > 2 && (
       <button onClick={() => setNewPollOptions(newPollOptions.filter((_, i) => i !== idx))}>
-        <X size={16} style={{ color: "var(--muted-foreground)" }} />
+        <X size={16} style={{ color: "#d4183d" }} />
       </button>
     )}
   </div>
 ))}
-                {newPollOptions.length < 5 && (
+                <div className="flex items-center gap-2">
+                  {newPollOptions.length < 5 && (
+                    <button
+                      onClick={() => setNewPollOptions([...newPollOptions, ""])}
+                      className="text-xs font-medium px-3 py-1.5 rounded-xl"
+                      style={{ background: "var(--secondary)", color: "var(--primary)" }}
+                    >
+                      + 옵션 추가
+                    </button>
+                  )}
                   <button
-                    onClick={() => setNewPollOptions([...newPollOptions, ""])}
-                    className="self-start text-xs font-medium px-3 py-1.5 rounded-xl"
-                    style={{ background: "var(--secondary)", color: "var(--primary)" }}
+                    onClick={() => setNewPollDeleteMode((v) => !v)}
+                    className="text-xs font-medium px-3 py-1.5 rounded-xl"
+                    style={{
+                      background: newPollDeleteMode ? "#d4183d" : "var(--secondary)",
+                      color: newPollDeleteMode ? "white" : "var(--primary)",
+                    }}
                   >
-                    + 옵션 추가
+                    {newPollDeleteMode ? "수정 완료" : "수정"}
                   </button>
-                )}
+                </div>
               </div>
             ) : (
               <button
@@ -3545,10 +3845,22 @@ const handleDeleteFriends = () => {
             return;
           }
           if (!editingPost) return;
+          let pollPayload: { question: string; options: string[] } | null | undefined;
+          if (editPollDeleted) {
+            pollPayload = null; // 투표를 완전히 삭제한다는 신호
+          } else if (editingPost.poll) {
+            const options = editPollOptions.map((o) => o.trim()).filter(Boolean);
+            if (!editPollQuestion.trim() || options.length < 2) {
+              showAlert("투표 질문과 옵션을 2개 이상 입력해주세요.");
+              return;
+            }
+            pollPayload = { question: editPollQuestion.trim(), options };
+          }
           try {
             const res = await api.patch(`/posts/${editingPost._id}`, {
               title: editTitle.trim(),
               content: editContent.trim(),
+              poll: pollPayload,
             });
             setPosts((prev) => prev.map((p) => (p._id === editingPost._id ? res.data : p)));
             showAlert("게시물이 수정되었습니다.", () => setEditingPost(null));
@@ -3576,6 +3888,103 @@ const handleDeleteFriends = () => {
   className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
   style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
 />
+
+{editingPost.poll && !editPollDeleted && (
+  <div className="p-3 rounded-2xl flex flex-col gap-2.5" style={{ background: "var(--muted)" }}>
+    <div className="flex items-center justify-between">
+      <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>🗳️ 투표 수정</span>
+      <button onClick={() => setShowPollDeleteConfirm(true)} aria-label="투표 삭제">
+        <X size={16} style={{ color: "var(--muted-foreground)" }} />
+      </button>
+    </div>
+    <input
+      placeholder="투표 질문을 입력하세요"
+      value={editPollQuestion}
+      onChange={(e) => setEditPollQuestion(e.target.value)}
+      className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+      style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+    />
+    {editPollOptions.map((opt, idx) => (
+      <div key={idx} className="flex items-center gap-2">
+        <input
+          placeholder={`옵션 ${idx + 1}`}
+          value={opt}
+          onChange={(e) => {
+            const next = [...editPollOptions];
+            next[idx] = e.target.value;
+            setEditPollOptions(next);
+          }}
+          className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
+          style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+        />
+        {editPollDeleteMode && editPollOptions.length > 2 && (
+          <button onClick={() => setEditPollOptions(editPollOptions.filter((_, i) => i !== idx))}>
+            <X size={16} style={{ color: "#d4183d" }} />
+          </button>
+        )}
+      </div>
+    ))}
+    <div className="flex items-center gap-2">
+      {editPollOptions.length < 5 && (
+        <button
+          onClick={() => setEditPollOptions([...editPollOptions, ""])}
+          className="text-xs font-medium px-3 py-1.5 rounded-xl"
+          style={{ background: "var(--secondary)", color: "var(--primary)" }}
+        >
+          + 옵션 추가
+        </button>
+      )}
+      <button
+        onClick={() => setEditPollDeleteMode((v) => !v)}
+        className="text-xs font-medium px-3 py-1.5 rounded-xl"
+        style={{
+          background: editPollDeleteMode ? "#d4183d" : "var(--secondary)",
+          color: editPollDeleteMode ? "white" : "var(--primary)",
+        }}
+      >
+        {editPollDeleteMode ? "수정 완료" : "수정"}
+      </button>
+    </div>
+    <p className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>
+      옵션 텍스트를 바꾸면 해당 옵션의 기존 투표 수는 유지되고, 새로 추가한 옵션은 0표로 시작합니다.
+    </p>
+  </div>
+)}
+
+{showPollDeleteConfirm && (
+  <div
+    className="absolute inset-0 z-[75] flex items-center justify-center px-6"
+    style={{ background: "rgba(0,0,0,0.6)" }}
+  >
+    <div
+      className="w-full rounded-2xl overflow-hidden shadow-2xl"
+      style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+    >
+      <div className="px-5 py-6 text-sm leading-relaxed text-center" style={{ color: "var(--foreground)" }}>
+        정말 투표를 삭제하시겠습니까?
+      </div>
+      <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+        <button
+          onClick={() => {
+            setEditPollDeleted(true);
+            setShowPollDeleteConfirm(false);
+          }}
+          className="flex-1 py-3 text-sm font-medium"
+          style={{ color: "#d4183d", borderRight: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          네
+        </button>
+        <button
+          onClick={() => setShowPollDeleteConfirm(false)}
+          className="flex-1 py-3 text-sm font-medium"
+          style={{ color: "var(--foreground)" }}
+        >
+          아니요
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   </div>
 )}

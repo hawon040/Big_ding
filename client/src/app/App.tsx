@@ -27,8 +27,15 @@ const [communityDetailOpen, setCommunityDetailOpen] = useState(false);
     setWriteSignal((n) => n + 1);
   };
 
+ // 커뮤니티에서 "내 프로필"을 눌러 프로필 화면으로 넘어온 경우에만 true.
+  // 하단 네비게이션에서 직접 "프로필" 탭을 눌렀을 때는 false로 유지되어,
+  // 프로필 화면에 뒤로가기 버튼이 필요한 경우와 아닌 경우를 구분한다.
+  const [profileFromCommunity, setProfileFromCommunity] = useState(false);
+
   const handleTabChange = (tab: Tab) => {
     setNavSignal((n) => n + 1);
+    // 하단 네비게이션을 직접 눌러 이동하는 것이므로, 커뮤니티에서 넘어온 상태는 초기화한다.
+    setProfileFromCommunity(false);
     if (tab === "chat") {
       if (activeTab === "chat") {
         setShowChatPanel((prev) => !prev);
@@ -40,6 +47,15 @@ const [communityDetailOpen, setCommunityDetailOpen] = useState(false);
       setActiveTab(tab);
       setShowChatPanel(false); // + 채팅 탭 벗어나면 패널도 닫기
     }
+  };
+
+  // 커뮤니티 화면(게시물/댓글 작성자 아바타)에서 "내 프로필"을 눌렀을 때 호출된다.
+  // handleTabChange와 달리 profileFromCommunity를 true로 남겨서, 프로필 화면에
+  // 뒤로가기 버튼이 뜨고 누르면 다시 커뮤니티로 돌아가도록 한다.
+  const openOwnProfileFromCommunity = () => {
+    setProfileFromCommunity(true);
+    setActiveTab("profile");
+    setShowChatPanel(false);
   };
 
   // 하단 네비게이션이 아니라 패널 핸들을 직접 드래그/탭해서 열고 닫을 때도
@@ -255,11 +271,11 @@ const [currentTime, setCurrentTime] = useState("");
             display: activeTab === "community" || activeTab === "chat" ? "flex" : "none",
           }}
         >
-          <CommunityScreen
+         <CommunityScreen
   showChat={showChatPanel}
   setShowChat={setShowChatPanel}
   isActive={activeTab === "community" || activeTab === "chat"}
-  onViewOwnProfile={() => handleTabChange("profile")}
+  onViewOwnProfile={openOwnProfileFromCommunity}
   openWriteSignal={writeSignal}
   navSignal={navSignal}
   onDetailViewChange={setCommunityDetailOpen}
@@ -272,7 +288,18 @@ const [currentTime, setCurrentTime] = useState("");
             className="absolute inset-0 overflow-hidden flex flex-col"
             style={{ background: "var(--background)" }}
           >
-            <ProfileScreen nickname={nickname} setNickname={setNickname} />
+            <ProfileScreen
+              nickname={nickname}
+              setNickname={setNickname}
+              onBack={
+                profileFromCommunity
+                  ? () => {
+                      setProfileFromCommunity(false);
+                      setActiveTab("community");
+                    }
+                  : undefined
+              }
+            />
           </div>
         )}
         {activeTab === "lunch" && (
