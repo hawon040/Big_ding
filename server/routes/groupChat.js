@@ -3,6 +3,7 @@ const router = express.Router();
 const GroupChat = require("../models/GroupChat");
 const GroupMessage = require("../models/GroupMessage");
 const Post = require("../models/Post");
+const User = require("../models/User");
 const auth = require("../middleware/authMiddleware");
 const upload = require("../middleware/upload");
 const { uploadImage } = require("../config/cloudinary");
@@ -31,6 +32,42 @@ router.get("/", auth, async (req, res) => {
     );
 
     res.json(withLastMessage);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// POST /api/group-chats - 친구끼리 직접 만드는 단체 채팅방 (공강모임과 무관)
+router.post("/", auth, async (req, res) => {
+  try {
+    const { memberIds, name } = req.body;
+    if (!Array.isArray(memberIds) || memberIds.length === 0) {
+      return res.status(400).json({ message: "함께할 친구를 선택해주세요." });
+    }
+
+    // 실제로 내 친구인 사람만 초대할 수 있게 한다.
+    const me = await User.findById(req.user.id).select("friends nickname");
+    const myFriendIds = new Set(me.friends.map((id) => id.toString()));
+    const invalidInvite = memberIds.some((id) => !myFriendIds.has(id));
+    if (invalidInvite) {
+      return res.status(400).json({ message: "친구만 초대할 수 있습니다." });
+    }
+
+    const members = Array.from(new Set([req.user.id, ...memberIds]));
+    const groupChat = await GroupChat.create({
+      host: req.user.id,
+      members,
+      name: name?.trim() || undefined,
+    });
+    await groupChat.populate([
+      { path: "host", select: USER_FIELDS },
+      { path: "members", select: USER_FIELDS },
+    ]);
+
+    // 초대된 친구들에게 실시간으로 알려서 채팅 목록에 바로 뜨게 한다.
+    memberIds.forEach((memberId) => emitToUser(memberId, "group_chat_created", groupChat));
+
+    res.status(201).json(groupChat);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }

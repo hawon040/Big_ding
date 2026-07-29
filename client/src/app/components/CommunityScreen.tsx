@@ -193,7 +193,8 @@ export interface GroupMessage {
 
 export interface GroupChatSummary {
   _id: string;
-  post: { _id: string; title: string; board: string };
+  post?: { _id: string; title: string; board: string } | null;
+  name?: string;
   host: Friend;
   members: Friend[];
   lastMessage?: GroupMessage | null;
@@ -1171,15 +1172,76 @@ useEffect(() => {
   const [groupMessages, setGroupMessages] = useState<Record<string, GroupMessage[]>>({});
   const [groupChatInput, setGroupChatInput] = useState("");
   const [showGroupChatMembers, setShowGroupChatMembers] = useState(false);
+  // 내가 속한 모든 단체 채팅방 목록(공강모임 채팅방 + 친구끼리 만든 채팅방)
+  const [groupChatList, setGroupChatList] = useState<GroupChatSummary[]>([]);
+  // 친구끼리 단체 채팅방 만들기
+  const [showCreateGroupChat, setShowCreateGroupChat] = useState(false);
+  const [newGroupChatMemberIds, setNewGroupChatMemberIds] = useState<string[]>([]);
+  const [newGroupChatName, setNewGroupChatName] = useState("");
+
+  const fetchGroupChatList = () => {
+    api.get("/group-chats")
+      .then((res) => setGroupChatList(res.data))
+      .catch(() => {});
+  };
+
+  // 채팅 탭이 열려 있는 동안 단체 채팅방 목록을 주기적으로 다시 불러와,
+  // 새로 초대된 채팅방이 자동으로 나타나게 한다.
+  useEffect(() => {
+    if (!isActive || !showChat) return;
+    fetchGroupChatList();
+    const interval = setInterval(fetchGroupChatList, 3000);
+    return () => clearInterval(interval);
+  }, [isActive, showChat]);
+
+  // 친구가 나를 단체 채팅방에 초대하면 실시간으로 목록에 바로 반영한다.
+  useEffect(() => {
+    if (!socket) return;
+    const handleGroupChatCreated = (chat: GroupChatSummary) => {
+      setGroupChatList((prev) => (prev.some((c) => c._id === chat._id) ? prev : [chat, ...prev]));
+    };
+    socket.on("group_chat_created", handleGroupChatCreated);
+    return () => {
+      socket.off("group_chat_created", handleGroupChatCreated);
+    };
+  }, [socket]);
+
+  const openGroupChat = async (chat: GroupChatSummary) => {
+    try {
+      setActiveGroupChat(chat);
+      const msgsRes = await api.get(`/group-chats/${chat._id}/messages`);
+      setGroupMessages((prev) => ({ ...prev, [chat._id]: msgsRes.data }));
+    } catch (err: any) {
+      showAlert(err.response?.data?.message || "채팅방을 열 수 없습니다.");
+    }
+  };
 
   const openGroupChatForPost = async (postId: string) => {
     try {
       const res = await api.get(`/group-chats/by-post/${postId}`);
-      setActiveGroupChat(res.data);
-      const msgsRes = await api.get(`/group-chats/${res.data._id}/messages`);
-      setGroupMessages((prev) => ({ ...prev, [res.data._id]: msgsRes.data }));
+      await openGroupChat(res.data);
     } catch (err: any) {
       showAlert(err.response?.data?.message || "채팅방을 열 수 없습니다.");
+    }
+  };
+
+  const handleCreateGroupChat = async () => {
+    if (newGroupChatMemberIds.length === 0) {
+      showAlert("함께할 친구를 선택해주세요.");
+      return;
+    }
+    try {
+      const res = await api.post("/group-chats", {
+        memberIds: newGroupChatMemberIds,
+        name: newGroupChatName.trim() || undefined,
+      });
+      setGroupChatList((prev) => [res.data, ...prev]);
+      setShowCreateGroupChat(false);
+      setNewGroupChatMemberIds([]);
+      setNewGroupChatName("");
+      await openGroupChat(res.data);
+    } catch (err: any) {
+      showAlert(err.response?.data?.message || "채팅방 생성에 실패했습니다.");
     }
   };
 
@@ -1952,8 +2014,13 @@ const handleDeleteFriends = () => {
         <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
           <button onClick={() => { setActiveGroupChat(null); setShowGroupChatMembers(false); }} className="text-lg">←</button>
           <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm truncate" style={{ color: "var(--foreground)" }}>{activeGroupChat.post.title}</p>
-            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>공강모임 채팅방</p>
+            <p className="font-semibold text-sm truncate" style={{ color: "var(--foreground)" }}>
+              {activeGroupChat.name || activeGroupChat.post?.title ||
+                activeGroupChat.members.filter((m) => m._id !== currentUser?._id).map((m) => m.nickname).join(", ")}
+            </p>
+            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              {activeGroupChat.post ? "공강모임 채팅방" : "단체 채팅방"}
+            </p>
           </div>
           <button
             onClick={() => setShowGroupChatMembers((v) => !v)}
@@ -3668,6 +3735,13 @@ const handleDeleteFriends = () => {
   {!isFriendSelectMode ? (
     <div className="flex items-center gap-2">
       <button
+        onClick={() => setShowCreateGroupChat(true)}
+        className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+        style={{ background: "var(--secondary)", color: "var(--primary)" }}
+      >
+        <Users size={12} /> 단체채팅
+      </button>
+      <button
         onClick={() => setShowAddFriend(!showAddFriend)}
         className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
         style={{ background: "var(--secondary)", color: "var(--primary)" }}
@@ -3692,6 +3766,35 @@ const handleDeleteFriends = () => {
     </button>
   )}
 </div>
+
+{groupChatList.length > 0 && (
+  <div className="flex flex-col gap-1.5 mb-2">
+    <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>단체채팅</span>
+    {groupChatList.map((chat) => {
+      const title = chat.name || chat.post?.title ||
+        chat.members.filter((m) => m._id !== currentUser?._id).map((m) => m.nickname).join(", ");
+      const preview = chat.lastMessage
+        ? (chat.lastMessage.image && !chat.lastMessage.content ? "사진을 보냈습니다" : chat.lastMessage.content)
+        : "아직 대화가 없습니다";
+      return (
+        <button
+          key={chat._id}
+          onClick={() => openGroupChat(chat)}
+          className="flex items-center gap-3 p-2.5 rounded-xl text-left"
+          style={{ background: "var(--card)" }}
+        >
+          <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--secondary)" }}>
+            <Users size={18} style={{ color: "var(--primary)" }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>{title}</p>
+            <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{preview}</p>
+          </div>
+        </button>
+      );
+    })}
+  </div>
+)}
 
 {friendRequests.length > 0 && (
   <div className="flex flex-col gap-1.5 mb-2 p-2 rounded-xl" style={{ background: "var(--secondary)" }}>
@@ -4809,6 +4912,69 @@ const handleDeleteFriends = () => {
                         </span>
                       )
                     )}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 친구끼리 단체 채팅방 만들기 */}
+      {showCreateGroupChat && (
+        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+            <button onClick={() => { setShowCreateGroupChat(false); setNewGroupChatMemberIds([]); setNewGroupChatName(""); }}>
+              <X size={20} style={{ color: "var(--foreground)" }} />
+            </button>
+            <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>단체채팅 만들기</h2>
+            <button
+              onClick={handleCreateGroupChat}
+              disabled={newGroupChatMemberIds.length === 0}
+              className="text-sm font-semibold px-2"
+              style={{ color: newGroupChatMemberIds.length === 0 ? "var(--muted-foreground)" : "var(--primary)" }}
+            >
+              만들기
+            </button>
+          </div>
+          <div className="px-4 py-3 shrink-0">
+            <input
+              value={newGroupChatName}
+              onChange={(e) => setNewGroupChatName(e.target.value)}
+              placeholder="채팅방 이름 (선택)"
+              className="w-full px-3 py-2 rounded-xl text-sm outline-none"
+              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+            />
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-2 no-scrollbar">
+            {friends.length === 0 ? (
+              <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+                초대할 친구가 없습니다.
+              </p>
+            ) : (
+              friends.map((friend) => {
+                const checked = newGroupChatMemberIds.includes(friend._id);
+                return (
+                  <button
+                    key={friend._id}
+                    onClick={() =>
+                      setNewGroupChatMemberIds((prev) =>
+                        prev.includes(friend._id) ? prev.filter((id) => id !== friend._id) : [...prev, friend._id]
+                      )
+                    }
+                    className="flex items-center gap-3 p-2.5 rounded-xl text-left"
+                    style={{ background: "var(--card)", outline: checked ? "2px solid var(--primary)" : "none" }}
+                  >
+                    <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+                      <img src={resolveAssetUrl(friend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                    </div>
+                    <p className="flex-1 min-w-0 text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{friend.nickname}</p>
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                      style={{ background: checked ? "var(--primary)" : "var(--muted)", border: "1.5px solid var(--border)" }}
+                    >
+                      {checked && <span className="text-white text-[10px] font-bold">✓</span>}
+                    </div>
                   </button>
                 );
               })
