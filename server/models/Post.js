@@ -21,10 +21,10 @@ const pollSchema = new mongoose.Schema({
 const postSchema = new mongoose.Schema({
   author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   board: {
-    type: String,
-    enum: ["free", "qna", "contest", "event", "lecture", "meeting"],
-    required: true,
-  },
+  type: String,
+  enum: ["free", "qna", "contest", "event", "lecture", "meeting", "alumni"],
+  required: true,
+},
   title: { type: String, required: true },
   // 투표만 올리는 글은 본문 없이도 등록할 수 있어야 하므로, 투표가 없을 때만 필수로 둔다.
   content: {
@@ -38,7 +38,7 @@ const postSchema = new mongoose.Schema({
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   dislikes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   comments: [commentSchema],
-  rating: { type: Number, min: 1, max: 5 },           // 강의평가
+  rating: { type: Number, min: 0.5, max: 5 },           // 강의평가
   maxParticipants: { type: Number },                   // 공강모임
   currentParticipants: { type: Number, default: 1 },
   price: { type: Number },

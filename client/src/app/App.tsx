@@ -17,7 +17,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("community");
   const [showChatPanel, setShowChatPanel] = useState(false);
   const [writeSignal, setWriteSignal] = useState(0);
-  const [navSignal, setNavSignal] = useState(0);
+const [navSignal, setNavSignal] = useState(0);
+// 게시물 상세/작성자 프로필처럼 하단에 댓글 입력창이 고정된 화면이 열려 있는지 여부.
+// true인 동안은 점심메뉴 플로팅 버튼이 그 입력창 위에 겹치지 않도록 숨긴다.
+const [communityDetailOpen, setCommunityDetailOpen] = useState(false);
   const handleWriteClick = () => {
     setActiveTab("community");
     setShowChatPanel(false);
@@ -253,13 +256,14 @@ const [currentTime, setCurrentTime] = useState("");
           }}
         >
           <CommunityScreen
-            showChat={showChatPanel}
-            setShowChat={setShowChatPanel}
-isActive={activeTab === "community" || activeTab === "chat"}
-onViewOwnProfile={() => handleTabChange("profile")}
-openWriteSignal={writeSignal}
-navSignal={navSignal}
-          />
+  showChat={showChatPanel}
+  setShowChat={setShowChatPanel}
+  isActive={activeTab === "community" || activeTab === "chat"}
+  onViewOwnProfile={() => handleTabChange("profile")}
+  openWriteSignal={writeSignal}
+  navSignal={navSignal}
+  onDetailViewChange={setCommunityDetailOpen}
+/>
         </div>
 
         {/* 프로필/설정은 위에 덮어씌우는 방식으로 렌더링 */}
@@ -302,15 +306,15 @@ navSignal={navSignal}
         )}
 
         {/* 점심메뉴 추천 플로팅 버튼: 하단 네비게이션 바로 위, 우측 */}
-        {activeTab !== "lunch" && (
-          <button
-            onClick={() => handleTabChange("lunch")}
-            className="absolute bottom-3 right-3 w-14 h-14 flex items-center justify-center shadow-lg z-40"
-            style={{ background: "var(--primary)", borderRadius: "18px 18px 18px 5px" }}
-          >
-            <Utensils size={22} color="white" />
-          </button>
-        )}
+        {activeTab !== "lunch" && !communityDetailOpen && (
+  <button
+    onClick={() => handleTabChange("lunch")}
+    className="absolute bottom-3 right-3 w-14 h-14 flex items-center justify-center shadow-lg z-40"
+    style={{ background: "var(--primary)", borderRadius: "18px 18px 18px 5px" }}
+  >
+    <Utensils size={22} color="white" />
+  </button>
+)}
       </div>
 
       {/* Bottom navigation */}

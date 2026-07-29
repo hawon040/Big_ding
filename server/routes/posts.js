@@ -36,9 +36,11 @@ router.get("/", auth, async (req, res) => {
 });
 
 // POST /api/posts
-router.post("/", auth, upload.single("image"), profanityFilter, async (req, res) => {
+router.post("/", auth, upload.array("images", 5), profanityFilter, async (req, res) => {
   try {
-    const images = req.file ? [(await uploadImage(req.file.buffer, "posts")).secure_url] : [];
+    const images = req.files?.length
+      ? (await Promise.all(req.files.map((file) => uploadImage(file.buffer, "posts")))).map((r) => r.secure_url)
+      : [];
 
     let poll;
     if (req.body.poll) {
@@ -52,14 +54,26 @@ router.post("/", auth, upload.single("image"), profanityFilter, async (req, res)
       poll = { question: parsed.question.trim(), options: options.map((text) => ({ text, votes: [] })) };
     }
 
-    const post = await Post.create({ ...req.body, images, poll, author: req.user.id });
+    // FormData로 온 tags는 프론트에서 JSON.stringify한 문자열이므로, 배열로 다시 풀어준다.
+    // (multipart/form-data는 모든 필드가 문자열로 전송되기 때문에 poll과 마찬가지 처리가 필요하다.)
+    let tags;
+    if (req.body.tags) {
+      try {
+        const parsedTags = JSON.parse(req.body.tags);
+        tags = Array.isArray(parsedTags) ? parsedTags.filter(Boolean) : undefined;
+      } catch {
+        tags = undefined;
+      }
+    }
+
+    const { tags: _rawTags, ...restBody } = req.body;
+    const post = await Post.create({ ...restBody, images, poll, tags, author: req.user.id });
     await post.populate("author", "nickname avatar");
     res.status(201).json(post);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }
 });
-
 // POST /api/posts/:id/poll/vote - 투표하기 (이미 투표했다면 선택한 옵션으로 옮겨진다)
 router.post("/:id/poll/vote", auth, async (req, res) => {
   try {

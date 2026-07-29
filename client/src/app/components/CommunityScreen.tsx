@@ -6,14 +6,15 @@ import { useSocket } from "@/hooks/useSocket";
 import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
   Search, Star, Send, UserPlus, ChevronDown, ChevronUp, FileText,
-  Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, Edit2, Trash2, AlertTriangle, Bell, Lock
+  Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, MoreHorizontal, Repeat2, Edit2, Trash2, AlertTriangle, Bell, Lock
 } from "lucide-react";
 
-export type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting";
-
+export type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting" | "alumni";
 // "행사공지" 게시판은 관리자 학번만 글을 작성할 수 있다.
 const ADMIN_STUDENT_IDS = ["20232023"];
 
+// 글쓰기 모달에서 한 게시물에 첨부할 수 있는 사진 최대 개수.
+const MAX_POST_IMAGES = 5;
 
 // 좋아요/신고/차단/건의 등 계정별 데이터가 다른 계정으로 로그인해도 섞이지 않도록,
 // localStorage 키에 현재 로그인한 학번을 붙여 계정별로 분리해서 저장한다.
@@ -326,12 +327,13 @@ export const loadStoredInteractions = (): StoredInteractions => {
 };
 
 export const BOARDS = [
-  { id: "free" as BoardType, label: "전체 게시판", emoji: "💬", icon: MessageCircle },
+  { id: "free" as BoardType, label: "게시판", emoji: "💬", icon: MessageCircle },
   { id: "event" as BoardType, label: "행사공지", emoji: "📢", icon: Megaphone },
   { id: "qna" as BoardType, label: "선배들 작품 전시 공간", emoji: "🏆", icon: Users },
-  { id: "contest" as BoardType, label: "학업", emoji: "📖", icon: Trophy },
+  { id: "contest" as BoardType, label: "꿀팁 게시판", emoji: "💡", icon: Trophy },
   { id: "lecture" as BoardType, label: "전공 강의평가", emoji: "⭐", icon: BookOpen },
   { id: "meeting" as BoardType, label: "공강모임", emoji: "☕", icon: Coffee },
+  { id: "alumni" as BoardType, label: "졸업생 게시판", emoji: "🎓", icon: Users },
 ];
 const RECENT_SEARCH_KEY = "bigding_recent_search_v1";
 const MAX_RECENT_SEARCHES = 10;
@@ -360,6 +362,10 @@ interface CommunityScreenProps {
   onViewOwnProfile: () => void;
   openWriteSignal?: number;
   navSignal?: number;
+  // 게시물 상세/작성자 프로필처럼 화면 하단에 고정 입력창(댓글 입력 등)이 있는 화면이
+  // 열려 있는지를 부모(App)에 알려준다. 부모는 이 값이 true인 동안 점심메뉴 플로팅
+  // 버튼을 숨겨서, 그 버튼이 댓글 입력창 위에 겹쳐 보이는 문제를 막는다.
+  onDetailViewChange?: (open: boolean) => void;
 }
 
 // 다른 사용자의 프로필 화면. 내 프로필(ProfileScreen)과 동일한 인스타 스타일 레이아웃을 쓰되,
@@ -681,6 +687,7 @@ export function CommunityScreen({
   onViewOwnProfile,
   openWriteSignal,
   navSignal,
+  onDetailViewChange,
 }: CommunityScreenProps) {
   // 좋아요/싫어요/댓글/스크랩/새 글 등은 로컬 저장소에서 초기값을 불러와
   // 새로고침해도 그대로 유지되도록 한다.
@@ -693,7 +700,19 @@ export function CommunityScreen({
   const socket = useSocket(authToken);
   const [activeBoard, setActiveBoard] = useState<BoardType>("free");
 
-  // 게시물 목록은 실제 DB(GET /api/posts)에서 불러온다. 좋아요/댓글/투표처럼 다른 사람이
+  // 꿀팁 게시판(contest) 전용 카테고리 필터
+  const CONTEST_FILTERS = ["자격증", "공모전", "학업"] as const;
+  const [activeContestFilter, setActiveContestFilter] = useState<string | null>(null);
+  const [showContestFilterMenu, setShowContestFilterMenu] = useState(false);
+
+  // 게시판을 옮길 때마다 필터를 초기화해서, 다른 게시판으로 갔다가 다시 꿀팁 게시판으로
+  // 돌아와도 이전에 선택했던 필터가 남아있지 않게 한다.
+  useEffect(() => {
+    setActiveContestFilter(null);
+    setShowContestFilterMenu(false);
+  }, [activeBoard]);
+
+  // 게시물 목록은 실제 DB(GET /api/posts)에서 불러온다. ...
   // 바꾼 내용도 새로고침 없이 보이도록, 탭이 활성화된 동안 몇 초마다 다시 불러온다(폴링).
   const [posts, setPostsRaw] = useState<Post[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
@@ -753,10 +772,28 @@ export function CommunityScreen({
   };
   // 게시물 상세/작성자 화면은 id만 들고 있다가 posts에서 찾아 쓴다.
   // 그래야 좋아요/댓글 등으로 posts가 갱신될 때 상세 화면에도 즉시 반영된다.
-  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
 const selectedPost = selectedPostId ? posts.find((p) => p._id === selectedPostId) ?? null : null;
 const [viewedAuthor, setViewedAuthor] = useState<PostAuthor | null>(null);
 
+// 게시물 상세 화면(하단에 댓글 입력창이 고정으로 붙어있음)이 열려 있는 동안에는
+// 점심메뉴 추천 플로팅 버튼(App.tsx)이 그 위에 겹쳐 보이지 않도록 부모에게 알려준다.
+// 주의: selectedPost는 posts.find(...)로 매번 새로 계산되는 객체라서, 2초마다 도는
+// 게시물 폴링이나 댓글 등록으로 posts가 갱신될 때마다 참조가 바뀐다. 예전에는 이 객체
+// 자체를 deps로 써서 그럴 때마다 "닫힘(false) → 열림(true)"을 반복 호출했는데, 그 사이에
+// 부모 state가 false에 멈춰버리면 상세화면이 열려 있는데도 점심메뉴 버튼이 다시 겹쳐
+// 보이는 버그로 이어졌다. 그래서 값이 안 바뀌는 id를 기준으로 열림 여부만 알리고,
+// "닫힘" 알림은 실제로 상세화면을 벗어나거나 언마운트될 때만 보내도록 분리한다.
+const viewedAuthorId = viewedAuthor?._id ?? null;
+useEffect(() => {
+  onDetailViewChange?.(!!selectedPostId || !!viewedAuthorId);
+}, [selectedPostId, viewedAuthorId, onDetailViewChange]);
+
+useEffect(() => {
+  return () => {
+    onDetailViewChange?.(false);
+  };
+}, [onDetailViewChange]);
   // 게시물 상세/작성자 화면이 열려있으면 친구 채팅 패널(메인 피드에만 있음)이 가려지므로,
   // 하단 네비게이션에서 채팅 탭을 누르면(showChat이 true가 되면) 상세 화면을 닫아
   // 채팅 패널로 실제로 이동할 수 있게 한다.
@@ -803,6 +840,28 @@ const [viewedAuthor, setViewedAuthor] = useState<PostAuthor | null>(null);
 
   const [showWrite, setShowWrite] = useState(false);
 
+  // 글쓰기 모달을 등록 없이 닫을 때(X 버튼, 하단 네비게이션 이동 등) 입력해뒀던 내용을
+  // 전부 초기화한다. 그래야 다시 글쓰기를 열었을 때 이전에 쓰다 만 내용이 남아있지 않는다.
+  const resetWriteForm = () => {
+    setNewTitle("");
+    setNewContent("");
+    setNewImageFiles([]);
+    setNewImagePreviews([]);
+    setNewPollEnabled(false);
+    setNewPollQuestion("");
+    setNewPollOptions(["", ""]);
+    setNewLectureGrade("");
+    setNewLectureName("");
+    setNewLectureProfessor("");
+    setNewLectureRating(0);
+    setNewLectureContent("");
+  };
+
+  const closeWriteModal = () => {
+    resetWriteForm();
+    setShowWrite(false);
+  };
+
   // 하단 네비게이션의 펜 버튼(BottomNav)을 눌렀을 때도 헤더 + 버튼과 동일하게 글쓰기 모달을 연다.
   useEffect(() => {
     if (openWriteSignal === undefined || openWriteSignal === 0) return;
@@ -814,7 +873,7 @@ const [viewedAuthor, setViewedAuthor] = useState<PostAuthor | null>(null);
   // 모달이 화면을 덮은 채로 남아 이동한 것처럼 보이지 않는 문제를 막는다.
   useEffect(() => {
     if (navSignal === undefined || navSignal === 0) return;
-    setShowWrite(false);
+    closeWriteModal();
   }, [navSignal]);
   const [showReport, setShowReport] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
@@ -844,12 +903,66 @@ const [viewedAuthor, setViewedAuthor] = useState<PostAuthor | null>(null);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newBoard, setNewBoard] = useState<BoardType>("free");
-  const [newImageFile, setNewImageFile] = useState<File | null>(null);
-  const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
+  const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
+  const [newImagePreviews, setNewImagePreviews] = useState<string[]>([]);
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
   const [newPollEnabled, setNewPollEnabled] = useState(false);
   const [newPollQuestion, setNewPollQuestion] = useState("");
   const [newPollOptions, setNewPollOptions] = useState<string[]>(["", ""]);
+
+  // 전공 강의평가(lecture) 전용 글쓰기 폼 상태
+  const LECTURE_GRADES = ["1학년", "2학년", "3학년", "4학년"];
+  const [newLectureGrade, setNewLectureGrade] = useState("");
+  const [newLectureName, setNewLectureName] = useState("");
+  const [newLectureProfessor, setNewLectureProfessor] = useState("");
+  const [newLectureRating, setNewLectureRating] = useState(0); // 0.5 단위
+  const [newLectureContent, setNewLectureContent] = useState("");
+  const [professorList, setProfessorList] = useState<string[]>([]);
+  const [showGradeDropdown, setShowGradeDropdown] = useState(false);
+  const [showProfessorDropdown, setShowProfessorDropdown] = useState(false);
+
+  // 글쓰기 모달에서 게시판을 "전공 강의평가"로 선택하면 서버에서 교수님 목록을 불러온다.
+  // 교수님 목록: User 모델(server/models/User.js)의 professor enum과 동일하게 고정 목록 사용
+  const PROFESSOR_LIST = ["유진호", "차대현", "홍진근"];
+
+  // 게시판을 바꾸면 열려있던 드롭다운은 닫는다.
+  useEffect(() => {
+    setShowGradeDropdown(false);
+    setShowProfessorDropdown(false);
+  }, [newBoard]);
+
+  // 별점 입력 UI: 별 5개, 절반 단위(0.5)로 클릭 가능. 각 별을 왼쪽/오른쪽 절반으로
+  // 나눠 각각 버튼으로 두고, 실제 채워진 별은 위에 겹쳐 clip해서 반개를 표현한다.
+  const renderLectureRatingInput = () => (
+    <div className="flex items-center gap-1">
+      {[0, 1, 2, 3, 4].map((i) => {
+        const filledRatio = Math.max(0, Math.min(1, newLectureRating - i));
+        return (
+          <div key={i} className="relative w-6 h-6 shrink-0">
+            <Star size={24} color="var(--muted-foreground)" />
+            <div className="absolute inset-0 overflow-hidden" style={{ width: `${filledRatio * 100}%` }}>
+              <Star size={24} fill="#ffc107" color="#ffc107" />
+            </div>
+            <button
+              type="button"
+              onClick={() => setNewLectureRating(i + 0.5)}
+              className="absolute inset-y-0 left-0 w-1/2"
+              aria-label={`${i + 0.5}점`}
+            />
+            <button
+              type="button"
+              onClick={() => setNewLectureRating(i + 1)}
+              className="absolute inset-y-0 right-0 w-1/2"
+              aria-label={`${i + 1}점`}
+            />
+          </div>
+        );
+      })}
+      <span className="ml-2 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+        {newLectureRating.toFixed(1)}
+      </span>
+    </div>
+  );
 
   // 스크랩(savedPosts)이 바뀔 때마다 저장해서 새로고침해도 유지되게 한다.
   // 이미 저장된 내용과 동일하면 다시 쓰지 않아, ProfileScreen이 보낸 갱신을 받아
@@ -909,6 +1022,34 @@ const hiddenMessageIdsRef = useRef<Set<string>>(new Set());
 const [showReportConfirm, setShowReportConfirm] = useState(false);
 const [viewingImage, setViewingImage] = useState<string | null>(null);
 const [fullscreenPostImage, setFullscreenPostImage] = useState<string | null>(null);
+// 행사공지(event) 게시물 상세를 인스타그램 스타일로 보여주기 위한 상태
+const [eventImageIndex, setEventImageIndex] = useState(0);
+// 피드 카드(상세화면 밖)에서 게시물별로 몇 번째 이미지를 보고 있는지 저장.
+// 게시물마다 따로 넘길 수 있어야 하므로 postId를 key로 하는 맵으로 관리한다.
+const [feedImageIndices, setFeedImageIndices] = useState<Record<string, number>>({});
+const getFeedImageIndex = (postId: string) => feedImageIndices[postId] ?? 0;
+const stepFeedImage = (postId: string, delta: number, maxIndex: number) => {
+  setFeedImageIndices((prev) => {
+    const current = prev[postId] ?? 0;
+    const next = Math.max(0, Math.min(maxIndex, current + delta));
+    return { ...prev, [postId]: next };
+  });
+};
+const [eventFollowingIds, setEventFollowingIds] = useState<string[]>([]);
+const toggleEventFollow = async (authorId: string) => {
+  const isFollowing = eventFollowingIds.includes(authorId);
+  setEventFollowingIds((prev) => isFollowing ? prev.filter((id) => id !== authorId) : [...prev, authorId]);
+  try {
+    if (isFollowing) await api.delete(`/users/follow/${authorId}`);
+    else await api.post(`/users/follow/${authorId}`);
+  } catch {
+    setEventFollowingIds((prev) => isFollowing ? [...prev, authorId] : prev.filter((id) => id !== authorId));
+  }
+};
+// 게시물이 바뀔 때마다 인스타그램 스타일 이미지 캐러셀 인덱스를 처음으로 되돌린다.
+useEffect(() => {
+  setEventImageIndex(0);
+}, [selectedPostId]);
 
   // 친구 목록 / 받은 친구 신청은 실제 DB(GET /api/friends, /api/friends/requests)에서 불러온다.
   // 친구 신청이 오거나 수락되는 것도 새로고침 없이 보이도록 몇 초마다 다시 불러온다(폴링).
@@ -1146,13 +1287,148 @@ const [fullscreenPostImage, setFullscreenPostImage] = useState<string | null>(nu
     if (alertCallback) alertCallback();
     setAlertCallback(null);
   };
-  const showConfirm = (message: string, onConfirm: () => void) => {
-    setConfirmState({ message, onConfirm });
-  };
-  const closeConfirm = () => setConfirmState(null);
+const showConfirm = (message: string, onConfirm: () => void) => {
+  setConfirmState({ message, onConfirm });
+};
+const closeConfirm = () => setConfirmState(null);
 
- // 게시물의 댓글 수는 이제 실제 DB에 저장된 comments 배열의 길이다.
- const getCommentCount = (post: Post) => post.comments.length;
+// 커스텀 알림/확인 팝업: showAlert/showConfirm은 게시물 상세, 채팅창, 검색 화면 등
+// 어디서든 호출될 수 있는데, 예전에는 이 팝업 JSX가 맨 아래 "커뮤니티 메인" 화면의
+// return문에만 있었다. 그래서 예를 들어 게시물 상세화면에서 댓글 삭제를 확인하면
+// confirmState는 바뀌지만 그 화면에는 팝업이 안 보이고, 나중에 메인 화면으로 돌아가야
+// (그 return이 렌더링되어야) 팝업이 뒤늦게 나타나는 버그가 있었다. 여러 화면에서 공용으로
+// 쓸 수 있도록 JSX를 변수로 뽑아, 팝업을 띄울 수 있는 모든 화면에서 각자 렌더링한다.
+const alertAndConfirmModals = (
+  <>
+    {/* 커스텀 알림 팝업 (확인 1개) */}
+    {alertMessage && (
+      <div
+        className="absolute inset-0 z-[70] flex items-center justify-center px-6"
+        style={{ background: "rgba(0,0,0,0.6)" }}
+      >
+        <div
+          className="w-full rounded-2xl overflow-hidden shadow-2xl"
+          style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          <div
+            className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+            style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+          >
+            Code
+            <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
+              <X size={18} />
+            </button>
+          </div>
+          <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+            {alertMessage}
+          </div>
+          <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+            <button
+              className="w-full py-3 text-sm font-medium"
+              style={{ color: "var(--foreground)" }}
+              onClick={closeAlert}
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* 커스텀 확인 팝업 (확인/취소 2개) */}
+    {confirmState && (
+      <div
+        className="absolute inset-0 z-[70] flex items-center justify-center px-6"
+        style={{ background: "rgba(0,0,0,0.6)" }}
+      >
+        <div
+          className="w-full rounded-2xl overflow-hidden shadow-2xl"
+          style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          <div
+            className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+            style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+          >
+            Code
+            <button onClick={closeConfirm} style={{ color: "var(--muted-foreground)" }}>
+              <X size={18} />
+            </button>
+          </div>
+          <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+            {confirmState.message}
+          </div>
+          <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+            <button
+              className="flex-1 py-3 text-sm font-medium"
+              style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
+              onClick={() => {
+                const action = confirmState.onConfirm;
+                setConfirmState(null);
+                action();
+              }}
+            >
+              확인
+            </button>
+            <button
+              className="flex-1 py-3 text-sm font-medium"
+              style={{ color: "var(--foreground)" }}
+              onClick={closeConfirm}
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+  </>
+);
+
+// 이미지 전체화면 뷰어(카톡처럼 클릭 시 확대)도 alertAndConfirmModals와 같은 이유로
+// 공용 변수로 뽑아둔다. 예전에는 이 JSX가 "커뮤니티 메인" 화면의 return문에만 있어서,
+// 게시물 상세화면에서 이미지를 클릭하면 fullscreenPostImage 상태는 바뀌지만 그 화면에는
+// 뷰어가 안 보이고, 뒤로 가기로 메인 화면에 돌아가야 뷰어가 뒤늦게(게시물 상세화면
+// 밖에서) 나타나는 버그가 있었다.
+const fullscreenImageViewer = fullscreenPostImage && (
+  <div
+    className="absolute inset-0 z-[80] flex items-center justify-center"
+    style={{ background: "rgba(0,0,0,0.92)" }}
+    onClick={() => setFullscreenPostImage(null)}
+  >
+    <button
+      onClick={() => setFullscreenPostImage(null)}
+      className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+      style={{ background: "rgba(255,255,255,0.15)" }}
+    >
+      <X size={20} color="white" />
+    </button>
+    <img
+      src={fullscreenPostImage}
+      alt="확대 이미지"
+      className="max-w-full max-h-full object-contain"
+      onClick={(e) => e.stopPropagation()}
+    />
+  </div>
+);
+
+// 게시물의 댓글 수는 이제 실제 DB에 저장된 comments 배열의 길이다.
+const getCommentCount = (post: Post) => post.comments.length;
+// 별점을 화면에 보여줄 때 쓰는 함수. 반개(0.5) 단위까지 정확히 표현하기 위해
+// 빈 별 위에 채워진 별을 rating 비율만큼만 겹쳐서(overflow: hidden으로 잘라서) 그린다.
+const renderRatingStars = (rating: number, size: number = 14) => (
+  <>
+    {[0, 1, 2, 3, 4].map((i) => {
+      const filledRatio = Math.max(0, Math.min(1, rating - i));
+      return (
+        <div key={i} className="relative shrink-0" style={{ width: size, height: size }}>
+          <Star size={size} color="var(--muted-foreground)" />
+          <div className="absolute inset-0 overflow-hidden" style={{ width: `${filledRatio * 100}%` }}>
+            <Star size={size} fill="#ffc107" color="#ffc107" />
+          </div>
+        </div>
+      );
+    })}
+  </>
+);
  // 내가 쓴 글은 프로필에서 업로드한 실제 프로필 사진을, 그 외에는 작성자의 avatar(아직 비어있으면 null)를 보여준다.
  const getAuthorAvatarUrl = (author: PostAuthor): string | null => {
    if (currentUser && author._id === currentUser._id) return resolveAssetUrl(myAvatar ?? author.avatar) ?? null;
@@ -1261,10 +1537,17 @@ const [fullscreenPostImage, setFullscreenPostImage] = useState<string | null>(nu
         p.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
       )
-    : allPosts.filter((p) =>
-        // 전체 게시판에는 행사공지도 함께 노출한다.
-        activeBoard === "free" ? (p.board === "free" || p.board === "event") : p.board === activeBoard
-      );
+    : allPosts
+        .filter((p) =>
+          // 전체 게시판에는 행사공지·강의평가도 함께 노출한다.
+          activeBoard === "free" ? (p.board === "free" || p.board === "event" || p.board === "lecture") : p.board === activeBoard
+        )
+        .filter((p) =>
+          // 꿀팁 게시판에서 카테고리 필터를 선택했다면 해당 태그가 붙은 게시물만 남긴다.
+          activeBoard === "contest" && activeContestFilter
+            ? p.tags?.includes(activeContestFilter)
+            : true
+        );
 
   const toggleFriendSelectMode = () => {
   setIsFriendSelectMode((prev) => !prev);
@@ -1598,6 +1881,8 @@ const handleDeleteFriends = () => {
             />
           </div>
         )}
+
+        {alertAndConfirmModals}
       </div>
     );
   }
@@ -1618,381 +1903,454 @@ const handleDeleteFriends = () => {
     );
   }
 
-  // ── 게시물 상세 화면 ──────────────────────────────────────────────────────
-  if (selectedPost) {
-    return (
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
-        <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setSelectedPostId(null)} className="text-lg">
-            ←
-          </button>
-          <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
-        </div>
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-          {/* 게시물 카드 */}
-          <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-            <div className="flex items-center gap-2 mb-3">
+   // ── 게시물 상세 화면 ──────────────────────────────────────────────────────
+ if (selectedPost) {
+  // 댓글 목록: 게시물 카드 레이아웃(행사공지 vs 일반)에 상관없이 동일하게 쓰인다.
+  // 댓글에 http(s)://... 또는 www.로 시작하는 링크가 있으면 새 탭에서 열리는
+  // 하이퍼링크로 바꿔준다. commentsList가 게시판 종류와 상관없이 공용으로 쓰이므로
+  // 여기서 한 번만 처리하면 모든 게시판의 댓글에 동일하게 적용된다.
+  const COMMENT_URL_REGEX = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+  const COMMENT_URL_TRAILING_PUNCTUATION = /[)\]},.!?"']+$/;
+  const renderCommentContent = (content: string) =>
+    content.split(COMMENT_URL_REGEX).map((part, i) => {
+      if (!/^(https?:\/\/|www\.)/i.test(part)) {
+        return <span key={i}>{part}</span>;
+      }
+      const trailingMatch = part.match(COMMENT_URL_TRAILING_PUNCTUATION);
+      const trailing = trailingMatch ? trailingMatch[0] : "";
+      const url = trailing ? part.slice(0, -trailing.length) : part;
+      const href = url.startsWith("http") ? url : `https://${url}`;
+      return (
+  <span key={i}>
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="underline break-all"
+      style={{ color: "var(--primary)" }}
+    >
+      {url}
+    </a>
+    {trailing}
+  </span>
+);
+    });
+  
+  const commentsList = (
+    <>
+      <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+        댓글 {getCommentCount(selectedPost)}개
+      </p>
+      {selectedPost.comments.map((c) => (
+        <div key={c._id} className="flex gap-2 items-start relative">
+          <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm cursor-pointer overflow-hidden"
+            style={{ background: "var(--muted)" }}
+            onClick={() => openAuthor(c.author)}>
+            <img src={getAuthorAvatarUrl(c.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+          </div>
+          <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
+            style={{ color: "var(--foreground)" }}>
+            <span>
+              <span
+              className="font-semibold cursor-pointer"
+              onClick={() => openAuthor(c.author)}
+            >
+              {c.author.nickname}{" "}
+            </span>
+              {renderCommentContent(c.content)}
+            </span>
+            <div className="relative shrink-0">
               <button
-                onClick={() => {
-                  openAuthor(selectedPost.author);
-                }}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
-                style={{ background: "var(--muted)" }}
+                onClick={() => setOpenCommentMenu(openCommentMenu === c._id ? null : c._id)}
+                style={{ color: "var(--muted-foreground)" }}
+                aria-label="댓글 더보기"
               >
-                <img src={getAuthorAvatarUrl(selectedPost.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                <MoreVertical size={14} />
               </button>
-              <div className="flex-1">
-                <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
-                  {selectedPost.author.nickname}
-                </p>
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-  {getDisplayTime(selectedPost, nowTick)}
-</p>
-              </div>
-              {selectedPost.price && (
-                <span className="px-2 py-1 rounded-xl text-xs font-bold"
-                  style={{ background: "var(--accent)", color: "var(--foreground)" }}>
-                  {selectedPost.price}원
-                </span>
+              {openCommentMenu === c._id && (
+                <div
+                  className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
+                  style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                >
+                  {currentUser && c.author._id === currentUser._id ? (
+                    <button
+                      onClick={() => handleDeleteComment(selectedPost._id, c._id)}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
+                      style={{ color: "#d4183d" }}
+                    >
+                      <Trash2 size={13} /> 삭제
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setOpenCommentMenu(null);
+                        handleReportCommentAuthor(c);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
+                      style={{ color: "#d4183d" }}
+                    >
+                      <AlertTriangle size={13} /> 신고
+                    </button>
+                  )}
+                </div>
               )}
             </div>
-
-            <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h3>
-
-            {selectedPost.rating && (
-              <div className="flex items-center gap-1 mb-1.5 mt-2">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} size={14}
-                    fill={i < Math.floor(selectedPost!.rating!) ? "#ffc107" : "none"}
-                    color={i < Math.floor(selectedPost!.rating!) ? "#ffc107" : "var(--muted-foreground)"} />
-                ))}
-                <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
-                  {selectedPost.rating.toFixed(1)}
-                </span>
-              </div>
-            )}
-
-            <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
-              {selectedPost.content}
-            </p>
-
-            {selectedPost.images[0] && (
-              <img
-                src={resolveAssetUrl(selectedPost.images[0])}
-                alt="첨부 이미지"
-                className="mt-2 w-full max-h-72 object-cover rounded-xl cursor-pointer"
-                onClick={() => setFullscreenPostImage(resolveAssetUrl(selectedPost.images[0]) || null)}
-              />
-            )}
-
-            {selectedPost.tags && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {selectedPost.tags.map((tag, i) => (
-                  <span key={i} className="text-xs px-2 py-0.5 rounded-full"
-                    style={{ background: "var(--secondary)", color: "var(--primary)" }}>
-                    #{tag}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {selectedPost.maxParticipants && (
-              <div className="mt-2">
-                <span
-                  className="text-xs px-2 py-1 rounded-full font-medium"
-                  style={{
-                    background: selectedPost.currentParticipants === selectedPost.maxParticipants ? "#5cb85c22" : "var(--secondary)",
-                    color: selectedPost.currentParticipants === selectedPost.maxParticipants ? "#5cb85c" : "var(--primary)",
-                  }}
-                >
-                  {selectedPost.currentParticipants}/{selectedPost.maxParticipants}명
-                  {selectedPost.currentParticipants === selectedPost.maxParticipants ? " 모집완료" : " 모집중"}
-                </span>
-              </div>
-            )}
-
-            {renderPoll(selectedPost)}
-
-            <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-             <button className="flex items-center gap-1.5" onClick={() => handleLike(selectedPost)}>
-                <Heart size={16} fill={isLiked(selectedPost) ? "#3b82f6" : "none"}
-                  color={isLiked(selectedPost) ? "#3b82f6" : "var(--muted-foreground)"} />
-                <span className="text-xs" style={{ color: isLiked(selectedPost) ? "var(--primary)" : "var(--muted-foreground)" }}>
-                  {selectedPost.likes.length}
-                </span>
-              </button>
-              <button className="flex items-center gap-1.5" onClick={() => handleDislike(selectedPost)}>
-                <ThumbsDown size={16} fill={isDisliked(selectedPost) ? "#d4183d" : "none"}
-                  color={isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)"} />
-                <span className="text-xs" style={{ color: isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)" }}>
-                  {selectedPost.dislikes.length}
-                </span>
-              </button>
-              <button className="flex items-center gap-1.5"
-                onClick={() => {
-                  commentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-                  commentInputRef.current?.focus();
-                }}>
-                <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
-                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(selectedPost)}</span>
-              </button>
-              <button className="flex items-center gap-1.5"
-                onClick={() => toggleSave(selectedPost._id)}>
-                <Bookmark size={16} fill={savedPosts[selectedPost._id] ? "var(--primary)" : "none"}
-                  color={savedPosts[selectedPost._id] ? "var(--primary)" : "var(--muted-foreground)"} />
-              </button>
-            </div>
           </div>
-
-          {/* 댓글 목록 */}
-          <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3">
-            <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
-              댓글 {getCommentCount(selectedPost)}개
-            </p>
-            {selectedPost.comments.map((c) => (
-              <div key={c._id} className="flex gap-2 items-start relative">
-                <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm cursor-pointer overflow-hidden"
-                  style={{ background: "var(--muted)" }}
-                  onClick={() => openAuthor(c.author)}>
-                  <img src={getAuthorAvatarUrl(c.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                </div>
-                <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
-                  style={{ color: "var(--foreground)" }}>
-                  <span>
-                    <span
-                      className="font-semibold cursor-pointer"
-                      onClick={() => openAuthor(c.author)}
-                    >
-                      {c.author.nickname}{" "}
-                    </span>
-                    {c.content}
-                  </span>
-                  <div className="relative shrink-0">
-                    <button
-                      onClick={() => setOpenCommentMenu(openCommentMenu === c._id ? null : c._id)}
-                      style={{ color: "var(--muted-foreground)" }}
-                      aria-label="댓글 더보기"
-                    >
-                      <MoreVertical size={14} />
-                    </button>
-                    {openCommentMenu === c._id && (
-                      <div
-                        className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
-                        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                      >
-                        {currentUser && c.author._id === currentUser._id ? (
-                          <button
-                            onClick={() => handleDeleteComment(selectedPost._id, c._id)}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
-                            style={{ color: "#d4183d" }}
-                          >
-                            <Trash2 size={13} /> 삭제
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setOpenCommentMenu(null);
-                              handleReportCommentAuthor(c);
-                            }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
-                            style={{ color: "#d4183d" }}
-                          >
-                            <AlertTriangle size={13} /> 신고
-                          </button>
-                        )}
-                      </div>
+        </div>
+      ))}
+    </>
+  );
+  return (
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
+      <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+        <button onClick={() => setSelectedPostId(null)} className="text-lg">
+          ←
+        </button>
+        {selectedPost.board === "event" || selectedPost.board === "qna" ? (
+  <>
+    <button
+      onClick={() => openAuthor(selectedPost.author)}
+      className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden shrink-0"
+      style={{ background: "var(--muted)" }}
+    >
+      <img src={getAuthorAvatarUrl(selectedPost.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+    </button>
+            <button
+              onClick={() => openAuthor(selectedPost.author)}
+              className="font-semibold text-sm flex-1 text-left truncate"
+              style={{ color: "var(--foreground)" }}
+            >
+              {selectedPost.author.nickname}
+            </button>
+            {currentUser && selectedPost.author._id !== currentUser._id && (
+              <button
+                onClick={() => toggleEventFollow(selectedPost.author._id)}
+                className="text-xs font-semibold px-1 shrink-0"
+                style={{ color: eventFollowingIds.includes(selectedPost.author._id) ? "var(--muted-foreground)" : "var(--primary)" }}
+              >
+                {eventFollowingIds.includes(selectedPost.author._id) ? "팔로잉" : "팔로우"}
+              </button>
+            )}
+            <button style={{ color: "var(--foreground)" }} className="shrink-0" aria-label="더보기">
+              <MoreHorizontal size={20} />
+            </button>
+          </>
+        ) : (
+          <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
+        )}
+      </div>
+      <div className="flex-1 min-h-0 flex flex-col">
+        {selectedPost.board === "event" || selectedPost.board === "qna" ? (
+  /* 행사공지 게시물은 정사각형 이미지가 커서 게시물 카드만으로 화면 높이를 다 채울 수
+     있다. 그래서 게시물 카드를 화면에 고정하지 않고, 카드와 댓글 목록을 하나의 스크롤
+     영역으로 묶어 댓글을 작성하면 항상 목록에서 확인할 수 있게 한다. */
+          <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-4 no-scrollbar">
+            <div className="pb-3">
+              <div className="rounded-2xl overflow-hidden shadow-sm" style={{ background: "var(--card)" }}>
+                {/* 인스타그램 스타일 이미지 영역 */}
+                {selectedPost.images.length > 0 && (
+                  <div className="relative w-full aspect-square" style={{ background: "var(--muted)" }}>
+                    <img
+                      src={resolveAssetUrl(selectedPost.images[eventImageIndex] || selectedPost.images[0])}
+                      alt="첨부 이미지"
+                      className="w-full h-full object-cover cursor-pointer"
+                      onClick={() => setFullscreenPostImage(resolveAssetUrl(selectedPost.images[eventImageIndex] || selectedPost.images[0]) || null)}
+                    />
+                    {selectedPost.images.length > 1 && (
+                      <>
+                        <span
+                          className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-xs font-semibold"
+                          style={{ background: "rgba(0,0,0,0.55)", color: "white" }}
+                        >
+                          {eventImageIndex + 1}/{selectedPost.images.length}
+                        </span>
+                        <button
+                          className="absolute inset-y-0 left-0 w-1/3"
+                          onClick={() => setEventImageIndex((i) => Math.max(0, i - 1))}
+                          aria-label="이전 이미지"
+                        />
+                        <button
+                          className="absolute inset-y-0 right-0 w-1/3"
+                          onClick={() => setEventImageIndex((i) => Math.min(selectedPost.images.length - 1, i + 1))}
+                          aria-label="다음 이미지"
+                        />
+                        <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-1">
+                          {selectedPost.images.map((_, i) => (
+                            <span
+                              key={i}
+                              className="rounded-full"
+                              style={{
+                                width: 5, height: 5,
+                                background: i === eventImageIndex ? "white" : "rgba(255,255,255,0.5)",
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </>
                     )}
                   </div>
+                )}
+
+                <div className="p-4">
+                  {/* 좋아요 / 댓글 / 공유 / 저장 아이콘 행 */}
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => handleLike(selectedPost)}>
+                        <Heart size={22} fill={isLiked(selectedPost) ? "#3b82f6" : "none"}
+                          color={isLiked(selectedPost) ? "#3b82f6" : "var(--foreground)"} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          commentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                          commentInputRef.current?.focus();
+                        }}
+                      >
+                        <MessageCircle size={22} style={{ color: "var(--foreground)" }} />
+                      </button>
+                    </div>
+                    <button onClick={() => toggleSave(selectedPost._id)}>
+                      <Bookmark size={22} fill={savedPosts[selectedPost._id] ? "var(--primary)" : "none"}
+                        color={savedPosts[selectedPost._id] ? "var(--primary)" : "var(--foreground)"} />
+                    </button>
+                  </div>
+
+                  <p className="text-sm font-semibold mb-1" style={{ color: "var(--foreground)" }}>
+                    좋아요 {selectedPost.likes.length}개
+                  </p>
+
+                  <p
+  className="text-sm leading-relaxed"
+  style={{
+    color: "var(--foreground)",
+    wordBreak: "break-all",
+    whiteSpace: "pre-wrap",
+    overflowWrap: "break-word",
+  }}
+>
+  <span className="font-semibold mr-1.5">{selectedPost.author.nickname}</span>
+  <span className="font-semibold">{selectedPost.title}</span>
+  {selectedPost.content && <>{" "}{selectedPost.content}</>}
+</p>
+
+                  {selectedPost.tags && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {selectedPost.tags.map((tag, i) => (
+                        <span key={i} className="text-xs px-2 py-0.5 rounded-full"
+                          style={{ background: "var(--secondary)", color: "var(--primary)" }}>
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
+            </div>
+
+            <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+              {commentsList}
+            </div>
+          </div>
+       ) : (
+  <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-4 no-scrollbar">
+    {/* 게시물 카드: 내용이 아무리 길어도 위 스크롤 영역 안에서 자연스럽게 스크롤된다 */}
+    <div className="pb-3">
+      <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            onClick={() => {
+              openAuthor(selectedPost.author);
+            }}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
+            style={{ background: "var(--muted)" }}
+          >
+            <img src={getAuthorAvatarUrl(selectedPost.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+          </button>
+          <div className="flex-1">
+            <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+              {selectedPost.author.nickname}
+            </p>
+            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+              {getDisplayTime(selectedPost, nowTick)}
+            </p>
+          </div>
+          {selectedPost.price && (
+            <span className="px-2 py-1 rounded-xl text-xs font-bold"
+              style={{ background: "var(--accent)", color: "var(--foreground)" }}>
+              {selectedPost.price}원
+            </span>
+          )}
+        </div>
+
+        <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h3>
+
+        {selectedPost.board === "lecture" && selectedPost.tags && selectedPost.tags.length >= 2 && (
+          <p className="text-xs mb-1.5 mt-2" style={{ color: "var(--muted-foreground)" }}>
+            {selectedPost.tags[0]} · {selectedPost.tags[1]} 교수님
+          </p>
+        )}
+        {selectedPost.rating && (
+          <div className="flex items-center gap-1 mb-1.5">
+            {renderRatingStars(selectedPost.rating, 14)}
+            <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
+              {selectedPost.rating.toFixed(1)}
+            </span>
+          </div>
+        )}
+
+        <p
+          className="text-sm leading-relaxed mt-1"
+          style={{
+            color: "var(--muted-foreground)",
+            wordBreak: "break-all",
+            whiteSpace: "pre-wrap",
+            overflowWrap: "break-word",
+          }}
+        >
+          {selectedPost.content}
+        </p>
+
+        {selectedPost.images.length > 0 && (
+          <div className="relative w-full mt-2 rounded-xl overflow-hidden" style={{ background: "var(--muted)" }}>
+            <img
+              src={resolveAssetUrl(selectedPost.images[eventImageIndex] || selectedPost.images[0])}
+              alt="첨부 이미지"
+              className="w-full max-h-72 object-cover cursor-pointer"
+              onClick={() => setFullscreenPostImage(resolveAssetUrl(selectedPost.images[eventImageIndex] || selectedPost.images[0]) || null)}
+            />
+            {selectedPost.images.length > 1 && (
+              <>
+                <span
+                  className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-xs font-semibold"
+                  style={{ background: "rgba(0,0,0,0.55)", color: "white" }}
+                >
+                  {eventImageIndex + 1}/{selectedPost.images.length}
+                </span>
+                <button
+                  className="absolute inset-y-0 left-0 w-1/3"
+                  onClick={() => setEventImageIndex((i) => Math.max(0, i - 1))}
+                  aria-label="이전 이미지"
+                />
+                <button
+                  className="absolute inset-y-0 right-0 w-1/3"
+                  onClick={() => setEventImageIndex((i) => Math.min(selectedPost.images.length - 1, i + 1))}
+                  aria-label="다음 이미지"
+                />
+                <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-1">
+                  {selectedPost.images.map((_, i) => (
+                    <span
+                      key={i}
+                      className="rounded-full"
+                      style={{
+                        width: 5, height: 5,
+                        background: i === eventImageIndex ? "white" : "rgba(255,255,255,0.5)",
+                      }}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+        {selectedPost.tags && selectedPost.board !== "lecture" && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {selectedPost.tags.map((tag, i) => (
+              <span key={i} className="text-xs px-2 py-0.5 rounded-full"
+                style={{ background: "var(--secondary)", color: "var(--primary)" }}>
+                #{tag}
+              </span>
             ))}
           </div>
-        </div>
-
-       {/* 댓글 입력 */}
-<div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
-  <input
-    ref={commentInputRef}
-    value={commentInput}
-    onChange={(e) => setCommentInput(e.target.value)}
-    onKeyDown={(e) => {
-      if (e.key === "Enter") handleAddComment();
-    }}
-    placeholder="댓글 입력..."
-    className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
-    style={{ background: "var(--input-background)", color: "white", border: "1.5px solid var(--border)" }}
-  />
-  <button
-    onClick={handleAddComment}
-    disabled={!commentInput.trim()}
-    className="px-3 py-2 rounded-xl text-xs font-semibold"
-    style={{
-      background: commentInput.trim() ? "var(--primary)" : "var(--muted)",
-      color: commentInput.trim() ? "white" : "var(--muted-foreground)",
-      cursor: commentInput.trim() ? "pointer" : "not-allowed",
-    }}
-  >
-    등록
-  </button>
-  </div>
-
-      {/* 댓글 작성자 신고 사유 선택 팝업 */}
-      {reportingComment && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.4)" }}>
-          <div className="rounded-2xl p-5 w-full" style={{ background: "var(--card)" }}>
-            <p className="font-semibold text-sm text-center mb-1" style={{ color: "var(--foreground)" }}>사용자 신고</p>
-            <p className="text-xs text-center mb-3" style={{ color: "var(--muted-foreground)" }}>
-              {reportingComment.author.nickname}님을 신고하는 이유를 선택해주세요
-            </p>
-            <div className="flex flex-col gap-2 mb-4">
-              {["욕설/비방", "스팸/광고", "음란물", "개인정보 침해", "기타"].map((reason) => (
-                <button
-                  key={reason}
-                  onClick={async () => {
-                    try {
-                      await api.post("/reports", { targetType: "comment", targetId: reportingComment._id, reason });
-                    } catch {
-                      showAlert("신고 접수에 실패했습니다.");
-                      return;
-                    }
-                    incrementCommentReportCount(reportingComment.author.nickname);
-                    const now = new Date();
-                    const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
-                    addReportToHistory({
-                      id: Date.now(),
-                      type: reason,
-                      target: `"${selectedPost!.title}" 게시물 - ${reportingComment.author.nickname}님의 댓글`,
-                      status: "처리 중",
-                      date,
-                      postId: selectedPost!._id,
-                      sanction: null,
-                    });
-                    setReportingComment(null);
-                    showAlert(`"${reason}" 사유로 신고가 접수되었습니다.`);
-                  }}
-                  className="w-full py-2.5 rounded-xl text-sm text-left px-4"
-                  style={{ background: "var(--muted)", color: "var(--foreground)" }}
-                >
-                  {reason}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => setReportingComment(null)}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold"
-              style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
+        )}
+        {selectedPost.maxParticipants && (
+          <div className="mt-2">
+            <span
+              className="text-xs px-2 py-1 rounded-full font-medium"
+              style={{
+                background: selectedPost.currentParticipants === selectedPost.maxParticipants ? "#5cb85c22" : "var(--secondary)",
+                color: selectedPost.currentParticipants === selectedPost.maxParticipants ? "#5cb85c" : "var(--primary)",
+              }}
             >
-              취소
-            </button>
+              {selectedPost.currentParticipants}/{selectedPost.maxParticipants}명
+              {selectedPost.currentParticipants === selectedPost.maxParticipants ? " 모집완료" : " 모집중"}
+            </span>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* 커스텀 알림 팝업 (확인 1개) - 게시물 상세 화면에서도 뜨도록 여기에도 렌더링 */}
-      {alertMessage && (
-        <div
-          className="absolute inset-0 z-[70] flex items-center justify-center px-6"
-          style={{ background: "rgba(0,0,0,0.6)" }}
-        >
-          <div
-            className="w-full rounded-2xl overflow-hidden shadow-2xl"
-            style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
-          >
-            <div
-              className="flex items-center justify-between px-5 py-4 text-base font-semibold"
-              style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
-            >
-              Code
-              <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-              {alertMessage}
-            </div>
-            <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-              <button
-                className="w-full py-3 text-sm font-medium"
-                style={{ color: "var(--foreground)" }}
-                onClick={closeAlert}
-              >
-                확인
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        {renderPoll(selectedPost)}
 
-      {/* 커스텀 확인 팝업 (댓글 삭제 등) - 게시물 상세 화면에서도 뜨도록 여기에도 렌더링 */}
-      {confirmState && (
-        <div
-          className="absolute inset-0 z-[70] flex items-center justify-center px-6"
-          style={{ background: "rgba(0,0,0,0.6)" }}
-        >
-          <div
-            className="w-full rounded-2xl overflow-hidden shadow-2xl"
-            style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
-          >
-            <div
-              className="flex items-center justify-between px-5 py-4 text-base font-semibold"
-              style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
-            >
-              알림
-              <button onClick={closeConfirm} style={{ color: "var(--muted-foreground)" }}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-              {confirmState.message}
-            </div>
-            <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-              <button
-                className="flex-1 py-3 text-sm font-medium"
-                style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
-                onClick={() => {
-                  const action = confirmState.onConfirm;
-                  setConfirmState(null);
-                  action();
-                }}
-              >
-                확인
-              </button>
-              <button
-                className="flex-1 py-3 text-sm font-medium"
-                style={{ color: "var(--foreground)" }}
-                onClick={closeConfirm}
-              >
-                취소
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-     {/* 이미지 전체화면 뷰어 (카톡처럼 클릭 시 확대) */}
-      {fullscreenPostImage && (
-        <div
-          className="absolute inset-0 z-[80] flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.92)" }}
-          onClick={() => setFullscreenPostImage(null)}
-        >
-          <button
-            onClick={() => setFullscreenPostImage(null)}
-            className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(255,255,255,0.15)" }}
-          >
-            <X size={20} color="white" />
+        <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+          <button className="flex items-center gap-1.5" onClick={() => handleLike(selectedPost)}>
+            <Heart size={16} fill={isLiked(selectedPost) ? "#3b82f6" : "none"}
+              color={isLiked(selectedPost) ? "#3b82f6" : "var(--muted-foreground)"} />
+            <span className="text-xs" style={{ color: isLiked(selectedPost) ? "var(--primary)" : "var(--muted-foreground)" }}>
+              {selectedPost.likes.length}
+            </span>
           </button>
-          <img
-            src={fullscreenPostImage}
-            alt="확대 이미지"
-            className="max-w-full max-h-full object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
+          <button className="flex items-center gap-1.5" onClick={() => handleDislike(selectedPost)}>
+            <ThumbsDown size={16} fill={isDisliked(selectedPost) ? "#d4183d" : "none"}
+              color={isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)"} />
+            <span className="text-xs" style={{ color: isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)" }}>
+              {selectedPost.dislikes.length}
+            </span>
+          </button>
+          <button className="flex items-center gap-1.5"
+            onClick={() => {
+              commentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+              commentInputRef.current?.focus();
+            }}>
+            <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
+            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(selectedPost)}</span>
+          </button>
+          <button className="flex items-center gap-1.5"
+            onClick={() => toggleSave(selectedPost._id)}>
+            <Bookmark size={16} fill={savedPosts[selectedPost._id] ? "var(--primary)" : "none"}
+              color={savedPosts[selectedPost._id] ? "var(--primary)" : "var(--muted-foreground)"} />
+          </button>
         </div>
-      )}
-</div>
-    );
-  }
+      </div>
+    </div>
+    {/* 댓글 목록: 이제 위 게시물 카드와 같은 스크롤 영역 안에 있어서, 게시물 내용이 아무리
+        길어도 화면 밖으로 잘리지 않고 함께 스크롤된다 */}
+    <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+      {commentsList}
+    </div>
+  </div>
+)}
+      </div>
+
+      {/* 댓글 입력 */}
+      <div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+        <input
+          ref={commentInputRef}
+          value={commentInput}
+          onChange={(e) => setCommentInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleAddComment();
+          }}
+          placeholder="댓글 입력..."
+          className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
+          style={{ background: "var(--input-background)", color: "white", border: "1.5px solid var(--border)" }}
+        />
+        <button
+          onClick={handleAddComment}
+          disabled={!commentInput.trim()}
+          className="px-3 py-2 rounded-xl text-xs font-semibold"
+          style={{
+            background: commentInput.trim() ? "var(--primary)" : "var(--muted)",
+            color: commentInput.trim() ? "white" : "var(--muted-foreground)",
+            cursor: commentInput.trim() ? "pointer" : "not-allowed",
+          }}
+        >
+          등록
+        </button>
+      </div>
+
+      {alertAndConfirmModals}
+      {fullscreenImageViewer}
+    </div>
+  );
+}
 
   // ── 검색 화면 ─────────────────────────────────────────────────────────────
   if (showSearch) {
@@ -2093,9 +2451,22 @@ const handleDeleteFriends = () => {
               <h3 className="font-semibold text-sm mb-1" style={{ color: "var(--foreground)" }}>
                 {post.title}
               </h3>
-              <p className="text-xs leading-relaxed mb-2" style={{ color: "var(--muted-foreground)" }}>
-                {post.content}
-              </p>
+              <p
+  className="text-xs leading-relaxed mb-2"
+  style={{
+    color: "var(--muted-foreground)",
+    wordBreak: "break-all",
+    whiteSpace: "pre-wrap",
+    overflowWrap: "break-word",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  }}
+>
+  {post.content}
+</p>
               <div className="flex items-center gap-3">
                 <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
                   <Heart size={12} /> {post.likes.length}
@@ -2110,6 +2481,8 @@ const handleDeleteFriends = () => {
             </div>
           ))}
         </div>
+
+        {alertAndConfirmModals}
       </div>
     );
   }
@@ -2185,11 +2558,64 @@ const handleDeleteFriends = () => {
         </div>
       )}
 
-      {/* 더보기 메뉴 외부 클릭 닫기 */}
-      {showMoreMenu !== null && (
-        <div className="absolute inset-0 z-10" onClick={() => setShowMoreMenu(null)} />
+      {/* 꿀팁 게시판 카테고리 필터: 버튼을 누르면 아래로 목록이 펼쳐진다 */}
+      {!showSearch && activeBoard === "contest" && (
+        <div className="relative flex justify-end px-4 pb-3 shrink-0">
+          <button
+            onClick={() => setShowContestFilterMenu((v) => !v)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap"
+            style={{
+              background: activeContestFilter ? "var(--primary)" : "var(--muted)",
+              color: activeContestFilter ? "white" : "var(--muted-foreground)",
+            }}
+          >
+            {activeContestFilter ?? "필터"}
+            {showContestFilterMenu ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+
+          {showContestFilterMenu && (
+            <div
+              className="absolute right-4 top-full mt-1 z-20 rounded-xl shadow-lg py-1 min-w-[110px]"
+              style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+            >
+              <button
+                onClick={() => {
+                  setActiveContestFilter(null);
+                  setShowContestFilterMenu(false);
+                }}
+                className="w-full px-3 py-2 text-xs text-left"
+                style={{ color: activeContestFilter === null ? "var(--primary)" : "var(--foreground)" }}
+              >
+                전체
+              </button>
+              {CONTEST_FILTERS.map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => {
+                    setActiveContestFilter(filter);
+                    setShowContestFilterMenu(false);
+                  }}
+                  className="w-full px-3 py-2 text-xs text-left"
+                  style={{ color: activeContestFilter === filter ? "var(--primary)" : "var(--foreground)" }}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
+      {/* 더보기 메뉴 / 꿀팁 필터 메뉴 외부 클릭 닫기 */}
+      {(showMoreMenu !== null || showContestFilterMenu) && (
+        <div
+          className="absolute inset-0 z-10"
+          onClick={() => {
+            setShowMoreMenu(null);
+            setShowContestFilterMenu(false);
+          }}
+        />
+      )}
       {/* Posts */}
 <div className="flex-1 overflow-y-auto px-4 pb-20 flex flex-col gap-3 no-scrollbar">
         {postsLoading && visiblePosts.length === 0 && (
@@ -2203,40 +2629,66 @@ const handleDeleteFriends = () => {
           </p>
         )}
         {visiblePosts.map((post) => (
-          <div
-            key={post._id}
-            className="rounded-2xl p-4 shadow-sm relative flex flex-col shrink-0"
-            style={
-              post.poll
-                // 투표가 달린 게시물은 옵션이 여러 개일 수 있어 고정 높이로 자르면 투표를 못 누르게
-                // 되므로, 이 경우만 최소 높이만 맞추고 내용에 맞춰 자연스럽게 늘어나게 둔다.
-                ? { background: "var(--card)", minHeight: "184px" }
-                : { background: "var(--card)", height: "184px", overflow: "hidden" }
-            }
-          >
+         <div
+  key={post._id}
+  className="rounded-2xl p-4 shadow-sm relative flex flex-col shrink-0"
+  style={
+  post.board === "event" || post.board === "qna"
+    ? { background: "var(--card)" }
+    : post.poll || post.board === "lecture"
+      ? { background: "var(--card)", minHeight: "184px" }
+      : { background: "var(--card)", height: "184px", overflow: "hidden" }
+}
+>
             {/* Author */}
-            <div className="flex items-center gap-2 mb-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openAuthor(post.author);
-                }}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
-                style={{ background: "var(--muted)" }}
-              >
-                <img src={getAuthorAvatarUrl(post.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-              </button>
-              <div className="flex-1">
-                <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{post.author.nickname}</p>
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(post, nowTick)}</p>
-              </div>
-              {post.price && (
-                <span className="px-2 py-1 rounded-xl text-xs font-bold"
-                  style={{ background: "var(--accent)", color: "var(--foreground)" }}>
-                  {post.price}원
-                </span>
-              )}
-            </div>
+{post.board === "event" || post.board === "qna" ? (
+  <div className="flex items-center gap-2 mb-2 pr-8">
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        openAuthor(post.author);
+      }}
+      className="w-9 h-9 rounded-full flex items-center justify-center overflow-hidden shrink-0"
+      style={{ background: "var(--muted)" }}
+    >
+      <img src={getAuthorAvatarUrl(post.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+    </button>
+    <button
+  onClick={(e) => { e.stopPropagation(); openAuthor(post.author); }}
+  className="flex-1 min-w-0 text-left"
+>
+  <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
+    {post.author.nickname}
+  </p>
+  <p className="text-[11px] uppercase tracking-wide" style={{ color: "var(--muted-foreground)" }}>
+    {getDisplayTime(post, nowTick)}
+  </p>
+</button>
+  </div>
+) : (
+  <div className="flex items-center gap-2 mb-2">
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        openAuthor(post.author);
+      }}
+      className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
+      style={{ background: "var(--muted)" }}
+    >
+      <img src={getAuthorAvatarUrl(post.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+    </button>
+    <div className="flex-1">
+      <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{post.author.nickname}</p>
+      <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(post, nowTick)}</p>
+    </div>
+    {post.price && (
+      <span className="px-2 py-1 rounded-xl text-xs font-bold"
+        style={{ background: "var(--accent)", color: "var(--foreground)" }}>
+        {post.price}원
+      </span>
+    )}
+  </div>
+)}
 
             {/* 더보기 버튼 */}
             <div className="absolute top-3 right-3 z-10">
@@ -2303,97 +2755,192 @@ const handleDeleteFriends = () => {
               )}
             </div>
 
-            {/* 클릭하면 상세화면으로 이동. 사진이 있으면 오른쪽에 정사각형 썸네일로 붙인다. */}
-            <div onClick={() => setSelectedPostId(post._id)} className="cursor-pointer flex gap-3 items-start">
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold mb-1 truncate" style={{ color: "var(--foreground)" }}>{post.title}</h3>
-
-                {post.rating && (
-                  <div className="flex items-center gap-1 mb-1.5">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} size={14}
-                        fill={i < Math.floor(post.rating!) ? "#ffc107" : "none"}
-                        color={i < Math.floor(post.rating!) ? "#ffc107" : "var(--muted-foreground)"} />
-                    ))}
-                    <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
-                      {post.rating.toFixed(1)}
-                    </span>
-                  </div>
-                )}
-
-                {post.maxParticipants && (
-                  <div className="mt-2">
-                    <span
-                      className="text-xs px-2 py-1 rounded-full font-medium"
-                      style={{
-                        background: post.currentParticipants === post.maxParticipants ? "#5cb85c22" : "var(--secondary)",
-                        color: post.currentParticipants === post.maxParticipants ? "#5cb85c" : "var(--primary)",
-                      }}
-                    >
-                      {post.currentParticipants}/{post.maxParticipants}명
-                      {post.currentParticipants === post.maxParticipants ? " 모집완료" : " 모집중"}
-                    </span>
-                  </div>
-                )}
-
-                <div
+  {post.board === "event" || post.board === "qna" ? (
+  <>
+    {/* 인스타그램 피드 스타일: 이미지, 좋아요/댓글/공유/저장, 캡션 */}
+    {post.images[0] && (
+      <div
+        className="relative w-full aspect-square rounded-xl overflow-hidden mb-2"
+        style={{ background: "var(--muted)" }}
+      >
+        <img
+          src={resolveAssetUrl(post.images[getFeedImageIndex(post._id)] || post.images[0])}
+          alt="첨부 이미지"
+          className="w-full h-full object-cover"
+        />
+        {post.images.length > 1 && (
+          <>
+            <span
+              className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-semibold"
+              style={{ background: "rgba(0,0,0,0.55)", color: "white" }}
+            >
+              {getFeedImageIndex(post._id) + 1}/{post.images.length}
+            </span>
+            <button
+              className="absolute inset-y-0 left-0 w-1/3"
+              onClick={(e) => {
+                e.stopPropagation();
+                stepFeedImage(post._id, -1, post.images.length - 1);
+              }}
+              aria-label="이전 이미지"
+            />
+            <button
+              className="absolute inset-y-0 right-0 w-1/3"
+              onClick={(e) => {
+                e.stopPropagation();
+                stepFeedImage(post._id, 1, post.images.length - 1);
+              }}
+              aria-label="다음 이미지"
+            />
+            <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-1">
+              {post.images.map((_, i) => (
+                <span
+                  key={i}
+                  className="rounded-full"
                   style={{
-                    wordBreak: "break-all",
-                    whiteSpace: "pre-wrap",
-                    color: "var(--muted-foreground)",
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                  className="text-sm leading-relaxed mt-1"
-                >
-                  {post.content}
-                </div>
-              </div>
-
-              {post.images[0] && (
-                <img
-                  src={resolveAssetUrl(post.images[0])}
-                  alt="첨부 이미지"
-                  className="w-16 h-16 object-cover rounded-xl shrink-0"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setFullscreenPostImage(resolveAssetUrl(post.images[0]) || null);
+                    width: 5,
+                    height: 5,
+                    background: i === getFeedImageIndex(post._id) ? "white" : "rgba(255,255,255,0.5)",
                   }}
                 />
-              )}
+              ))}
             </div>
+          </>
+        )}
+      </div>
+    )}
 
-            {renderPoll(post)}
+    <div className="flex items-center justify-between mb-1.5">
+      <div className="flex items-center gap-3">
+        <button onClick={() => handleLike(post)}>
+          <Heart size={20} fill={isLiked(post) ? "#3b82f6" : "none"}
+            color={isLiked(post) ? "#3b82f6" : "var(--foreground)"} />
+        </button>
+        <button onClick={() => setSelectedPostId(post._id)}>
+  <MessageCircle size={20} style={{ color: "var(--foreground)" }} />
+</button>
+      </div>
+      <button onClick={() => toggleSave(post._id)}>
+        <Bookmark size={20} fill={savedPosts[post._id] ? "var(--primary)" : "none"}
+          color={savedPosts[post._id] ? "var(--primary)" : "var(--foreground)"} />
+      </button>
+    </div>
 
-           {/* Actions: 카드 높이가 짧아도 항상 카드 맨 아래에 붙도록 mt-auto로 고정 */}
-<div className="flex items-center gap-3 mt-auto pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-  <button className="flex items-center gap-1.5" onClick={() => handleLike(post)}>
-    <Heart size={16} fill={isLiked(post) ? "#3b82f6" : "none"}
-      color={isLiked(post) ? "#3b82f6" : "var(--muted-foreground)"} />
-    <span className="text-xs" style={{ color: isLiked(post) ? "var(--primary)" : "var(--muted-foreground)" }}>
-      {post.likes.length}
-    </span>
-  </button>
-  <button className="flex items-center gap-1.5" onClick={() => handleDislike(post)}>
-                <ThumbsDown size={16} fill={isDisliked(post) ? "#d4183d" : "none"}
-                  color={isDisliked(post) ? "#d4183d" : "var(--muted-foreground)"} />
-                <span className="text-xs" style={{ color: isDisliked(post) ? "#d4183d" : "var(--muted-foreground)" }}>
-                  {post.dislikes.length}
-                </span>
-              </button>
-              <button className="flex items-center gap-1.5" onClick={() => setSelectedPostId(post._id)}>
-                <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
-                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(post)}</span>
-              </button>
-              <button className="flex items-center gap-1.5"
-                onClick={() => toggleSave(post._id)}>
-                <Bookmark size={16} fill={savedPosts[post._id] ? "var(--primary)" : "none"}
-                  color={savedPosts[post._id] ? "var(--primary)" : "var(--muted-foreground)"} />
-              </button>
-            </div>
+    <p className="text-sm font-semibold mb-1" style={{ color: "var(--foreground)" }}>
+      좋아요 {post.likes.length}개
+    </p>
+
+    <div className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+  <span className="font-semibold mr-1.5">{post.author.nickname}</span>
+  <span className="font-semibold">{post.title}</span>
+  {post.content && <>{" "}{post.content}</>}
+</div>
+  </>
+) : (
+  <>
+    {/* 클릭하면 상세화면으로 이동. 사진이 있으면 오른쪽에 정사각형 썸네일로 붙인다. */}
+    <div onClick={() => setSelectedPostId(post._id)} className="cursor-pointer flex gap-3 items-start">
+      <div className="flex-1 min-w-0">
+        <h3 className="font-semibold mb-1 truncate" style={{ color: "var(--foreground)" }}>{post.title}</h3>
+
+       {post.board === "lecture" && post.tags && post.tags.length >= 2 && (
+          <p className="text-xs mb-1.5" style={{ color: "var(--muted-foreground)" }}>
+            {post.tags[0]} · {post.tags[1]} 교수님
+          </p>
+        )}
+        {post.rating && (
+          <div className="flex items-center gap-1 mb-1.5">
+            {renderRatingStars(post.rating, 14)}
+            <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
+              {post.rating.toFixed(1)}
+            </span>
+          </div>
+        )}
+        {post.maxParticipants && (
+          <div className="mt-2">
+            <span
+              className="text-xs px-2 py-1 rounded-full font-medium"
+              style={{
+                background: post.currentParticipants === post.maxParticipants ? "#5cb85c22" : "var(--secondary)",
+                color: post.currentParticipants === post.maxParticipants ? "#5cb85c" : "var(--primary)",
+              }}
+            >
+              {post.currentParticipants}/{post.maxParticipants}명
+              {post.currentParticipants === post.maxParticipants ? " 모집완료" : " 모집중"}
+            </span>
+          </div>
+        )}
+
+        <div
+          style={{
+            wordBreak: "break-all",
+            whiteSpace: "pre-wrap",
+            color: "var(--muted-foreground)",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+          className="text-sm leading-relaxed mt-1"
+        >
+          {post.content}
+        </div>
+      </div>
+
+      {post.images[0] && (
+        <div className="relative w-16 h-16 shrink-0">
+          <img
+            src={resolveAssetUrl(post.images[0])}
+            alt="첨부 이미지"
+            className="w-16 h-16 object-cover rounded-xl"
+            onClick={(e) => {
+              e.stopPropagation();
+              setFullscreenPostImage(resolveAssetUrl(post.images[0]) || null);
+            }}
+          />
+          {post.images.length > 1 && (
+            <span
+              className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-full text-[10px] leading-none font-semibold"
+              style={{ background: "rgba(0,0,0,0.6)", color: "white" }}
+            >
+              1/{post.images.length}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+
+    {renderPoll(post)}
+
+    {/* Actions: 카드 높이가 짧아도 항상 카드 맨 아래에 붙도록 mt-auto로 고정 */}
+    <div className="flex items-center gap-3 mt-auto pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+      <button className="flex items-center gap-1.5" onClick={() => handleLike(post)}>
+        <Heart size={16} fill={isLiked(post) ? "#3b82f6" : "none"}
+          color={isLiked(post) ? "#3b82f6" : "var(--muted-foreground)"} />
+        <span className="text-xs" style={{ color: isLiked(post) ? "var(--primary)" : "var(--muted-foreground)" }}>
+          {post.likes.length}
+        </span>
+      </button>
+      <button className="flex items-center gap-1.5" onClick={() => handleDislike(post)}>
+        <ThumbsDown size={16} fill={isDisliked(post) ? "#d4183d" : "none"}
+          color={isDisliked(post) ? "#d4183d" : "var(--muted-foreground)"} />
+        <span className="text-xs" style={{ color: isDisliked(post) ? "#d4183d" : "var(--muted-foreground)" }}>
+          {post.dislikes.length}
+        </span>
+      </button>
+      <button className="flex items-center gap-1.5" onClick={() => setSelectedPostId(post._id)}>
+        <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
+        <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(post)}</span>
+      </button>
+      <button className="flex items-center gap-1.5"
+        onClick={() => toggleSave(post._id)}>
+        <Bookmark size={16} fill={savedPosts[post._id] ? "var(--primary)" : "none"}
+          color={savedPosts[post._id] ? "var(--primary)" : "var(--muted-foreground)"} />
+      </button>
+    </div>
+  </>
+)}
           </div>
         ))}
       </div>
@@ -2591,7 +3138,7 @@ const handleDeleteFriends = () => {
       {showWrite && (
         <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
           <div className="flex items-center gap-3 px-4 py-4 border-b" style={{ borderColor: "var(--border)" }}>
-            <button onClick={() => setShowWrite(false)}>
+            <button onClick={closeWriteModal}>
               <X size={20} style={{ color: "var(--foreground)" }} />
             </button>
             <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>글쓰기</h2>
@@ -2604,6 +3151,40 @@ const handleDeleteFriends = () => {
                   showAlert("행사공지 게시판은 관리자만 작성할 수 있습니다.");
                   return;
                 }
+
+                if (newBoard === "lecture") {
+                  if (!newLectureGrade) { showAlert("학년을 선택해주세요."); return; }
+                  if (!newLectureName.trim()) { showAlert("강의명을 입력해주세요."); return; }
+                  if (!newLectureProfessor) { showAlert("교수님을 선택해주세요."); return; }
+                  if (newLectureRating === 0) { showAlert("별점을 선택해주세요."); return; }
+                  if (newLectureContent.trim().length < 20) {
+                    showAlert("평가 글을 20자 이상 작성해주세요.");
+                    return;
+                  }
+                  setIsSubmittingPost(true);
+                  try {
+                    const formData = new FormData();
+                    formData.append("board", "lecture");
+                    formData.append("title", newLectureName.trim());
+                    formData.append("content", newLectureContent.trim());
+                    formData.append("rating", String(newLectureRating));
+                    formData.append("tags", JSON.stringify([newLectureGrade, newLectureProfessor]));
+                    const res = await api.post("/posts", formData);
+                    setPosts((prev) => [res.data, ...prev]);
+                    setNewLectureGrade("");
+                    setNewLectureName("");
+                    setNewLectureProfessor("");
+                    setNewLectureRating(0);
+                    setNewLectureContent("");
+                    setShowWrite(false);
+                  } catch (err: any) {
+                    showAlert(err.response?.data?.message || "게시물 등록에 실패했습니다.");
+                  } finally {
+                    setIsSubmittingPost(false);
+                  }
+                  return;
+                }
+
                 if (!newTitle.trim() || (!newPollEnabled && !newContent.trim())) {
                   showAlert(newPollEnabled ? "제목을 입력해주세요." : "제목과 내용을 입력해주세요.");
                   return;
@@ -2619,7 +3200,7 @@ const handleDeleteFriends = () => {
                   formData.append("board", newBoard);
                   formData.append("title", newTitle);
                   formData.append("content", newContent);
-                  if (newImageFile) formData.append("image", newImageFile);
+                 newImageFiles.forEach((file) => formData.append("images", file));
                   if (newPollEnabled) {
                     formData.append("poll", JSON.stringify({ question: newPollQuestion.trim(), options: pollOptions }));
                   }
@@ -2627,8 +3208,8 @@ const handleDeleteFriends = () => {
                   setPosts((prev) => [res.data, ...prev]);
                   setNewTitle("");
                   setNewContent("");
-                  setNewImageFile(null);
-                  setNewImagePreview(null);
+                  setNewImageFiles([]);
+                  setNewImagePreviews([]);
                   setNewPollEnabled(false);
                   setNewPollQuestion("");
                   setNewPollOptions(["", ""]);
@@ -2643,7 +3224,10 @@ const handleDeleteFriends = () => {
               등록
             </button>
           </div>
-          <div className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto no-scrollbar">
+          <div
+            className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto no-scrollbar"
+            onClick={() => { setShowGradeDropdown(false); setShowProfessorDropdown(false); }}
+          >
             <div>
               <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
                 게시판 선택
@@ -2664,50 +3248,208 @@ const handleDeleteFriends = () => {
                 ))}
               </div>
             </div>
-            <input
-              placeholder="제목을 입력하세요"
-              value={newTitle}
-              onChange={(e) => setNewTitle(filterProfanity(e.target.value))}
-              className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
-              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-            />
+
+            {newBoard === "lecture" ? (
+              <div className="flex flex-col gap-4">
+                {/* 학년 드롭다운 */}
+                <div>
+                  <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>학년</label>
+                  <div className="relative" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      onClick={() => setShowGradeDropdown((v) => !v)}
+                      className="w-40 flex items-center justify-between px-4 py-3 rounded-2xl text-sm"
+                      style={{
+                        background: "var(--input-background)",
+                        color: newLectureGrade ? "var(--foreground)" : "var(--muted-foreground)",
+                        border: "1.5px solid var(--border)",
+                      }}
+                    >
+                      {newLectureGrade || "학년 선택"}
+                      {showGradeDropdown ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+                    {showGradeDropdown && (
+                      <div
+                        className="absolute left-0 top-full mt-1 z-20 w-40 rounded-xl shadow-lg py-1"
+                        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                      >
+                        {LECTURE_GRADES.map((g) => (
+                          <button
+                            key={g}
+                            onClick={() => {
+                              setNewLectureGrade(g);
+                              setNewLectureName("");
+                              setNewLectureProfessor("");
+                              setShowGradeDropdown(false);
+                            }}
+                            className="w-full px-4 py-2.5 text-sm text-left"
+                            style={{ color: newLectureGrade === g ? "var(--primary)" : "var(--foreground)" }}
+                          >
+                            {g}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 강의명 + 교수님 선택 */}
+                <div className="flex-1">
+                    <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>강의명</label>
+                    <input
+                      placeholder={newLectureGrade ? "강의명을 입력하세요" : "학년을 먼저 선택해주세요"}
+                      value={newLectureName}
+                      onChange={(e) => setNewLectureName(e.target.value)}
+                      disabled={!newLectureGrade}
+                      className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
+                      style={{
+                        background: "var(--input-background)",
+                        color: "var(--foreground)",
+                        border: "1.5px solid var(--border)",
+                        opacity: newLectureGrade ? 1 : 0.5,
+                        cursor: newLectureGrade ? "text" : "not-allowed",
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>교수님 선택</label>
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => {
+                          if (!newLectureName.trim()) return;
+                          setShowProfessorDropdown((v) => !v);
+                        }}
+                        disabled={!newLectureName.trim()}
+                        className="w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm"
+                        style={{
+                          background: "var(--input-background)",
+                          color: newLectureProfessor ? "var(--foreground)" : "var(--muted-foreground)",
+                          border: "1.5px solid var(--border)",
+                          opacity: newLectureName.trim() ? 1 : 0.5,
+                          cursor: newLectureName.trim() ? "pointer" : "not-allowed",
+                        }}
+                      >
+                        {newLectureProfessor || (newLectureName.trim() ? "교수님 선택" : "강의명을 먼저 입력해주세요")}
+                        {showProfessorDropdown ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                      {showProfessorDropdown && (
+                        <div
+                          className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl shadow-lg py-1 max-h-48 overflow-y-auto no-scrollbar"
+                          style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                        >
+                          {PROFESSOR_LIST.map((p) => (
+                            <button
+                              key={p}
+                              onClick={() => { setNewLectureProfessor(p); setShowProfessorDropdown(false); }}
+                              className="w-full px-4 py-2.5 text-sm text-left"
+                              style={{ color: newLectureProfessor === p ? "var(--primary)" : "var(--foreground)" }}
+                            >
+                              {p}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                {/* 별점 */}
+                <div>
+                  <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>별점</label>
+                  {renderLectureRatingInput()}
+                </div>
+
+                {/* 평가 글 */}
+                <div>
+                  <textarea
+                    placeholder="평가 글을 작성해주세요"
+                    value={newLectureContent}
+                    onChange={(e) => setNewLectureContent(e.target.value)}
+                    rows={6}
+                    className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
+                    style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                  />
+                  <p
+                    className="text-xs mt-1"
+                    style={{ color: newLectureContent.trim().length < 20 ? "#d4183d" : "var(--muted-foreground)" }}
+                  >
+                    ※ 20자 이상 작성해주세요. ({newLectureContent.trim().length}/20)
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <input
+  placeholder="제목을 입력하세요"
+  value={newTitle}
+  onChange={(e) => setNewTitle(e.target.value)}
+  className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
+  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+/>
             <textarea
-              placeholder="내용을 입력하세요"
-              value={newContent}
-              onChange={(e) => setNewContent(filterProfanity(e.target.value))}
-              rows={8}
-              className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
-              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-            />
+  placeholder="내용을 입력하세요"
+  value={newContent}
+  onChange={(e) => setNewContent(e.target.value)}
+  rows={8}
+  className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
+  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+/>
             <input
               id="image-upload"
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
               onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                setNewImageFile(file);
-                const reader = new FileReader();
-                reader.onload = () => setNewImagePreview(reader.result as string);
-                reader.readAsDataURL(file);
+                const files = Array.from(e.target.files ?? []);
+                // 같은 파일을 다시 선택해도 onChange가 또 발생하도록 값을 비워준다.
+                e.target.value = "";
+                if (files.length === 0) return;
+                const room = MAX_POST_IMAGES - newImageFiles.length;
+                if (room <= 0) {
+                  showAlert(`사진은 최대 ${MAX_POST_IMAGES}장까지 첨부할 수 있습니다.`);
+                  return;
+                }
+                const filesToAdd = files.slice(0, room);
+                if (files.length > room) {
+                  showAlert(`사진은 최대 ${MAX_POST_IMAGES}장까지 첨부할 수 있습니다.`);
+                }
+                setNewImageFiles((prev) => [...prev, ...filesToAdd]);
+                filesToAdd.forEach((file) => {
+                  const reader = new FileReader();
+                  reader.onload = () => setNewImagePreviews((prev) => [...prev, reader.result as string]);
+                  reader.readAsDataURL(file);
+                });
               }}
             />
-            {newImagePreview ? (
-              <div className="relative rounded-2xl overflow-hidden">
-                <img src={newImagePreview} alt="첨부 이미지" className="w-full max-h-48 object-cover rounded-2xl" />
-                <button
-                  onClick={() => {
-                    setNewImageFile(null);
-                    setNewImagePreview(null);
-                  }}
-                  className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center"
-                  style={{ background: "rgba(0,0,0,0.5)" }}
-                >
-                  <X size={14} color="white" />
-                </button>
+            {(newImagePreviews.length > 0 || newImageFiles.length > 0) && (
+              <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                {newImagePreviews.map((preview, index) => (
+                  <div key={index} className="relative w-24 h-24 shrink-0 rounded-2xl overflow-hidden">
+                    <img src={preview} alt="첨부 이미지" className="w-full h-full object-cover" />
+                    <button
+                      onClick={() => {
+                        setNewImageFiles((prev) => prev.filter((_, i) => i !== index));
+                        setNewImagePreviews((prev) => prev.filter((_, i) => i !== index));
+                      }}
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center"
+                      style={{ background: "rgba(0,0,0,0.5)" }}
+                    >
+                      <X size={12} color="white" />
+                    </button>
+                  </div>
+                ))}
+                {newImageFiles.length < MAX_POST_IMAGES && (
+                  <button
+                    onClick={() => document.getElementById("image-upload")?.click()}
+                    className="w-24 h-24 shrink-0 rounded-2xl border border-dashed flex flex-col items-center justify-center gap-1"
+                    style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
+                  >
+                    <Image size={18} />
+                    <span className="text-xs">{newImageFiles.length}/{MAX_POST_IMAGES}</span>
+                  </button>
+                )}
               </div>
-            ) : (
+            )}
+            {newImageFiles.length === 0 && (
               <button
                 onClick={() => document.getElementById("image-upload")?.click()}
                 className="flex items-center gap-2 px-4 py-3 rounded-2xl border border-dashed"
@@ -2734,32 +3476,32 @@ const handleDeleteFriends = () => {
                   </button>
                 </div>
                 <input
-                  placeholder="투표 질문을 입력하세요"
-                  value={newPollQuestion}
-                  onChange={(e) => setNewPollQuestion(filterProfanity(e.target.value))}
-                  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
-                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-                />
+  placeholder="투표 질문을 입력하세요"
+  value={newPollQuestion}
+  onChange={(e) => setNewPollQuestion(e.target.value)}
+  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
+  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+/>
                 {newPollOptions.map((opt, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <input
-                      placeholder={`옵션 ${idx + 1}`}
-                      value={opt}
-                      onChange={(e) => {
-                        const next = [...newPollOptions];
-                        next[idx] = filterProfanity(e.target.value);
-                        setNewPollOptions(next);
-                      }}
-                      className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
-                      style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-                    />
-                    {newPollOptions.length > 2 && (
-                      <button onClick={() => setNewPollOptions(newPollOptions.filter((_, i) => i !== idx))}>
-                        <X size={16} style={{ color: "var(--muted-foreground)" }} />
-                      </button>
-                    )}
-                  </div>
-                ))}
+  <div key={idx} className="flex items-center gap-2">
+    <input
+      placeholder={`옵션 ${idx + 1}`}
+      value={opt}
+      onChange={(e) => {
+        const next = [...newPollOptions];
+        next[idx] = e.target.value;
+        setNewPollOptions(next);
+      }}
+      className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
+      style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+    />
+    {newPollOptions.length > 2 && (
+      <button onClick={() => setNewPollOptions(newPollOptions.filter((_, i) => i !== idx))}>
+        <X size={16} style={{ color: "var(--muted-foreground)" }} />
+      </button>
+    )}
+  </div>
+))}
                 {newPollOptions.length < 5 && (
                   <button
                     onClick={() => setNewPollOptions([...newPollOptions, ""])}
@@ -2779,6 +3521,8 @@ const handleDeleteFriends = () => {
                 <Plus size={18} />
                 <span className="text-sm">투표 추가</span>
               </button>
+            )}
+              </>
             )}
           </div>
         </div>
@@ -2818,20 +3562,20 @@ const handleDeleteFriends = () => {
     </div>
     <div className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto no-scrollbar">
       <input
-        placeholder="제목을 입력하세요"
-        value={editTitle}
-        onChange={(e) => setEditTitle(filterProfanity(e.target.value))}
-        className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
-        style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-      />
-      <textarea
-        placeholder="내용을 입력하세요"
-        value={editContent}
-        onChange={(e) => setEditContent(filterProfanity(e.target.value))}
-        rows={8}
-        className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
-        style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-      />
+  placeholder="제목을 입력하세요"
+  value={editTitle}
+  onChange={(e) => setEditTitle(e.target.value)}
+  className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
+  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+/>
+<textarea
+  placeholder="내용을 입력하세요"
+  value={editContent}
+  onChange={(e) => setEditContent(e.target.value)}
+  rows={8}
+  className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
+  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+/>
     </div>
   </div>
 )}
@@ -2995,6 +3739,7 @@ const handleDeleteFriends = () => {
           </div>
         </div>
       )}
+{alertAndConfirmModals}
 
       {/* 알림 패널 (팔로우 알림) */}
       {showNotifications && (
@@ -3058,28 +3803,7 @@ const handleDeleteFriends = () => {
         </div>
       )}
 
-      {/* 이미지 전체화면 뷰어 (카톡처럼 클릭 시 확대) */}
-      {fullscreenPostImage && (
-        <div
-          className="absolute inset-0 z-[80] flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.92)" }}
-          onClick={() => setFullscreenPostImage(null)}
-        >
-          <button
-            onClick={() => setFullscreenPostImage(null)}
-            className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(255,255,255,0.15)" }}
-          >
-            <X size={20} color="white" />
-          </button>
-          <img
-            src={fullscreenPostImage}
-            alt="확대 이미지"
-            className="max-w-full max-h-full object-contain"
-            onClick={(e) => e.stopPropagation()}
-          />
-        </div>
-      )}
+      {fullscreenImageViewer}
     </div>
   );
 }

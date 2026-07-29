@@ -28,4 +28,20 @@ module.exports = {
       return res.status(400).json({ message: "이미지 업로드에 실패했습니다." });
     });
   },
+  // 게시물 사진 여러 장 첨부처럼 한 번에 여러 파일을 받아야 할 때 사용한다.
+  array: (fieldName, maxCount) => (req, res, next) => {
+    uploader.array(fieldName, maxCount)(req, res, (err) => {
+      if (!err) return next();
+      if (err.code === "LIMIT_FILE_SIZE") {
+        return res.status(400).json({ message: "이미지 용량은 10MB 이하만 가능합니다." });
+      }
+      if (err.code === "LIMIT_FILE_COUNT" || err.code === "LIMIT_UNEXPECTED_FILE") {
+        return res.status(400).json({ message: `사진은 최대 ${maxCount}장까지 첨부할 수 있습니다.` });
+      }
+      if (err.message === "INVALID_FILE_TYPE") {
+        return res.status(400).json({ message: "이미지 파일만 업로드할 수 있습니다." });
+      }
+      return res.status(400).json({ message: "이미지 업로드에 실패했습니다." });
+    });
+  },
 };
