@@ -16,6 +16,9 @@ const messageSchema = new mongoose.Schema({
   // 읽음 여부
   read: { type: Boolean, default: false },
 
+  // 하트 반응 여부 (인스타 DM처럼 메시지를 더블탭하면 하트가 붙는다)
+  liked: { type: Boolean, default: false },
+
 }, { timestamps: true }); // createdAt이 전송 시간
 
 module.exports = mongoose.model("Message", messageSchema);

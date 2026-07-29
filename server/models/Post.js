@@ -3,6 +3,8 @@ const mongoose = require("mongoose");
 const commentSchema = new mongoose.Schema({
   author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   content: { type: String, required: true },
+  // 답글이면 최상위 댓글의 _id를 가리킨다 (대댓글은 1단계까지만 허용)
+  parentComment: { type: mongoose.Schema.Types.ObjectId, default: null },
 }, { timestamps: true });
 
 const pollOptionSchema = new mongoose.Schema({

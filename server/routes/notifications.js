@@ -7,6 +7,7 @@ router.get("/", auth, async (req, res) => {
   try {
     const notifications = await Notification.find({ recipient: req.user.id })
       .populate("sender", "nickname avatar studentId")
+      .populate("post", "title board")
       .sort({ createdAt: -1 })
       .limit(50);
     res.json(notifications);

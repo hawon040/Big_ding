@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const Post = require("../models/Post");
 const User = require("../models/User");
+const Notification = require("../models/Notification");
+const GroupChat = require("../models/GroupChat");
 const auth = require("../middleware/authMiddleware");
 const upload = require("../middleware/upload");
 const profanityFilter = require("../middleware/profanityFilter");
@@ -72,6 +74,12 @@ router.post("/", auth, upload.array("images", 5), profanityFilter, async (req, r
 
     const post = await Post.create({ ...restBody, images, poll, tags, participants, author: req.user.id });
     await post.populate("author", "nickname avatar");
+
+    // 공강모임을 만들면 작성자가 방장이 되어 채팅방이 함께 생성된다.
+    if (post.board === "meeting") {
+      await GroupChat.create({ post: post._id, host: req.user.id, members: [req.user.id] });
+    }
+
     res.status(201).json(post);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
@@ -97,11 +105,56 @@ router.post("/:id/join", auth, async (req, res) => {
     await post.save();
     await post.populate("author", "nickname avatar");
     await post.populate("comments.author", "nickname avatar");
+
+    // 모임에 참여하면 자동으로 그 모임의 채팅방에도 초대된다.
+    await GroupChat.findOneAndUpdate({ post: post._id }, { $addToSet: { members: req.user.id } });
+
+    // 작성자 본인이 참여한 경우(글 작성 시 자동 참여)가 아니라면 작성자에게 알림을 보낸다.
+    if (post.author._id.toString() !== req.user.id) {
+      await Notification.create({ recipient: post.author._id, sender: req.user.id, type: "join", post: post._id });
+    }
+
     res.json(post);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }
 });
+
+// POST /api/posts/:id/leave - 공강모임 참여 취소하기
+router.post("/:id/leave", auth, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post || post.board !== "meeting") {
+      return res.status(404).json({ message: "모임 게시물을 찾을 수 없습니다." });
+    }
+    const alreadyJoined = post.participants.some((id) => id.toString() === req.user.id);
+    if (!alreadyJoined) {
+      return res.status(400).json({ message: "참여하지 않은 모임입니다." });
+    }
+    post.participants = post.participants.filter((id) => id.toString() !== req.user.id);
+    post.currentParticipants = post.participants.length;
+    await post.save();
+    await post.populate("author", "nickname avatar");
+    await post.populate("comments.author", "nickname avatar");
+
+    // 참여를 취소하면 모임 채팅방에서도 나가게 된다(방장은 애초에 참여 취소를 할 수 없다).
+    await GroupChat.findOneAndUpdate({ post: post._id }, { $pull: { members: req.user.id } });
+
+    if (post.author._id.toString() !== req.user.id) {
+      await Notification.create({ recipient: post.author._id, sender: req.user.id, type: "leave", post: post._id });
+    }
+
+    res.json(post);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+// 좋아요/싫어요/스크랩은 "새로 누른" 경우에만 작성자에게 알림을 보낸다(취소할 땐 보내지 않음).
+const notifyPostAction = async (post, userId, type) => {
+  if (post.author.toString() === userId) return; // 본인 글에 본인이 누른 경우는 알림 없음
+  await Notification.create({ recipient: post.author, sender: userId, type, post: post._id });
+};
+
 // POST /api/posts/:id/like
 router.post("/:id/like", auth, async (req, res) => {
   try {
@@ -111,10 +164,12 @@ router.post("/:id/like", auth, async (req, res) => {
       post.likes.push(req.user.id);
       const dislikeIdx = post.dislikes.indexOf(req.user.id);
       if (dislikeIdx !== -1) post.dislikes.splice(dislikeIdx, 1);
+      await post.save();
+      await notifyPostAction(post, req.user.id, "like");
     } else {
       post.likes.splice(idx, 1);
+      await post.save();
     }
-    await post.save();
     res.json({ likes: post.likes.length, dislikes: post.dislikes.length });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
@@ -130,10 +185,12 @@ router.post("/:id/dislike", auth, async (req, res) => {
       post.dislikes.push(req.user.id);
       const likeIdx = post.likes.indexOf(req.user.id);
       if (likeIdx !== -1) post.likes.splice(likeIdx, 1);
+      await post.save();
+      await notifyPostAction(post, req.user.id, "dislike");
     } else {
       post.dislikes.splice(idx, 1);
+      await post.save();
     }
-    await post.save();
     res.json({ likes: post.likes.length, dislikes: post.dislikes.length });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
@@ -148,11 +205,35 @@ router.post("/:id/scrap", auth, async (req, res) => {
     const idx = post.scraps.indexOf(req.user.id);
     if (idx === -1) {
       post.scraps.push(req.user.id);
+      await post.save();
+      await notifyPostAction(post, req.user.id, "scrap");
     } else {
       post.scraps.splice(idx, 1);
+      await post.save();
     }
-    await post.save();
     res.json({ scraps: post.scraps });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// GET /api/posts/:id/likes - 좋아요 누른 사용자 목록
+router.get("/:id/likes", auth, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id).populate("likes", "nickname avatar studentId");
+    if (!post) return res.status(404).json({ message: "게시물을 찾을 수 없습니다." });
+    res.json(post.likes);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// GET /api/posts/:id/dislikes - 싫어요 누른 사용자 목록
+router.get("/:id/dislikes", auth, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id).populate("dislikes", "nickname avatar studentId");
+    if (!post) return res.status(404).json({ message: "게시물을 찾을 수 없습니다." });
+    res.json(post.dislikes);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }
@@ -162,9 +243,20 @@ router.post("/:id/scrap", auth, async (req, res) => {
 router.post("/:id/comments", auth, profanityFilter, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
-    post.comments.push({ author: req.user.id, content: req.body.content });
+    const { parentComment } = req.body;
+    // 답글이 실제로 이 게시물에 존재하는 최상위 댓글을 가리키는지 확인한다.
+    if (parentComment && !post.comments.some((c) => c._id.toString() === parentComment && !c.parentComment)) {
+      return res.status(404).json({ message: "답글을 달 댓글을 찾을 수 없습니다." });
+    }
+    post.comments.push({ author: req.user.id, content: req.body.content, parentComment: parentComment || null });
     await post.save();
     await post.populate("comments.author", "nickname avatar");
+
+    // 본인 글에 스스로 댓글을 단 경우는 알림을 보내지 않는다.
+    if (post.author.toString() !== req.user.id) {
+      await Notification.create({ recipient: post.author, sender: req.user.id, type: "comment", post: post._id });
+    }
+
     res.json(post.comments);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });

@@ -61,6 +61,20 @@ const canViewFollowLists = (user, viewerId) => {
   return user.friends.some((id) => String(id) === String(viewerId));
 };
 
+// 목록의 각 사용자에 대해, 요청한 본인이 그 사람을 팔로우하고 있는지 표시를 붙여준다.
+// (인스타처럼 팔로워/팔로잉 목록에서 바로 팔로우/언팔로우 버튼을 보여주기 위함)
+const withIsFollowedByMe = async (users, viewerId) => {
+  const me = await User.findById(viewerId).select("following");
+  const myFollowingIds = new Set((me?.following || []).map((id) => id.toString()));
+  return users.map((u) => ({
+    _id: u._id,
+    nickname: u.nickname,
+    avatar: u.avatar,
+    studentId: u.studentId,
+    isFollowedByMe: myFollowingIds.has(u._id.toString()),
+  }));
+};
+
 // GET /api/users/:id/followers - 팔로워 목록
 router.get("/:id/followers", auth, async (req, res) => {
   try {
@@ -69,7 +83,7 @@ router.get("/:id/followers", auth, async (req, res) => {
     if (!canViewFollowLists(user, req.user.id)) {
       return res.status(403).json({ message: "비공개 계정입니다." });
     }
-    res.json(user.followers);
+    res.json(await withIsFollowedByMe(user.followers, req.user.id));
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }
@@ -83,7 +97,19 @@ router.get("/:id/following", auth, async (req, res) => {
     if (!canViewFollowLists(user, req.user.id)) {
       return res.status(403).json({ message: "비공개 계정입니다." });
     }
-    res.json(user.following);
+    res.json(await withIsFollowedByMe(user.following, req.user.id));
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// DELETE /api/users/followers/:followerId - 나를 팔로우하는 사람을 팔로워 목록에서 삭제
+router.delete("/followers/:followerId", auth, async (req, res) => {
+  try {
+    const { followerId } = req.params;
+    await User.findByIdAndUpdate(req.user.id, { $pull: { followers: followerId } });
+    await User.findByIdAndUpdate(followerId, { $pull: { following: req.user.id } });
+    res.json({ message: "팔로워를 삭제했습니다." });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }

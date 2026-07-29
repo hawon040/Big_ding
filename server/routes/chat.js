@@ -94,4 +94,26 @@ router.post("/:friendId", auth, upload.single("image"), async (req, res) => {
   }
 });
 
+// PATCH /api/chat/messages/:messageId/like - 메시지 하트 반응 토글 (인스타 DM처럼 더블탭)
+router.patch("/messages/:messageId/like", auth, async (req, res) => {
+  try {
+    const message = await Message.findById(req.params.messageId);
+    if (!message) return res.status(404).json({ message: "메시지를 찾을 수 없습니다." });
+    const isParticipant = [message.from.toString(), message.to.toString()].includes(req.user.id);
+    if (!isParticipant) return res.status(403).json({ message: "권한이 없습니다." });
+
+    message.liked = !message.liked;
+    await message.save();
+    await message.populate("from", USER_FIELDS);
+    await message.populate("to", USER_FIELDS);
+
+    const otherId = message.from._id.toString() === req.user.id ? message.to._id.toString() : message.from._id.toString();
+    emitToUser(otherId, "message_liked", message);
+
+    res.json(message);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 module.exports = router;

@@ -6,7 +6,7 @@ import { SettingsScreen } from "./components/SettingsScreen";
 import { BottomNav } from "./components/BottomNav";
 import { PasswordChangeScreen } from "./components/PasswordChangeScreen";
 import { LunchScreen } from "./components/LunchScreen";
-import { Utensils } from "lucide-react";
+import { Utensils, Plus } from "lucide-react";
 import api from "@/api";
 import { useSocket } from "@/hooks/useSocket";
 
@@ -21,6 +21,11 @@ const [navSignal, setNavSignal] = useState(0);
 // 게시물 상세/작성자 프로필처럼 하단에 댓글 입력창이 고정된 화면이 열려 있는지 여부.
 // true인 동안은 점심메뉴 플로팅 버튼이 그 입력창 위에 겹치지 않도록 숨긴다.
 const [communityDetailOpen, setCommunityDetailOpen] = useState(false);
+// 우측 하단 돌림판(FAB) 메뉴가 펼쳐져 있는지 여부. 탭을 벗어나면 자동으로 닫는다.
+const [showFabMenu, setShowFabMenu] = useState(false);
+useEffect(() => {
+  if (activeTab !== "community" || showChatPanel) setShowFabMenu(false);
+}, [activeTab, showChatPanel]);
   const handleWriteClick = () => {
     setActiveTab("community");
     setShowChatPanel(false);
@@ -332,16 +337,38 @@ const [currentTime, setCurrentTime] = useState("");
           </div>
         )}
 
-        {/* 점심메뉴 추천 플로팅 버튼: 하단 네비게이션 바로 위, 우측 */}
-        {activeTab !== "lunch" && !communityDetailOpen && (
-  <button
-    onClick={() => handleTabChange("lunch")}
-    className="absolute bottom-3 right-3 w-14 h-14 flex items-center justify-center shadow-lg z-40"
-    style={{ background: "var(--primary)", borderRadius: "18px 18px 18px 5px" }}
-  >
-    <Utensils size={22} color="white" />
-  </button>
-)}
+        {/* 메뉴 돌림판(FAB): 커뮤니티 메인 화면에서만 보이고, 다른 탭/채팅/게시물 상세에서는 숨긴다 */}
+        {activeTab === "community" && !showChatPanel && !communityDetailOpen && (
+          <div className="absolute bottom-3 right-3 z-40 flex flex-col items-end gap-3">
+            {showFabMenu && (
+              <button
+                onClick={() => {
+                  setShowFabMenu(false);
+                  handleTabChange("lunch");
+                }}
+                className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
+                style={{
+                  background: "var(--primary)",
+                  animation: "fab-pop 0.18s ease-out",
+                }}
+                aria-label="점심메뉴 추천 룰렛"
+              >
+                <Utensils size={20} color="white" />
+              </button>
+            )}
+            <button
+              onClick={() => setShowFabMenu((v) => !v)}
+              className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform duration-200"
+              style={{
+                background: "var(--primary)",
+                transform: showFabMenu ? "rotate(135deg)" : "rotate(0deg)",
+              }}
+              aria-label="메뉴 열기"
+            >
+              <Plus size={24} color="white" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Bottom navigation */}

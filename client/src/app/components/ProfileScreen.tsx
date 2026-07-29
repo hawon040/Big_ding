@@ -72,10 +72,12 @@ const [followingCount, setFollowingCount] = useState(currentUser?.following?.len
 // + 팔로워/팔로잉 목록 모달 + 목록에서 클릭한 사용자 프로필 보기
 const [userListModal, setUserListModal] = useState<"followers" | "following" | null>(null);
 const [userList, setUserList] = useState<Friend[]>([]);
+const [userListQuery, setUserListQuery] = useState("");
 const [viewingUser, setViewingUser] = useState<PostAuthor | null>(null);
 
 const openUserList = async (kind: "followers" | "following") => {
   setUserListModal(kind);
+  setUserListQuery("");
   if (!currentUser) return;
   try {
     const res = await api.get(`/users/${currentUser._id}/${kind}`);
@@ -83,6 +85,31 @@ const openUserList = async (kind: "followers" | "following") => {
   } catch {
     setUserList([]);
   }
+};
+
+// 목록 안에서 바로 팔로우/언팔로우 (인스타처럼)
+const toggleListFollow = async (target: Friend) => {
+  const wasFollowing = !!target.isFollowedByMe;
+  setUserList((prev) => prev.map((u) => (u._id === target._id ? { ...u, isFollowedByMe: !wasFollowing } : u)));
+  try {
+    if (wasFollowing) await api.delete(`/users/follow/${target._id}`);
+    else await api.post(`/users/follow/${target._id}`);
+  } catch {
+    setUserList((prev) => prev.map((u) => (u._id === target._id ? { ...u, isFollowedByMe: wasFollowing } : u)));
+  }
+};
+
+// 팔로워 목록에서 특정 사람을 내 팔로워에서 삭제 (인스타의 "팔로워 삭제")
+const removeFollower = (target: Friend) => {
+  showConfirm(`${target.nickname}님을 팔로워에서 삭제하시겠습니까?`, async () => {
+    setUserList((prev) => prev.filter((u) => u._id !== target._id));
+    setFollowerCount((c) => Math.max(0, c - 1));
+    try {
+      await api.delete(`/users/followers/${target._id}`);
+    } catch {
+      showAlert("삭제에 실패했습니다.");
+    }
+  });
 };
 
 // + 팔로워/팔로잉 수를 몇 초마다 다시 불러와 실시간처럼 반영한다.
@@ -409,13 +436,15 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
               className="hidden"
               onChange={handleAvatarChange}
             />
-            <button
-              onClick={() => document.getElementById("avatar-upload")?.click()}
-              className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center shadow"
-              style={{ background: "var(--primary)" }}
-            >
-              <Camera size={13} color="white" />
-            </button>
+            {editMode && (
+              <button
+                onClick={() => document.getElementById("avatar-upload")?.click()}
+                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center shadow"
+                style={{ background: "var(--primary)" }}
+              >
+                <Camera size={13} color="white" />
+              </button>
+            )}
           </div>
 
           <div className="flex-1 flex flex-col gap-1.5 pt-1">
@@ -441,9 +470,9 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
                 </button>
               </div>
             ) : (
-              <div className="flex items-baseline gap-2">
+              <div className="flex flex-col">
                 <h2 className="font-bold text-base" style={{ color: "var(--foreground)" }}>{nickname}</h2>
-                {/* 로그인 시 입력한 학번의 3~4번째 자리(입학연도)를 이름 옆에 표시 */}
+                {/* 로그인 시 입력한 학번의 3~4번째 자리(입학연도)를 닉네임 아래에 표시 */}
                 <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
                   #{studentId ? studentId.slice(2, 4) : "23"}학번
                 </span>
@@ -864,32 +893,73 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
               {userListModal === "followers" ? "팔로워" : "팔로잉"}
             </h2>
           </div>
+          {userList.length > 0 && (
+            <div className="px-4 pt-3 shrink-0">
+              <input
+                value={userListQuery}
+                onChange={(e) => setUserListQuery(e.target.value)}
+                placeholder="검색"
+                className="w-full px-3 py-2 rounded-xl text-sm outline-none"
+                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+              />
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar">
             {userList.length === 0 ? (
               <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
                 {userListModal === "followers" ? "아직 팔로워가 없습니다." : "아직 팔로잉하는 사람이 없습니다."}
               </p>
             ) : (
-              userList.map((u) => (
-                <button
+              userList
+                .filter((u) =>
+                  !userListQuery.trim() ||
+                  u.nickname.toLowerCase().includes(userListQuery.trim().toLowerCase()) ||
+                  u.studentId?.toLowerCase().includes(userListQuery.trim().toLowerCase())
+                )
+                .map((u) => (
+                <div
                   key={u._id}
-                  onClick={() => {
-                    setUserListModal(null);
-                    setViewingUser(u);
-                  }}
                   className="flex items-center gap-3 p-2.5 rounded-xl text-left"
                   style={{ background: "var(--card)" }}
                 >
-                  <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                    <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
-                    {u.studentId && (
-                      <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{u.studentId}</p>
-                    )}
-                  </div>
-                </button>
+                  <button
+                    onClick={() => {
+                      setUserListModal(null);
+                      setViewingUser(u);
+                    }}
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                  >
+                    <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+                      <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
+                      {u.studentId && (
+                        <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{u.studentId}</p>
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => toggleListFollow(u)}
+                    className="text-xs px-3 py-1.5 rounded-xl font-semibold shrink-0"
+                    style={{
+                      background: u.isFollowedByMe ? "var(--muted)" : "var(--primary)",
+                      color: u.isFollowedByMe ? "var(--muted-foreground)" : "white",
+                    }}
+                  >
+                    {u.isFollowedByMe ? "팔로잉" : "팔로우"}
+                  </button>
+                  {userListModal === "followers" && (
+                    <button
+                      onClick={() => removeFollower(u)}
+                      className="shrink-0"
+                      style={{ color: "var(--muted-foreground)" }}
+                      aria-label="팔로워 삭제"
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
               ))
             )}
           </div>

@@ -109,6 +109,20 @@ const formatMessageTime = (createdAt: string, now: number = Date.now()): string 
   return formatPostDate(createdAt);
 };
 
+// 채팅창 가운데 시간 구분선(인스타처럼 "오늘 오후 2:14" / "어제 오후 2:14" / "7월 5일 오후 2:14")
+const formatDividerTime = (createdAt: string): string => {
+  const created = new Date(createdAt);
+  const now = new Date();
+  const isSameDay = (a: Date, b: Date) =>
+    a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const time = created.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+  if (isSameDay(created, now)) return `오늘 ${time}`;
+  if (isSameDay(created, yesterday)) return `어제 ${time}`;
+  return `${formatPostDate(createdAt)} ${time}`;
+};
+
 export interface PostAuthor {
   _id: string;
   nickname: string;
@@ -121,6 +135,7 @@ export interface PostComment {
   author: PostAuthor;
   content: string;
   createdAt: string;
+  parentComment?: string | null;
 }
 
 export interface PollOption {
@@ -159,6 +174,7 @@ export interface Friend {
   nickname: string;
   avatar?: string;
   studentId?: string;
+  isFollowedByMe?: boolean;
 }
 
 export interface FriendRequestItem {
@@ -166,10 +182,28 @@ export interface FriendRequestItem {
   from: Friend;
 }
 
+export interface GroupMessage {
+  _id: string;
+  groupChat: string;
+  sender: Friend;
+  content: string;
+  image?: string;
+  createdAt: string;
+}
+
+export interface GroupChatSummary {
+  _id: string;
+  post: { _id: string; title: string; board: string };
+  host: Friend;
+  members: Friend[];
+  lastMessage?: GroupMessage | null;
+}
+
 export interface NotificationItem {
   _id: string;
   sender: Friend;
-  type: "follow";
+  type: "follow" | "join" | "leave" | "comment" | "like" | "dislike" | "scrap";
+  post?: { _id: string; title: string; board: string } | null;
   read: boolean;
   createdAt: string;
 }
@@ -181,7 +215,38 @@ interface Message {
   createdAt: string;
   mine: boolean;
   read: boolean;
+  liked: boolean;
 }
+
+// 텍스트 안의 http(s)://... 또는 www.로 시작하는 부분을 새 탭에서 열리는 하이퍼링크로 바꿔준다.
+// 댓글/게시물 내용 등 게시판 종류와 상관없이 텍스트가 표시되는 모든 곳에서 공용으로 쓰인다.
+const URL_REGEX = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
+const URL_TRAILING_PUNCTUATION = /[)\]},.!?"']+$/;
+export const renderLinkifiedText = (content: string) =>
+  content.split(URL_REGEX).map((part, i) => {
+    if (!/^(https?:\/\/|www\.)/i.test(part)) {
+      return <span key={i}>{part}</span>;
+    }
+    const trailingMatch = part.match(URL_TRAILING_PUNCTUATION);
+    const trailing = trailingMatch ? trailingMatch[0] : "";
+    const url = trailing ? part.slice(0, -trailing.length) : part;
+    const href = url.startsWith("http") ? url : `https://${url}`;
+    return (
+      <span key={i}>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="underline break-all"
+          style={{ color: "var(--primary)" }}
+        >
+          {url}
+        </a>
+        {trailing}
+      </span>
+    );
+  });
 
 const PROFANITY_LIST = ["욕설", "비속어", "씨발", "개새끼", "병신", "지랄", "꺼져", "죽어"];
 
@@ -396,7 +461,20 @@ export function OtherUserProfile({
   const [isFriend, setIsFriend] = useState(false);
   const [userListModal, setUserListModal] = useState<"followers" | "following" | null>(null);
   const [userList, setUserList] = useState<Friend[]>([]);
+  const [userListQuery, setUserListQuery] = useState("");
   const [viewingNestedUser, setViewingNestedUser] = useState<PostAuthor | null>(null);
+
+  // 목록 안에서 바로 팔로우/언팔로우 (인스타처럼)
+  const toggleListFollow = async (target: Friend) => {
+    const wasFollowing = !!target.isFollowedByMe;
+    setUserList((prev) => prev.map((u) => (u._id === target._id ? { ...u, isFollowedByMe: !wasFollowing } : u)));
+    try {
+      if (wasFollowing) await api.delete(`/users/follow/${target._id}`);
+      else await api.post(`/users/follow/${target._id}`);
+    } catch {
+      setUserList((prev) => prev.map((u) => (u._id === target._id ? { ...u, isFollowedByMe: wasFollowing } : u)));
+    }
+  };
   const [showAvatarZoom, setShowAvatarZoom] = useState(false);
 
   useEffect(() => {
@@ -440,6 +518,7 @@ export function OtherUserProfile({
   const openUserList = async (kind: "followers" | "following") => {
     if (!canViewFull) return;
     setUserListModal(kind);
+    setUserListQuery("");
     try {
       const res = await api.get(`/users/${author._id}/${kind}`);
       setUserList(res.data);
@@ -622,32 +701,65 @@ export function OtherUserProfile({
               {userListModal === "followers" ? "팔로워" : "팔로잉"}
             </h2>
           </div>
+          {userList.length > 0 && (
+            <div className="px-4 pt-3 shrink-0">
+              <input
+                value={userListQuery}
+                onChange={(e) => setUserListQuery(e.target.value)}
+                placeholder="검색"
+                className="w-full px-3 py-2 rounded-xl text-sm outline-none"
+                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+              />
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar">
             {userList.length === 0 ? (
               <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
                 {userListModal === "followers" ? "아직 팔로워가 없습니다." : "아직 팔로잉하는 사람이 없습니다."}
               </p>
             ) : (
-              userList.map((u) => (
-                <button
+              userList
+                .filter((u) =>
+                  !userListQuery.trim() ||
+                  u.nickname.toLowerCase().includes(userListQuery.trim().toLowerCase()) ||
+                  u.studentId?.toLowerCase().includes(userListQuery.trim().toLowerCase())
+                )
+                .map((u) => (
+                <div
                   key={u._id}
-                  onClick={() => {
-                    setUserListModal(null);
-                    setViewingNestedUser(u);
-                  }}
                   className="flex items-center gap-3 p-2.5 rounded-xl text-left"
                   style={{ background: "var(--card)" }}
                 >
-                  <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                    <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
-                    {u.studentId && (
-                      <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{u.studentId}</p>
-                    )}
-                  </div>
-                </button>
+                  <button
+                    onClick={() => {
+                      setUserListModal(null);
+                      setViewingNestedUser(u);
+                    }}
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                  >
+                    <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+                      <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
+                      {u.studentId && (
+                        <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{u.studentId}</p>
+                      )}
+                    </div>
+                  </button>
+                  {u._id !== currentUserId && (
+                    <button
+                      onClick={() => toggleListFollow(u)}
+                      className="text-xs px-3 py-1.5 rounded-xl font-semibold shrink-0"
+                      style={{
+                        background: u.isFollowedByMe ? "var(--muted)" : "var(--primary)",
+                        color: u.isFollowedByMe ? "var(--muted-foreground)" : "white",
+                      }}
+                    >
+                      {u.isFollowedByMe ? "팔로잉" : "팔로우"}
+                    </button>
+                  )}
+                </div>
               ))
             )}
           </div>
@@ -758,6 +870,10 @@ export function CommunityScreen({
   const commentInputRef = useRef<HTMLInputElement>(null);
   const [openCommentMenu, setOpenCommentMenu] = useState<string | null>(null);
   const [reportingComment, setReportingComment] = useState<PostComment | null>(null);
+  // 답글을 남기는 대상 댓글(최상위 댓글만 가능). null이면 새 최상위 댓글을 작성한다.
+  const [replyTarget, setReplyTarget] = useState<PostComment | null>(null);
+  // 인스타처럼 답글은 기본적으로 접혀 있고, "답글 보기"를 누른 댓글만 펼쳐서 보여준다.
+  const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
 
   // 상대 시간("N분 전") 표시를 실시간으로 갱신하기 위한 tick
   const [nowTick, setNowTick] = useState(Date.now());
@@ -865,6 +981,7 @@ useEffect(() => {
     setNewMeetingTime("");
     setNewMeetingPlace("");
     setNewMeetingCount(null);
+    setNewContestCategory("전체");
   };
 
   const closeWriteModal = () => {
@@ -921,6 +1038,8 @@ useEffect(() => {
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newBoard, setNewBoard] = useState<BoardType>("free");
+  // 꿀팁 게시판 글쓰기 카테고리 (기본값 "전체")
+  const [newContestCategory, setNewContestCategory] = useState<string>("전체");
   const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
   const [newImagePreviews, setNewImagePreviews] = useState<string[]>([]);
   const [isSubmittingPost, setIsSubmittingPost] = useState(false);
@@ -1034,7 +1153,60 @@ useEffect(() => {
 
   const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
   const [chatMessages, setChatMessages] = useState<Record<string, Message[]>>({});
+  // 인스타처럼 상대가 지금 접속 중이면 아바타에 초록 점과 "활동 중"을 표시한다.
+  const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (!socket) return;
+    const handleOnlineUsers = (ids: string[]) => setOnlineUserIds(ids);
+    socket.on("online_users", handleOnlineUsers);
+    return () => {
+      socket.off("online_users", handleOnlineUsers);
+    };
+  }, [socket]);
+  // 채팅창에서 메시지를 탭하면 그 메시지의 정확한 시각이 잠깐 나타난다(인스타처럼).
+  const [revealedTimeId, setRevealedTimeId] = useState<string | null>(null);
   const [chatInput, setChatInput] = useState("");
+  // 공강모임 그룹채팅
+  const [activeGroupChat, setActiveGroupChat] = useState<GroupChatSummary | null>(null);
+  const [groupMessages, setGroupMessages] = useState<Record<string, GroupMessage[]>>({});
+  const [groupChatInput, setGroupChatInput] = useState("");
+  const [showGroupChatMembers, setShowGroupChatMembers] = useState(false);
+
+  const openGroupChatForPost = async (postId: string) => {
+    try {
+      const res = await api.get(`/group-chats/by-post/${postId}`);
+      setActiveGroupChat(res.data);
+      const msgsRes = await api.get(`/group-chats/${res.data._id}/messages`);
+      setGroupMessages((prev) => ({ ...prev, [res.data._id]: msgsRes.data }));
+    } catch (err: any) {
+      showAlert(err.response?.data?.message || "채팅방을 열 수 없습니다.");
+    }
+  };
+
+  const handleSendGroupMessage = async () => {
+    if (!activeGroupChat || !groupChatInput.trim()) return;
+    const content = filterProfanity(groupChatInput.trim());
+    const groupChatId = activeGroupChat._id;
+    setGroupChatInput("");
+    try {
+      const res = await api.post(`/group-chats/${groupChatId}/messages`, { content });
+      setGroupMessages((prev) => ({ ...prev, [groupChatId]: [...(prev[groupChatId] || []), res.data] }));
+    } catch {
+      showAlert("메시지 전송에 실패했습니다.");
+    }
+  };
+
+  // 그룹채팅 메시지가 소켓으로 도착하면, 현재 열려있는 채팅방이면 바로 목록에 추가한다.
+  useEffect(() => {
+    if (!socket) return;
+    const handleReceiveGroupMessage = (msg: GroupMessage) => {
+      setGroupMessages((prev) => ({ ...prev, [msg.groupChat]: [...(prev[msg.groupChat] || []), msg] }));
+    };
+    socket.on("receive_group_message", handleReceiveGroupMessage);
+    return () => {
+      socket.off("receive_group_message", handleReceiveGroupMessage);
+    };
+  }, [socket]);
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [friendSearch, setFriendSearch] = useState("");
   const [friendSearchResults, setFriendSearchResults] = useState<Friend[]>([]);
@@ -1043,6 +1215,18 @@ useEffect(() => {
   const [isFriendSelectMode, setIsFriendSelectMode] = useState(false);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
+  // 좋아요/싫어요 누른 사람 목록 보기
+  const [reactionListModal, setReactionListModal] = useState<{ type: "likes" | "dislikes"; postId: string } | null>(null);
+  const [reactionListUsers, setReactionListUsers] = useState<Friend[]>([]);
+  const openReactionList = async (postId: string, type: "likes" | "dislikes") => {
+    setReactionListModal({ type, postId });
+    try {
+      const res = await api.get(`/posts/${postId}/${type}`);
+      setReactionListUsers(res.data);
+    } catch {
+      setReactionListUsers([]);
+    }
+  };
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [followingIds, setFollowingIds] = useState<string[]>(currentUser?.following ?? []);
@@ -1080,6 +1264,7 @@ const toggleEventFollow = async (authorId: string) => {
 // 게시물이 바뀔 때마다 인스타그램 스타일 이미지 캐러셀 인덱스를 처음으로 되돌린다.
 useEffect(() => {
   setEventImageIndex(0);
+  setReplyTarget(null);
 }, [selectedPostId]);
 
   // 친구 목록 / 받은 친구 신청은 실제 DB(GET /api/friends, /api/friends/requests)에서 불러온다.
@@ -1207,6 +1392,7 @@ useEffect(() => {
         createdAt: m.createdAt,
         mine: !!currentUser && m.from?._id === currentUser._id,
         read: !!m.read,
+        liked: !!m.liked,
       }))
       .filter((m) => !hiddenMessageIdsRef.current.has(m._id));
 
@@ -1271,10 +1457,41 @@ useEffect(() => {
         .catch(() => {});
     };
     socket.on("receive_message", handleReceiveMessage);
+
+    // 상대방이 내가 보낸(또는 상대가 보낸) 메시지를 더블탭해서 하트를 붙이면 실시간으로 반영한다.
+    const handleMessageLiked = (msg: { _id: string; from?: { _id?: string }; to?: { _id?: string }; liked?: boolean }) => {
+      const friendId = msg.from?._id === currentUser?._id ? msg.to?._id : msg.from?._id;
+      if (!friendId) return;
+      setChatMessages((prev) => ({
+        ...prev,
+        [friendId]: (prev[friendId] || []).map((m) => (m._id === msg._id ? { ...m, liked: !!msg.liked } : m)),
+      }));
+    };
+    socket.on("message_liked", handleMessageLiked);
+
     return () => {
       socket.off("receive_message", handleReceiveMessage);
+      socket.off("message_liked", handleMessageLiked);
     };
   }, [socket, activeFriend]);
+
+  // 메시지 더블탭 하트 반응 토글 (인스타 DM처럼)
+  const handleToggleMessageLike = async (messageId: string) => {
+    if (!activeFriend) return;
+    const friendId = activeFriend._id;
+    setChatMessages((prev) => ({
+      ...prev,
+      [friendId]: (prev[friendId] || []).map((m) => (m._id === messageId ? { ...m, liked: !m.liked } : m)),
+    }));
+    try {
+      await api.patch(`/chat/messages/${messageId}/like`);
+    } catch {
+      setChatMessages((prev) => ({
+        ...prev,
+        [friendId]: (prev[friendId] || []).map((m) => (m._id === messageId ? { ...m, liked: !m.liked } : m)),
+      }));
+    }
+  };
 
   // 친구 목록 카드에 보여줄 마지막 메시지 미리보기/시간/안 읽은 개수
   const getFriendPreview = (friend: Friend) => {
@@ -1548,8 +1765,28 @@ const renderRatingStars = (rating: number, size: number = 14) => (
    }
  };
 
+ // 공강모임 참여 취소하기
+ const handleLeaveMeeting = async (post: Post) => {
+   if (!currentUser) return;
+   try {
+     const res = await api.post(`/posts/${post._id}/leave`);
+     setPosts((prev) => prev.map((p) => (p._id === post._id ? res.data : p)));
+   } catch (err: any) {
+     showAlert(err.response?.data?.message || "참여 취소에 실패했습니다.");
+   }
+ };
+
  const hasJoinedMeeting = (post: Post) => !!currentUser && !!post.participants?.includes(currentUser._id);
  const isMeetingFull = (post: Post) => !!post.maxParticipants && (post.participants?.length ?? post.currentParticipants ?? 0) >= post.maxParticipants;
+
+ // 참여 버튼 클릭: 이미 참여 중이면 취소 여부를 물어보고, 아니면 바로 참여시킨다.
+ const handleMeetingButtonClick = (post: Post) => {
+   if (hasJoinedMeeting(post)) {
+     showConfirm("참여를 취소하시겠습니까?", () => handleLeaveMeeting(post));
+   } else {
+     handleJoinMeeting(post);
+   }
+ };
  const renderPoll = (post: Post) => {
    if (!post.poll) return null;
    const { poll } = post;
@@ -1589,12 +1826,18 @@ const renderRatingStars = (rating: number, size: number = 14) => (
  };
 
  const allPosts = posts;
- const visiblePosts = showSearch && searchQuery
-    ? allPosts.filter((p) =>
-        p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
-      )
+ // 검색어를 단어 단위로 끊어서, 모든 단어가 실제로 제목/내용/태그 어딘가에 들어있는
+ // 게시물만 노출한다(단어 순서나 위치는 상관없이 전부 포함돼야 함).
+ const searchWords = searchQuery.toLowerCase().trim().split(/\s+/).filter(Boolean);
+ const visiblePosts = showSearch && searchWords.length > 0
+    ? allPosts.filter((p) => {
+        const title = p.title.toLowerCase();
+        const content = p.content.toLowerCase();
+        const tags = p.tags?.map((t) => t.toLowerCase()) ?? [];
+        return searchWords.every((word) =>
+          title.includes(word) || content.includes(word) || tags.some((t) => t.includes(word))
+        );
+      })
     : allPosts
         .filter((p) =>
           // "게시판" 탭은 모든 게시판의 글이 모이는 통합 피드로 보여준다.
@@ -1656,13 +1899,33 @@ const handleDeleteFriends = () => {
     }
   };
 
+  // 입력창이 비어있을 때 하트 버튼을 누르면 인스타처럼 하트 메시지를 바로 보낸다.
+  const sendHeartMessage = async () => {
+    if (!activeFriend) return;
+    const friendId = activeFriend._id;
+    try {
+      const res = await api.post(`/chat/${friendId}`, { content: "❤️" });
+      const [newMsg] = mapMessages([res.data]);
+      setChatMessages((prev) => ({
+        ...prev,
+        [friendId]: [...(prev[friendId] || []), newMsg],
+      }));
+    } catch {
+      showAlert("메시지 전송에 실패했습니다.");
+    }
+  };
+
   const handleAddComment = async () => {
   if (!selectedPost || !commentInput.trim()) return;
   const content = filterProfanity(commentInput.trim());
   const postId = selectedPost._id;
+  // 답글이 또 다른 답글에 달리는 경우는 없으므로, 항상 최상위 댓글을 부모로 남긴다.
+  const parentComment = replyTarget ? (replyTarget.parentComment || replyTarget._id) : null;
   setCommentInput("");
+  setReplyTarget(null);
+  if (parentComment) setExpandedReplies((prev) => ({ ...prev, [parentComment]: true }));
   try {
-    const res = await api.post(`/posts/${postId}/comments`, { content });
+    const res = await api.post(`/posts/${postId}/comments`, { content, parentComment });
     setPosts((prev) => prev.map((p) => (p._id === postId ? { ...p, comments: res.data } : p)));
   } catch {
     showAlert("댓글 등록에 실패했습니다.");
@@ -1681,6 +1944,107 @@ const handleDeleteFriends = () => {
     });
   };
   // ── 채팅 창 ──────────────────────────────────────────────────────────────
+  if (activeGroupChat) {
+    const messages = groupMessages[activeGroupChat._id] || [];
+    return (
+      <div className="flex flex-col flex-1 overflow-hidden relative">
+        {/* 헤더 */}
+        <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+          <button onClick={() => { setActiveGroupChat(null); setShowGroupChatMembers(false); }} className="text-lg">←</button>
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-sm truncate" style={{ color: "var(--foreground)" }}>{activeGroupChat.post.title}</p>
+            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>공강모임 채팅방</p>
+          </div>
+          <button
+            onClick={() => setShowGroupChatMembers((v) => !v)}
+            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl font-medium shrink-0"
+            style={{ background: "var(--secondary)", color: "var(--primary)" }}
+          >
+            <Users size={14} /> {activeGroupChat.members.length}
+          </button>
+        </div>
+
+        {/* 멤버 목록 */}
+        {showGroupChatMembers && (
+          <div className="px-4 py-3 border-b flex flex-col gap-2 shrink-0" style={{ borderColor: "var(--border)" }}>
+            {activeGroupChat.members.map((m) => (
+              <div key={m._id} className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-full overflow-hidden shrink-0">
+                  <img src={resolveAssetUrl(m.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                </div>
+                <p className="text-xs font-medium" style={{ color: "var(--foreground)" }}>
+                  {m.nickname}{m._id === activeGroupChat.host._id ? " (방장)" : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 메시지 목록 */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+          {messages.map((msg) => {
+            const mine = currentUser?._id === msg.sender._id;
+            return (
+              <div key={msg._id} className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}>
+                {!mine && (
+                  <div className="w-7 h-7 rounded-full overflow-hidden shrink-0">
+                    <img src={resolveAssetUrl(msg.sender.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                  </div>
+                )}
+                <div className={`max-w-[70%] flex flex-col gap-1 ${mine ? "items-end" : "items-start"}`}>
+                  {!mine && (
+                    <span className="text-[11px] font-semibold" style={{ color: "var(--muted-foreground)" }}>{msg.sender.nickname}</span>
+                  )}
+                  {msg.content && (
+                    <div
+                      className="px-3 py-2 rounded-2xl text-sm"
+                      style={{ background: mine ? "var(--primary)" : "var(--card)", color: mine ? "white" : "var(--foreground)" }}
+                    >
+                      <p>{msg.content}</p>
+                    </div>
+                  )}
+                  {msg.image && (
+                    <img
+                      src={resolveAssetUrl(msg.image)}
+                      alt="사진"
+                      className="rounded-xl max-w-full"
+                      style={{ maxHeight: "200px" }}
+                    />
+                  )}
+                  <p className="text-[10px] opacity-70" style={{ color: "var(--muted-foreground)" }}>{formatMessageTime(msg.createdAt, nowTick)}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 입력창 */}
+        <div className="flex items-center gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+          <input
+            value={groupChatInput}
+            onChange={(e) => setGroupChatInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSendGroupMessage(); }}
+            placeholder="메시지 입력..."
+            className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
+            style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+          />
+          <button
+            onClick={handleSendGroupMessage}
+            disabled={!groupChatInput.trim()}
+            className="px-4 py-2 rounded-xl text-sm font-semibold"
+            style={{
+              background: groupChatInput.trim() ? "var(--primary)" : "var(--muted)",
+              color: groupChatInput.trim() ? "white" : "var(--muted-foreground)",
+            }}
+          >
+            전송
+          </button>
+        </div>
+        {alertAndConfirmModals}
+      </div>
+    );
+  }
+
   if (activeFriend) {
     return (
       <div className="flex flex-col flex-1 overflow-hidden relative">
@@ -1692,12 +2056,27 @@ const handleDeleteFriends = () => {
           ) : (
             <button onClick={() => setActiveFriend(null)} className="text-lg">←</button>
           )}
-          <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
+          <button
+            onClick={() => { const friend = activeFriend; setActiveFriend(null); setViewedAuthor(friend); }}
+            className="relative w-9 h-9 rounded-full overflow-hidden shrink-0"
+          >
             <img src={resolveAssetUrl(activeFriend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-          </div>
-          <div className="flex-1">
+            {onlineUserIds.includes(activeFriend._id) && (
+              <span
+                className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full"
+                style={{ background: "#42d354", border: "2px solid var(--background)" }}
+              />
+            )}
+          </button>
+          <button
+            onClick={() => { const friend = activeFriend; setActiveFriend(null); setViewedAuthor(friend); }}
+            className="flex-1 text-left"
+          >
             <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>{activeFriend.nickname}</p>
-          </div>
+            <p className="text-xs" style={{ color: onlineUserIds.includes(activeFriend._id) ? "#42d354" : "var(--muted-foreground)" }}>
+              {onlineUserIds.includes(activeFriend._id) ? "활동 중" : ""}
+            </p>
+          </button>
           {selectMode ? (
             <div className="flex gap-2">
               <button
@@ -1829,59 +2208,126 @@ const handleDeleteFriends = () => {
         )}
 
         {/* 메시지 목록 */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-          {(chatMessages[activeFriend._id] || []).map((msg) => (
-            <div key={msg._id} className={`flex items-end gap-2 ${msg.mine ? "justify-end" : "justify-start"}`}>
-              {selectMode && msg.mine && (
-                <input
-                  type="checkbox"
-                  checked={selectedMsgs.includes(msg._id)}
-                  onChange={() => {
-                    setSelectedMsgs((prev) =>
-                      prev.includes(msg._id) ? prev.filter((id) => id !== msg._id) : [...prev, msg._id]
-                    );
-                  }}
-                  className="w-4 h-4 accent-orange-400"
-                />
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-0.5 no-scrollbar">
+          {(chatMessages[activeFriend._id] || []).map((msg, idx, arr) => {
+            const prev = arr[idx - 1];
+            const next = arr[idx + 1];
+            // 인스타처럼 이전 메시지와 30분 이상 차이나거나 첫 메시지면 가운데 시간 구분선을 보여준다.
+            const showDivider = !prev || new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() > 30 * 60 * 1000;
+            // 같은 사람이 연달아 보낸 메시지는 클러스터로 묶어서 마지막 메시지에만 여백/아바타를 준다.
+            const isFirstInCluster =
+              !prev || prev.mine !== msg.mine || showDivider ||
+              new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() > 5 * 60 * 1000;
+            const isLastInCluster =
+              !next || next.mine !== msg.mine ||
+              new Date(next.createdAt).getTime() - new Date(msg.createdAt).getTime() > 5 * 60 * 1000;
+            const isVeryLast = idx === arr.length - 1;
+            // 인스타처럼 같은 사람이 연달아 보낸 버블은 이어지는 쪽 모서리를 좁혀서 "쌓인" 느낌을 준다.
+            const tightCorner = "6px";
+            const roundCorner = "20px";
+            const bubbleRadius = msg.mine
+              ? {
+                  borderTopRightRadius: isFirstInCluster ? roundCorner : tightCorner,
+                  borderBottomRightRadius: isLastInCluster ? roundCorner : tightCorner,
+                  borderTopLeftRadius: roundCorner,
+                  borderBottomLeftRadius: roundCorner,
+                }
+              : {
+                  borderTopLeftRadius: isFirstInCluster ? roundCorner : tightCorner,
+                  borderBottomLeftRadius: isLastInCluster ? roundCorner : tightCorner,
+                  borderTopRightRadius: roundCorner,
+                  borderBottomRightRadius: roundCorner,
+                };
+            return (
+            <div key={msg._id}>
+              {showDivider && (
+                <p className="text-center text-[11px] my-3" style={{ color: "var(--muted-foreground)" }}>
+                  {formatDividerTime(msg.createdAt)}
+                </p>
               )}
-              <div className={`max-w-[70%] flex flex-col gap-1 ${msg.mine ? "items-end" : "items-start"}`}>
-                {msg.content && (
-                  <div
-                    className="px-3 py-2 rounded-2xl text-sm"
-                    style={{
-                      background: msg.mine ? "var(--primary)" : "var(--card)",
-                      color: msg.mine ? "white" : "var(--foreground)",
-                      outline: selectedMsgs.includes(msg._id) ? "2px solid var(--primary)" : "none",
+              <div className={`flex items-end gap-2 ${msg.mine ? "justify-end" : "justify-start"} ${isLastInCluster ? "mb-2.5" : "mb-0.5"}`}>
+                {selectMode && msg.mine && (
+                  <input
+                    type="checkbox"
+                    checked={selectedMsgs.includes(msg._id)}
+                    onChange={() => {
+                      setSelectedMsgs((prev) =>
+                        prev.includes(msg._id) ? prev.filter((id) => id !== msg._id) : [...prev, msg._id]
+                      );
                     }}
-                  >
-                    <p>{msg.content}</p>
-                  </div>
-                )}
-                {msg.image && (
-                  <img
-                    src={resolveAssetUrl(msg.image)}
-                    alt="사진"
-                    onClick={() => setViewingImage(msg.image!)}
-                    className="rounded-xl max-w-full cursor-pointer"
-                    style={{
-                      maxHeight: "200px",
-                      outline: selectedMsgs.includes(msg._id) ? "2px solid var(--primary)" : "none",
-                    }}
+                    className="w-4 h-4 accent-orange-400"
                   />
                 )}
-                <p className="text-[10px] mt-1 opacity-70" style={{ color: "var(--muted-foreground)" }}>{formatMessageTime(msg.createdAt, nowTick)}</p>
+                {!msg.mine && (
+                  isLastInCluster ? (
+                    <div className="w-6 h-6 rounded-full overflow-hidden shrink-0">
+                      <img src={resolveAssetUrl(activeFriend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-6 shrink-0" />
+                  )
+                )}
+                <div className={`max-w-[70%] flex flex-col gap-1 ${msg.mine ? "items-end" : "items-start"}`}>
+                  {msg.content && (
+                    <div
+                      className="relative"
+                      onClick={() => setRevealedTimeId((id) => (id === msg._id ? null : msg._id))}
+                      onDoubleClick={() => handleToggleMessageLike(msg._id)}
+                    >
+                      <div
+                        className="px-3.5 py-2 text-[14px] leading-snug select-none cursor-pointer"
+                        style={{
+                          background: msg.mine ? "var(--primary)" : "var(--card)",
+                          color: msg.mine ? "white" : "var(--foreground)",
+                          outline: selectedMsgs.includes(msg._id) ? "2px solid var(--primary)" : "none",
+                          ...bubbleRadius,
+                        }}
+                      >
+                        <p>{msg.content}</p>
+                      </div>
+                      {msg.liked && (
+                        <span
+                          className="absolute -bottom-2 flex items-center justify-center w-5 h-5 rounded-full"
+                          style={msg.mine ? { background: "var(--background)", left: -4 } : { background: "var(--background)", right: -4 }}
+                        >
+                          <Heart size={12} fill="#d4183d" color="#d4183d" />
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {msg.image && (
+                    <img
+                      src={resolveAssetUrl(msg.image)}
+                      alt="사진"
+                      onClick={() => setViewingImage(msg.image!)}
+                      onDoubleClick={() => handleToggleMessageLike(msg._id)}
+                      className="rounded-2xl max-w-full cursor-pointer"
+                      style={{
+                        maxHeight: "200px",
+                        outline: selectedMsgs.includes(msg._id) ? "2px solid var(--primary)" : "none",
+                      }}
+                    />
+                  )}
+                  {(revealedTimeId === msg._id || (isLastInCluster && isVeryLast && msg.mine && msg.read)) && (
+                    <p className="text-[10px] opacity-70" style={{ color: "var(--muted-foreground)" }}>
+                      {revealedTimeId === msg._id ? formatMessageTime(msg.createdAt, nowTick) : ""}
+                      {isVeryLast && msg.mine && msg.read ? (revealedTimeId === msg._id ? " · 읽음" : "읽음") : ""}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* 입력창 */}
-        <div className="flex items-center gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-2 px-3 py-2.5 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
           <label
-            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 cursor-pointer"
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 cursor-pointer"
             style={{ background: "var(--muted)" }}
           >
-            🖼️
+            <Image size={17} style={{ color: "var(--foreground)" }} />
             <input
               type="file"
               accept="image/*"
@@ -1911,16 +2357,27 @@ const handleDeleteFriends = () => {
             onChange={(e) => setChatInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
             placeholder="메시지 입력..."
-            className="flex-1 px-4 py-2.5 rounded-2xl text-sm outline-none"
+            className="flex-1 px-4 py-2.5 rounded-full text-sm outline-none"
             style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
           />
-          <button
-            onClick={sendMessage}
-            className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: "var(--primary)" }}
-          >
-            <Send size={16} color="white" />
-          </button>
+          {chatInput.trim() ? (
+            <button
+              onClick={sendMessage}
+              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: "var(--primary)" }}
+            >
+              <Send size={15} color="white" />
+            </button>
+          ) : (
+            <button
+              onClick={sendHeartMessage}
+              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: "var(--muted)" }}
+              aria-label="하트 보내기"
+            >
+              <Heart size={17} color="#d4183d" />
+            </button>
+          )}
         </div>
 
         {/* 이미지 뷰어 팝업 */}
@@ -1969,100 +2426,105 @@ const handleDeleteFriends = () => {
 
    // ── 게시물 상세 화면 ──────────────────────────────────────────────────────
  if (selectedPost) {
-  // 댓글 목록: 게시물 카드 레이아웃(행사공지 vs 일반)에 상관없이 동일하게 쓰인다.
-  // 댓글에 http(s)://... 또는 www.로 시작하는 링크가 있으면 새 탭에서 열리는
-  // 하이퍼링크로 바꿔준다. commentsList가 게시판 종류와 상관없이 공용으로 쓰이므로
-  // 여기서 한 번만 처리하면 모든 게시판의 댓글에 동일하게 적용된다.
-  const COMMENT_URL_REGEX = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
-  const COMMENT_URL_TRAILING_PUNCTUATION = /[)\]},.!?"']+$/;
-  const renderCommentContent = (content: string) =>
-    content.split(COMMENT_URL_REGEX).map((part, i) => {
-      if (!/^(https?:\/\/|www\.)/i.test(part)) {
-        return <span key={i}>{part}</span>;
-      }
-      const trailingMatch = part.match(COMMENT_URL_TRAILING_PUNCTUATION);
-      const trailing = trailingMatch ? trailingMatch[0] : "";
-      const url = trailing ? part.slice(0, -trailing.length) : part;
-      const href = url.startsWith("http") ? url : `https://${url}`;
-      return (
-  <span key={i}>
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={(e) => e.stopPropagation()}
-      className="underline break-all"
-      style={{ color: "var(--primary)" }}
-    >
-      {url}
-    </a>
-    {trailing}
-  </span>
-);
-    });
-  
+  const renderCommentItem = (c: PostComment, isReply: boolean) => (
+    <div key={c._id} className="flex gap-2 items-start relative" style={isReply ? { marginLeft: 28 } : undefined}>
+      <div className={`${isReply ? "w-6 h-6" : "w-7 h-7"} rounded-full flex items-center justify-center text-sm cursor-pointer overflow-hidden shrink-0`}
+        style={{ background: "var(--muted)" }}
+        onClick={() => openAuthor(c.author)}>
+        <img src={getAuthorAvatarUrl(c.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+      </div>
+      <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
+        style={{ color: "var(--foreground)" }}>
+        <div>
+          <span
+            className="block font-semibold cursor-pointer"
+            onClick={() => openAuthor(c.author)}
+          >
+            {c.author.nickname}
+          </span>
+          <span style={{ color: "var(--muted-foreground)" }}>{renderLinkifiedText(c.content)}</span>
+          <div className="flex items-center gap-3 mt-1" style={{ color: "var(--muted-foreground)" }}>
+            <span className="text-[11px]">{getDisplayTime(c, nowTick)}</span>
+            {!isReply && (
+              <button
+                onClick={() => {
+                  setReplyTarget(c);
+                  commentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  commentInputRef.current?.focus();
+                }}
+                className="text-[11px] font-semibold"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                답글 달기
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="relative shrink-0">
+          <button
+            onClick={() => setOpenCommentMenu(openCommentMenu === c._id ? null : c._id)}
+            style={{ color: "var(--muted-foreground)" }}
+            aria-label="댓글 더보기"
+          >
+            <MoreVertical size={14} />
+          </button>
+          {openCommentMenu === c._id && (
+            <div
+              className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
+              style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+            >
+              {currentUser && c.author._id === currentUser._id ? (
+                <button
+                  onClick={() => handleDeleteComment(selectedPost._id, c._id)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
+                  style={{ color: "#d4183d" }}
+                >
+                  <Trash2 size={13} /> 삭제
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    setOpenCommentMenu(null);
+                    handleReportCommentAuthor(c);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
+                  style={{ color: "#d4183d" }}
+                >
+                  <AlertTriangle size={13} /> 신고
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   const commentsList = (
     <>
       <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
         댓글 {getCommentCount(selectedPost)}개
       </p>
-      {selectedPost.comments.map((c) => (
-        <div key={c._id} className="flex gap-2 items-start relative">
-          <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm cursor-pointer overflow-hidden"
-            style={{ background: "var(--muted)" }}
-            onClick={() => openAuthor(c.author)}>
-            <img src={getAuthorAvatarUrl(c.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-          </div>
-          <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
-            style={{ color: "var(--foreground)" }}>
-            <span>
-              <span
-              className="font-semibold cursor-pointer"
-              onClick={() => openAuthor(c.author)}
-            >
-              {c.author.nickname}{" "}
-            </span>
-              {renderCommentContent(c.content)}
-            </span>
-            <div className="relative shrink-0">
+      {selectedPost.comments.filter((c) => !c.parentComment).map((c) => {
+        const replies = selectedPost.comments.filter((r) => r.parentComment === c._id);
+        const isExpanded = !!expandedReplies[c._id];
+        return (
+          <div key={c._id} className="flex flex-col gap-2">
+            {renderCommentItem(c, false)}
+            {replies.length > 0 && (
               <button
-                onClick={() => setOpenCommentMenu(openCommentMenu === c._id ? null : c._id)}
-                style={{ color: "var(--muted-foreground)" }}
-                aria-label="댓글 더보기"
+                onClick={() => setExpandedReplies((prev) => ({ ...prev, [c._id]: !prev[c._id] }))}
+                className="flex items-center gap-2 text-[11px] font-semibold"
+                style={{ color: "var(--muted-foreground)", marginLeft: 40 }}
               >
-                <MoreVertical size={14} />
+                <span style={{ width: 20, height: 1, background: "var(--border)" }} />
+                {isExpanded ? "답글 숨기기" : `답글 ${replies.length}개 보기`}
               </button>
-              {openCommentMenu === c._id && (
-                <div
-                  className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
-                  style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                >
-                  {currentUser && c.author._id === currentUser._id ? (
-                    <button
-                      onClick={() => handleDeleteComment(selectedPost._id, c._id)}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
-                      style={{ color: "#d4183d" }}
-                    >
-                      <Trash2 size={13} /> 삭제
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setOpenCommentMenu(null);
-                        handleReportCommentAuthor(c);
-                      }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
-                      style={{ color: "#d4183d" }}
-                    >
-                      <AlertTriangle size={13} /> 신고
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+            )}
+            {isExpanded && replies.map((r) => renderCommentItem(r, true))}
           </div>
-        </div>
-      ))}
+        );
+      })}
     </>
   );
   return (
@@ -2179,7 +2641,11 @@ const handleDeleteFriends = () => {
                     </button>
                   </div>
 
-                  <p className="text-sm font-semibold mb-1" style={{ color: "var(--foreground)" }}>
+                  <p
+                    className="text-sm font-semibold mb-1 cursor-pointer w-fit"
+                    style={{ color: "var(--foreground)" }}
+                    onClick={() => openReactionList(selectedPost._id, "likes")}
+                  >
                     좋아요 {selectedPost.likes.length}개
                   </p>
 
@@ -2192,9 +2658,14 @@ const handleDeleteFriends = () => {
     overflowWrap: "break-word",
   }}
 >
-  <span className="font-semibold mr-1.5">{selectedPost.author.nickname}</span>
+  <span
+    className="font-semibold mr-1.5 cursor-pointer"
+    onClick={(e) => { e.stopPropagation(); openAuthor(selectedPost.author); }}
+  >
+    {selectedPost.author.nickname}
+  </span>
   <span className="font-semibold">{selectedPost.title}</span>
-  {selectedPost.content && <>{" "}{selectedPost.content}</>}
+  {selectedPost.content && <>{" "}{renderLinkifiedText(selectedPost.content)}</>}
 </p>
 
                   {selectedPost.tags && (
@@ -2230,7 +2701,7 @@ const handleDeleteFriends = () => {
           >
             <img src={getAuthorAvatarUrl(selectedPost.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
           </button>
-          <div className="flex-1">
+          <div className="flex-1 cursor-pointer" onClick={() => openAuthor(selectedPost.author)}>
             <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
               {selectedPost.author.nickname}
             </p>
@@ -2276,7 +2747,7 @@ const handleDeleteFriends = () => {
             overflowWrap: "break-word",
           }}
         >
-          {selectedPost.content}
+          {renderLinkifiedText(selectedPost.content)}
         </p>
 
         {selectedPost.images.length > 0 && (
@@ -2349,20 +2820,32 @@ const handleDeleteFriends = () => {
         {renderPoll(selectedPost)}
 
         <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-          <button className="flex items-center gap-1.5" onClick={() => handleLike(selectedPost)}>
-            <Heart size={16} fill={isLiked(selectedPost) ? "#3b82f6" : "none"}
-              color={isLiked(selectedPost) ? "#3b82f6" : "var(--muted-foreground)"} />
-            <span className="text-xs" style={{ color: isLiked(selectedPost) ? "var(--primary)" : "var(--muted-foreground)" }}>
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => handleLike(selectedPost)}>
+              <Heart size={16} fill={isLiked(selectedPost) ? "#3b82f6" : "none"}
+                color={isLiked(selectedPost) ? "#3b82f6" : "var(--muted-foreground)"} />
+            </button>
+            <span
+              className="text-xs cursor-pointer"
+              style={{ color: isLiked(selectedPost) ? "var(--primary)" : "var(--muted-foreground)" }}
+              onClick={() => openReactionList(selectedPost._id, "likes")}
+            >
               {selectedPost.likes.length}
             </span>
-          </button>
-          <button className="flex items-center gap-1.5" onClick={() => handleDislike(selectedPost)}>
-            <ThumbsDown size={16} fill={isDisliked(selectedPost) ? "#d4183d" : "none"}
-              color={isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)"} />
-            <span className="text-xs" style={{ color: isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)" }}>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button onClick={() => handleDislike(selectedPost)}>
+              <ThumbsDown size={16} fill={isDisliked(selectedPost) ? "#d4183d" : "none"}
+                color={isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)"} />
+            </button>
+            <span
+              className="text-xs cursor-pointer"
+              style={{ color: isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)" }}
+              onClick={() => openReactionList(selectedPost._id, "dislikes")}
+            >
               {selectedPost.dislikes.length}
             </span>
-          </button>
+          </div>
           <button className="flex items-center gap-1.5"
             onClick={() => {
               commentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -2377,15 +2860,24 @@ const handleDeleteFriends = () => {
               color={savedPosts[selectedPost._id] ? "var(--primary)" : "var(--muted-foreground)"} />
           </button>
 
+          {selectedPost.board === "meeting" && currentUser && hasJoinedMeeting(selectedPost) && (
+            <button
+              onClick={() => openGroupChatForPost(selectedPost._id)}
+              className="ml-auto px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1"
+              style={{ background: "var(--secondary)", color: "var(--primary)" }}
+            >
+              <MessageCircle size={13} /> 채팅방
+            </button>
+          )}
           {selectedPost.board === "meeting" && currentUser && selectedPost.author._id !== currentUser._id && (
             <button
-              onClick={() => handleJoinMeeting(selectedPost)}
-              disabled={hasJoinedMeeting(selectedPost) || isMeetingFull(selectedPost)}
-              className="ml-auto px-3 py-1.5 rounded-xl text-xs font-semibold"
+              onClick={() => handleMeetingButtonClick(selectedPost)}
+              disabled={!hasJoinedMeeting(selectedPost) && isMeetingFull(selectedPost)}
+              className={`${hasJoinedMeeting(selectedPost) ? "" : "ml-auto"} px-3 py-1.5 rounded-xl text-xs font-semibold`}
               style={{
                 background: hasJoinedMeeting(selectedPost) || isMeetingFull(selectedPost) ? "var(--muted)" : "var(--primary)",
                 color: hasJoinedMeeting(selectedPost) || isMeetingFull(selectedPost) ? "var(--muted-foreground)" : "white",
-                cursor: hasJoinedMeeting(selectedPost) || isMeetingFull(selectedPost) ? "not-allowed" : "pointer",
+                cursor: !hasJoinedMeeting(selectedPost) && isMeetingFull(selectedPost) ? "not-allowed" : "pointer",
               }}
             >
               {hasJoinedMeeting(selectedPost) ? "참여중" : isMeetingFull(selectedPost) ? "모집완료" : "참여"}
@@ -2404,6 +2896,14 @@ const handleDeleteFriends = () => {
       </div>
 
       {/* 댓글 입력 */}
+      {replyTarget && (
+        <div className="flex items-center justify-between px-4 py-1.5 text-xs shrink-0" style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}>
+          <span><span className="font-semibold">{replyTarget.author.nickname}</span>님에게 답글 남기는 중</span>
+          <button onClick={() => setReplyTarget(null)} aria-label="답글 취소">
+            <X size={14} />
+          </button>
+        </div>
+      )}
       <div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
         <input
           ref={commentInputRef}
@@ -2412,7 +2912,7 @@ const handleDeleteFriends = () => {
           onKeyDown={(e) => {
             if (e.key === "Enter") handleAddComment();
           }}
-          placeholder="댓글 입력..."
+          placeholder={replyTarget ? `${replyTarget.author.nickname}님에게 답글 남기기...` : "댓글 입력..."}
           className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
           style={{ background: "var(--input-background)", color: "white", border: "1.5px solid var(--border)" }}
         />
@@ -2429,6 +2929,46 @@ const handleDeleteFriends = () => {
           등록
         </button>
       </div>
+
+      {/* 좋아요/싫어요 누른 사람 목록 */}
+      {reactionListModal && (
+        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+            <button onClick={() => setReactionListModal(null)}>
+              <X size={20} style={{ color: "var(--foreground)" }} />
+            </button>
+            <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>
+              {reactionListModal.type === "likes" ? "좋아요" : "싫어요"}
+            </h2>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar">
+            {reactionListUsers.length === 0 ? (
+              <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+                {reactionListModal.type === "likes" ? "아직 좋아요를 누른 사람이 없습니다." : "아직 싫어요를 누른 사람이 없습니다."}
+              </p>
+            ) : (
+              reactionListUsers.map((u) => (
+                <button
+                  key={u._id}
+                  onClick={() => { setReactionListModal(null); openAuthor(u); }}
+                  className="flex items-center gap-3 p-2.5 rounded-xl text-left"
+                  style={{ background: "var(--card)" }}
+                >
+                  <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+                    <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
+                    {u.studentId && (
+                      <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{u.studentId}</p>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {alertAndConfirmModals}
       {fullscreenImageViewer}
@@ -2549,7 +3089,7 @@ const handleDeleteFriends = () => {
     textOverflow: "ellipsis",
   }}
 >
-  {post.content}
+  {renderLinkifiedText(post.content)}
 </p>
               <div className="flex items-center gap-3">
                 <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
@@ -2754,7 +3294,8 @@ const handleDeleteFriends = () => {
         {sortedVisiblePosts.map((post) => (
          <div
   key={post._id}
-  className="rounded-2xl p-4 shadow-sm relative flex flex-col shrink-0"
+  onClick={() => setSelectedPostId(post._id)}
+  className="rounded-2xl p-4 shadow-sm relative flex flex-col shrink-0 cursor-pointer"
   style={
   post.board === "event" || post.board === "qna"
     ? { background: "var(--card)" }
@@ -2814,7 +3355,7 @@ const handleDeleteFriends = () => {
 )}
 
             {/* 더보기 버튼 */}
-            <div className="absolute top-3 right-3 z-10">
+            <div className="absolute top-3 right-3 z-10" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -2940,15 +3481,15 @@ const handleDeleteFriends = () => {
 
     <div className="flex items-center justify-between mb-1.5">
       <div className="flex items-center gap-3">
-        <button onClick={() => handleLike(post)}>
+        <button onClick={(e) => { e.stopPropagation(); handleLike(post); }}>
           <Heart size={20} fill={isLiked(post) ? "#3b82f6" : "none"}
             color={isLiked(post) ? "#3b82f6" : "var(--foreground)"} />
         </button>
-        <button onClick={() => setSelectedPostId(post._id)}>
+        <button onClick={(e) => { e.stopPropagation(); setSelectedPostId(post._id); }}>
   <MessageCircle size={20} style={{ color: "var(--foreground)" }} />
 </button>
       </div>
-      <button onClick={() => toggleSave(post._id)}>
+      <button onClick={(e) => { e.stopPropagation(); toggleSave(post._id); }}>
         <Bookmark size={20} fill={savedPosts[post._id] ? "var(--primary)" : "none"}
           color={savedPosts[post._id] ? "var(--primary)" : "var(--foreground)"} />
       </button>
@@ -2959,9 +3500,14 @@ const handleDeleteFriends = () => {
     </p>
 
     <div className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-  <span className="font-semibold mr-1.5">{post.author.nickname}</span>
+  <span
+    className="font-semibold mr-1.5 cursor-pointer"
+    onClick={(e) => { e.stopPropagation(); openAuthor(post.author); }}
+  >
+    {post.author.nickname}
+  </span>
   <span className="font-semibold">{post.title}</span>
-  {post.content && <>{" "}{post.content}</>}
+  {post.content && <>{" "}{renderLinkifiedText(post.content)}</>}
 </div>
   </>
 ) : (
@@ -3017,7 +3563,7 @@ const handleDeleteFriends = () => {
           }}
           className="text-sm leading-relaxed mt-1"
         >
-          {post.content}
+          {renderLinkifiedText(post.content)}
         </div>
       </div>
 
@@ -3072,18 +3618,30 @@ const handleDeleteFriends = () => {
           color={savedPosts[post._id] ? "var(--primary)" : "var(--muted-foreground)"} />
       </button>
 
+      {post.board === "meeting" && currentUser && hasJoinedMeeting(post) && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            openGroupChatForPost(post._id);
+          }}
+          className="ml-auto px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1"
+          style={{ background: "var(--secondary)", color: "var(--primary)" }}
+        >
+          <MessageCircle size={13} /> 채팅방
+        </button>
+      )}
       {post.board === "meeting" && currentUser && post.author._id !== currentUser._id && (
         <button
           onClick={(e) => {
             e.stopPropagation();
-            handleJoinMeeting(post);
+            handleMeetingButtonClick(post);
           }}
-          disabled={hasJoinedMeeting(post) || isMeetingFull(post)}
-          className="ml-auto px-3 py-1.5 rounded-xl text-xs font-semibold"
+          disabled={!hasJoinedMeeting(post) && isMeetingFull(post)}
+          className={`${hasJoinedMeeting(post) ? "" : "ml-auto"} px-3 py-1.5 rounded-xl text-xs font-semibold`}
           style={{
             background: hasJoinedMeeting(post) ? "var(--muted)" : isMeetingFull(post) ? "var(--muted)" : "var(--primary)",
             color: hasJoinedMeeting(post) ? "var(--muted-foreground)" : isMeetingFull(post) ? "var(--muted-foreground)" : "white",
-            cursor: hasJoinedMeeting(post) || isMeetingFull(post) ? "not-allowed" : "pointer",
+            cursor: !hasJoinedMeeting(post) && isMeetingFull(post) ? "not-allowed" : "pointer",
           }}
         >
           {hasJoinedMeeting(post) ? "참여중" : isMeetingFull(post) ? "모집완료" : "참여"}
@@ -3248,6 +3806,12 @@ const handleDeleteFriends = () => {
     )}
     <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0">
       <img src={resolveAssetUrl(friend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+      {onlineUserIds.includes(friend._id) && (
+        <span
+          className="absolute bottom-0 right-0 w-3 h-3 rounded-full"
+          style={{ background: "#42d354", border: "2px solid var(--background)" }}
+        />
+      )}
     </div>
     <div className="flex-1 min-w-0">
       <div className="flex items-center gap-1.5">
@@ -3379,6 +3943,9 @@ const handleDeleteFriends = () => {
                   formData.append("title", newTitle);
                   formData.append("content", newContent);
                  newImageFiles.forEach((file) => formData.append("images", file));
+                  if (newBoard === "contest" && newContestCategory !== "전체") {
+                    formData.append("tags", JSON.stringify([newContestCategory]));
+                  }
                   if (newPollEnabled) {
                     formData.append("poll", JSON.stringify({ question: newPollQuestion.trim(), options: pollOptions }));
                   }
@@ -3391,6 +3958,7 @@ const handleDeleteFriends = () => {
                   setNewPollEnabled(false);
                   setNewPollQuestion("");
                   setNewPollOptions(["", ""]);
+                  setNewContestCategory("전체");
                   setShowWrite(false);
                 } catch (err: any) {
                   showAlert(err.response?.data?.message || "게시물 등록에 실패했습니다.");
@@ -3665,6 +4233,26 @@ const handleDeleteFriends = () => {
               </div>
             ) : (
               <>
+                {newBoard === "contest" && (
+                  <div>
+                    <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>카테고리</label>
+                    <div className="flex gap-2">
+                      {["전체", ...CONTEST_FILTERS].map((category) => (
+                        <button
+                          key={category}
+                          onClick={() => setNewContestCategory(category)}
+                          className="px-3 py-1.5 rounded-xl text-xs font-medium"
+                          style={{
+                            background: newContestCategory === category ? "var(--primary)" : "var(--muted)",
+                            color: newContestCategory === category ? "white" : "var(--muted-foreground)",
+                          }}
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <input
   placeholder="제목을 입력하세요"
   value={newTitle}
@@ -4168,10 +4756,25 @@ const handleDeleteFriends = () => {
             ) : (
               notifications.map((n) => {
                 const isFollowingBack = followingIds.includes(n.sender._id);
+                const notifMessage =
+                  n.type === "join" ? "님이 회원님의 모임에 참여했습니다."
+                  : n.type === "leave" ? "님이 회원님의 모임 참여를 취소했습니다."
+                  : n.type === "comment" ? "님이 회원님의 게시물에 댓글을 남겼습니다."
+                  : n.type === "like" ? "님이 회원님의 게시물을 좋아합니다."
+                  : n.type === "dislike" ? "님이 회원님의 게시물을 싫어합니다."
+                  : n.type === "scrap" ? "님이 회원님의 게시물을 스크랩했습니다."
+                  : "님이 회원님을 팔로우하기 시작했습니다.";
                 return (
                   <button
                     key={n._id}
-                    onClick={() => openAuthor(n.sender)}
+                    onClick={() => {
+                      if (n.type === "follow") {
+                        openAuthor(n.sender);
+                      } else if (n.post) {
+                        setSelectedPostId(n.post._id);
+                        setShowNotifications(false);
+                      }
+                    }}
                     className="flex items-center gap-3 p-2.5 rounded-xl text-left"
                     style={{ background: "var(--card)" }}
                   >
@@ -4179,30 +4782,32 @@ const handleDeleteFriends = () => {
                       <img src={resolveAssetUrl(n.sender.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
                     </div>
                     <p className="flex-1 min-w-0 text-sm" style={{ color: "var(--foreground)" }}>
-                      <span className="font-semibold">{n.sender.nickname}</span>님이 회원님을 팔로우하기 시작했습니다.
+                      <span className="font-semibold">{n.sender.nickname}</span>{notifMessage}
                       <span className="block text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
                         {getDisplayTime(n, nowTick)}
                       </span>
                     </p>
-                    {isFollowingBack ? (
-                      <span
-                        className="text-xs px-3 py-1.5 rounded-xl font-medium shrink-0"
-                        style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
-                      >
-                        맞팔로우
-                      </span>
-                    ) : (
-                      <span
-                        role="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleFollowBack(n.sender._id);
-                        }}
-                        className="text-xs px-3 py-1.5 rounded-xl font-semibold shrink-0"
-                        style={{ background: "var(--primary)", color: "white" }}
-                      >
-                        팔로우
-                      </span>
+                    {n.type === "follow" && (
+                      isFollowingBack ? (
+                        <span
+                          className="text-xs px-3 py-1.5 rounded-xl font-medium shrink-0"
+                          style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
+                        >
+                          맞팔로우
+                        </span>
+                      ) : (
+                        <span
+                          role="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleFollowBack(n.sender._id);
+                          }}
+                          className="text-xs px-3 py-1.5 rounded-xl font-semibold shrink-0"
+                          style={{ background: "var(--primary)", color: "white" }}
+                        >
+                          팔로우
+                        </span>
+                      )
                     )}
                   </button>
                 );

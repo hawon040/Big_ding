@@ -3,6 +3,7 @@ import { ChevronRight, Eye, EyeOff, X } from "lucide-react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import api from "@/api";
 
+const PROFESSORS = ["유진호", "차대현", "홍진근"];
 
 interface LoginScreenProps {
   onLogin: (isFirstLogin: boolean) => void;
@@ -15,6 +16,52 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
   const [autoLogin, setAutoLogin] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
+
+  // 비밀번호 찾기
+  const [showFindPassword, setShowFindPassword] = useState(false);
+  const [findPwStudentId, setFindPwStudentId] = useState("");
+  const [findPwProfessor, setFindPwProfessor] = useState("");
+  const [showFindPwProfessorDropdown, setShowFindPwProfessorDropdown] = useState(false);
+  const [findPwCode, setFindPwCode] = useState("");
+  const [findPwNewPassword, setFindPwNewPassword] = useState("");
+  const [findPwConfirmPassword, setFindPwConfirmPassword] = useState("");
+
+  const resetFindPasswordForm = () => {
+    setFindPwStudentId("");
+    setFindPwProfessor("");
+    setFindPwCode("");
+    setFindPwNewPassword("");
+    setFindPwConfirmPassword("");
+    setShowFindPwProfessorDropdown(false);
+  };
+
+  const handleFindPassword = async () => {
+    if (!findPwStudentId.trim() || !findPwProfessor || !findPwCode.trim()) {
+      setAlertMessage("학번, 담당 교수, 인증번호를 모두 입력해주세요.");
+      return;
+    }
+    if (findPwNewPassword.length < 4) {
+      setAlertMessage("새 비밀번호를 입력해주세요.");
+      return;
+    }
+    if (findPwNewPassword !== findPwConfirmPassword) {
+      setAlertMessage("새 비밀번호가 일치하지 않습니다.");
+      return;
+    }
+    try {
+      await api.post("/auth/find-password", {
+        studentId: findPwStudentId.trim(),
+        professor: findPwProfessor,
+        code: findPwCode.trim(),
+        newPassword: findPwNewPassword,
+      });
+      setAlertMessage("비밀번호가 재설정되었습니다. 새 비밀번호로 로그인해주세요.");
+      resetFindPasswordForm();
+      setShowFindPassword(false);
+    } catch (err: any) {
+      setAlertMessage(err?.response?.data?.message || "비밀번호 재설정에 실패했습니다.");
+    }
+  };
 
   const handleSubmit = async () => {
     if (!studentId || !password) {
@@ -38,12 +85,13 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
-        handleSubmit();
+        if (showFindPassword) handleFindPassword();
+        else handleSubmit();
       }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [studentId, password, autoLogin]);
+  }, [studentId, password, autoLogin, showFindPassword, findPwStudentId, findPwProfessor, findPwCode, findPwNewPassword, findPwConfirmPassword]);
 
   return (
     <div
@@ -63,10 +111,113 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
         className="w-full rounded-3xl p-6 shadow-xl"
         style={{ background: "var(--card)" }}
       >
+        {showFindPassword ? (
+          <>
+            <div className="flex items-center gap-2 mb-1">
+              <button
+                onClick={() => { setShowFindPassword(false); resetFindPasswordForm(); }}
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                ←
+              </button>
+              <h2 className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>
+                비밀번호 찾기
+              </h2>
+            </div>
+            <p className="text-xs mb-4" style={{ color: "var(--muted-foreground)" }}>
+              가입할 때와 동일한 학번, 담당 교수, 인증번호로 본인 확인 후 비밀번호를 새로 설정합니다.
+            </p>
+            <div className="flex flex-col gap-4" onClick={() => setShowFindPwProfessorDropdown(false)}>
+              <div>
+                <label className="text-sm mb-1 block font-medium" style={{ color: "var(--muted-foreground)" }}>학번</label>
+                <input
+                  value={findPwStudentId}
+                  onChange={(e) => setFindPwStudentId(e.target.value)}
+                  placeholder="EX): 20210001"
+                  maxLength={8}
+                  className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
+                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                />
+              </div>
+              <div>
+                <label className="text-sm mb-1 block font-medium" style={{ color: "var(--muted-foreground)" }}>담당 교수</label>
+                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => setShowFindPwProfessorDropdown((v) => !v)}
+                    className="w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm"
+                    style={{
+                      background: "var(--input-background)",
+                      color: findPwProfessor ? "var(--foreground)" : "var(--muted-foreground)",
+                      border: "1.5px solid var(--border)",
+                    }}
+                  >
+                    {findPwProfessor || "담당 교수 선택"}
+                    <ChevronRight size={16} style={{ transform: showFindPwProfessorDropdown ? "rotate(90deg)" : "rotate(-90deg)" }} />
+                  </button>
+                  {showFindPwProfessorDropdown && (
+                    <div
+                      className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl shadow-lg py-1"
+                      style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                    >
+                      {PROFESSORS.map((p) => (
+                        <button
+                          key={p}
+                          onClick={() => { setFindPwProfessor(p); setShowFindPwProfessorDropdown(false); }}
+                          className="w-full px-4 py-2.5 text-sm text-left"
+                          style={{ color: findPwProfessor === p ? "var(--primary)" : "var(--foreground)" }}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm mb-1 block font-medium" style={{ color: "var(--muted-foreground)" }}>교수님 인증번호 (2자리)</label>
+                <input
+                  value={findPwCode}
+                  onChange={(e) => setFindPwCode(e.target.value)}
+                  maxLength={2}
+                  className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
+                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                />
+              </div>
+              <div>
+                <label className="text-sm mb-1 block font-medium" style={{ color: "var(--muted-foreground)" }}>새 비밀번호</label>
+                <input
+                  type="password"
+                  value={findPwNewPassword}
+                  onChange={(e) => setFindPwNewPassword(e.target.value)}
+                  className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
+                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                />
+              </div>
+              <div>
+                <label className="text-sm mb-1 block font-medium" style={{ color: "var(--muted-foreground)" }}>새 비밀번호 확인</label>
+                <input
+                  type="password"
+                  value={findPwConfirmPassword}
+                  onChange={(e) => setFindPwConfirmPassword(e.target.value)}
+                  className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
+                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                />
+              </div>
+              <button
+                onClick={handleFindPassword}
+                className="w-full py-3.5 rounded-2xl font-semibold text-sm mt-1 shadow-md transition-all active:scale-95"
+                style={{ background: "var(--primary)", color: "white" }}
+              >
+                비밀번호 재설정
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
         <h2 className="text-lg font-semibold mb-1" style={{ color: "var(--foreground)" }}>
           로그인
         </h2>
-        
+
         <div className="flex flex-col gap-4">
           <div>
             <label className="text-sm mb-1 block font-medium" style={{ color: "var(--muted-foreground)" }}>
@@ -110,9 +261,15 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
   </button>
 </div>
-            <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
-              
-            </p>
+            <div className="flex justify-end mt-1">
+              <button
+                onClick={() => setShowFindPassword(true)}
+                className="text-xs"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                비밀번호를 잊으셨나요?
+              </button>
+            </div>
           </div>
 
           <label className="flex items-center gap-2 -mt-1 cursor-pointer select-none">
@@ -145,6 +302,8 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
             계정이 없으신가요? <span style={{ color: "var(--primary)" }}>회원가입</span>
           </button>
         </div>
+          </>
+        )}
       </div>
 
       {/* 커스텀 알림 팝업 */}

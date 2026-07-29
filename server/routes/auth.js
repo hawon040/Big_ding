@@ -142,6 +142,32 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// POST /api/auth/find-password - 비밀번호 찾기 (로그인 없이, 학번+담당교수+인증번호로 본인 확인 후 재설정)
+// 가입 때와 동일한 방식(학번, 담당교수, 교수별 인증번호)으로 본인 확인을 한다.
+router.post("/find-password", async (req, res) => {
+  try {
+    const { studentId, professor, code, newPassword } = req.body;
+
+    if (professorCodes[professor] !== code) {
+      return res.status(401).json({ message: "인증번호가 올바르지 않습니다." });
+    }
+
+    const user = await User.findOne({ studentId });
+    if (!user || user.isWithdrawn) {
+      return res.status(404).json({ message: "가입되지 않은 학번입니다." });
+    }
+    if (user.professor !== professor) {
+      return res.status(401).json({ message: "담당 교수 정보가 일치하지 않습니다." });
+    }
+
+    user.password = newPassword; // pre save 훅에서 자동 해시 암호화
+    await user.save();
+    res.json({ message: "비밀번호가 재설정되었습니다." });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 // PATCH /api/auth/password
 // 비밀번호 변경 (로그인 필요)
 router.patch("/password", auth, async (req, res) => {
