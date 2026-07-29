@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Report = require("../models/Report");
 const auth = require("../middleware/authMiddleware");
+const isAdmin = require("../middleware/adminMiddleware");
 
 // POST /api/reports - 신고 접수
 router.post("/", auth, async (req, res) => {
@@ -18,6 +19,33 @@ router.get("/mine", auth, async (req, res) => {
   try {
     const reports = await Report.find({ reporter: req.user.id }).sort({ createdAt: -1 });
     res.json(reports);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// GET /api/reports - 전체 신고 목록 (관리자 전용). 미처리 건이 위로 오도록 정렬한다.
+router.get("/", auth, isAdmin, async (req, res) => {
+  try {
+    const reports = await Report.find()
+      .populate("reporter", "nickname studentId")
+      .sort({ status: 1, createdAt: -1 });
+    res.json(reports);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// PATCH /api/reports/:id - 신고 처리 상태 변경 (관리자 전용)
+router.patch("/:id", auth, isAdmin, async (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!["pending", "resolved"].includes(status)) {
+      return res.status(400).json({ message: "올바르지 않은 상태입니다." });
+    }
+    const report = await Report.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    if (!report) return res.status(404).json({ message: "신고를 찾을 수 없습니다." });
+    res.json(report);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }

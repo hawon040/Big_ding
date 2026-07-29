@@ -10,6 +10,23 @@ import {
 
 const PROFESSORS = ["유진호", "차대현", "홍진근"];
 
+interface AdminUserItem {
+  _id: string;
+  nickname: string;
+  studentId?: string;
+  avatar?: string;
+}
+
+interface AdminReportItem {
+  _id: string;
+  reporter: { _id: string; nickname: string; studentId?: string };
+  targetType: "post" | "comment" | "user";
+  targetId: string;
+  reason: string;
+  status: "pending" | "resolved";
+  createdAt: string;
+}
+
 
 interface SettingsScreenProps {
   darkMode: boolean;
@@ -87,6 +104,12 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [professorInput, setProfessorInput] = useState(professor);
   // + 비공개 계정 여부 (비공개면 친구가 아닌 사람에게 글/북마크/팔로워·팔로잉 목록이 자물쇠로 가려짐)
   const [isPrivate, setIsPrivate] = useState(() => getCurrentUser()?.isPrivate ?? false);
+  const isAdmin = !!getCurrentUser()?.isAdmin;
+  // + 관리자 화면(신고 관리 / 관리자 관리)
+  const [adminReports, setAdminReports] = useState<AdminReportItem[]>([]);
+  const [adminList, setAdminList] = useState<AdminUserItem[]>([]);
+  const [adminSearchQuery, setAdminSearchQuery] = useState("");
+  const [adminSearchResults, setAdminSearchResults] = useState<AdminUserItem[]>([]);
   const [reportHistory, setReportHistory] = useState<ReportHistoryItem[]>([]);
   const [inquiryHistory, setInquiryHistory] = useState<InquiryHistoryItem[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUserItem[]>([]);
@@ -135,6 +158,67 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       setInquiryHistory(loadInquiryHistory());
     }
   }, [activeSection]);
+
+  // 관리자 화면에 들어갈 때마다 최신 신고/관리자 목록을 서버에서 다시 불러온다.
+  useEffect(() => {
+    if (activeSection === "adminReports") {
+      api.get("/reports").then((res) => setAdminReports(res.data)).catch(() => {});
+    } else if (activeSection === "adminUsers") {
+      api.get("/users/admins").then((res) => setAdminList(res.data)).catch(() => {});
+      setAdminSearchQuery("");
+      setAdminSearchResults([]);
+    }
+  }, [activeSection]);
+
+  const toggleReportStatus = async (report: AdminReportItem) => {
+    const nextStatus = report.status === "pending" ? "resolved" : "pending";
+    try {
+      await api.patch(`/reports/${report._id}`, { status: nextStatus });
+      setAdminReports((prev) => prev.map((r) => (r._id === report._id ? { ...r, status: nextStatus } : r)));
+    } catch {
+      showAlert("신고 처리에 실패했습니다.");
+    }
+  };
+
+  const deleteReportedPost = (report: AdminReportItem) => {
+    showConfirm("이 게시물을 삭제하시겠습니까?", async () => {
+      try {
+        await api.delete(`/posts/${report.targetId}`);
+        await api.patch(`/reports/${report._id}`, { status: "resolved" });
+        setAdminReports((prev) => prev.map((r) => (r._id === report._id ? { ...r, status: "resolved" } : r)));
+        showAlert("게시물이 삭제되었습니다.");
+      } catch {
+        showAlert("게시물 삭제에 실패했습니다.");
+      }
+    });
+  };
+
+  const searchAdminCandidates = async (q: string) => {
+    setAdminSearchQuery(q);
+    if (!q.trim()) {
+      setAdminSearchResults([]);
+      return;
+    }
+    try {
+      const res = await api.get(`/users/search?q=${encodeURIComponent(q.trim())}`);
+      setAdminSearchResults(res.data);
+    } catch {
+      setAdminSearchResults([]);
+    }
+  };
+
+  const setUserAdmin = async (user: AdminUserItem, nextIsAdmin: boolean) => {
+    try {
+      await api.patch(`/users/${user._id}/admin`, { isAdmin: nextIsAdmin });
+      if (nextIsAdmin) {
+        setAdminList((prev) => (prev.some((u) => u._id === user._id) ? prev : [...prev, user]));
+      } else {
+        setAdminList((prev) => prev.filter((u) => u._id !== user._id));
+      }
+    } catch {
+      showAlert("관리자 권한 변경에 실패했습니다.");
+    }
+  };
 
   // 커스텀 알림/확인 팝업 상태
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -671,6 +755,154 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
     );
   }
 
+  if (activeSection === "adminReports") {
+    return (
+      <div className="relative flex flex-col flex-1 overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
+          <button onClick={() => setActiveSection(null)}>
+            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
+          </button>
+          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>신고 관리</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+          {adminReports.length === 0 ? (
+            <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+              접수된 신고가 없습니다.
+            </p>
+          ) : (
+            adminReports.map((report) => (
+              <div key={report._id} className="rounded-2xl p-4 shadow-sm flex flex-col gap-2" style={{ background: "var(--card)" }}>
+                <div className="flex items-center justify-between">
+                  <span
+                    className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{
+                      background: report.status === "pending" ? "#d4183d22" : "var(--muted)",
+                      color: report.status === "pending" ? "#d4183d" : "var(--muted-foreground)",
+                    }}
+                  >
+                    {report.status === "pending" ? "미처리" : "처리완료"}
+                  </span>
+                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    {new Date(report.createdAt).toLocaleString("ko-KR")}
+                  </span>
+                </div>
+                <p className="text-sm" style={{ color: "var(--foreground)" }}>
+                  <span className="font-semibold">{report.reporter?.nickname ?? "알 수 없음"}</span>님의 신고
+                  {" · "}
+                  {report.targetType === "post" ? "게시물" : report.targetType === "comment" ? "댓글" : "사용자"}
+                </p>
+                <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>사유: {report.reason}</p>
+                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>대상 ID: {report.targetId}</p>
+                <div className="flex gap-2 mt-1">
+                  {report.targetType === "post" && (
+                    <button
+                      onClick={() => deleteReportedPost(report)}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+                      style={{ background: "#d4183d", color: "white" }}
+                    >
+                      게시물 삭제
+                    </button>
+                  )}
+                  <button
+                    onClick={() => toggleReportStatus(report)}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+                    style={{ background: "var(--muted)", color: "var(--foreground)" }}
+                  >
+                    {report.status === "pending" ? "처리완료로 표시" : "미처리로 되돌리기"}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        {AlertModal}
+        {ConfirmModal}
+      </div>
+    );
+  }
+
+  if (activeSection === "adminUsers") {
+    return (
+      <div className="relative flex flex-col flex-1 overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
+          <button onClick={() => setActiveSection(null)}>
+            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
+          </button>
+          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>관리자 관리</h2>
+        </div>
+        <div className="px-4 py-4 flex flex-col gap-4 overflow-y-auto">
+          <div>
+            <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
+              학번/닉네임으로 검색해서 관리자로 추가
+            </label>
+            <input
+              value={adminSearchQuery}
+              onChange={(e) => searchAdminCandidates(e.target.value)}
+              placeholder="학번 또는 닉네임 검색"
+              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+            />
+            {adminSearchQuery.trim() && (
+              <div className="flex flex-col gap-2 mt-2">
+                {adminSearchResults.length === 0 ? (
+                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>검색 결과가 없습니다.</p>
+                ) : (
+                  adminSearchResults.map((u) => {
+                    const already = adminList.some((a) => a._id === u._id);
+                    return (
+                      <div key={u._id} className="flex items-center gap-3 p-2.5 rounded-xl" style={{ background: "var(--card)" }}>
+                        <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
+                          <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                        </div>
+                        <p className="flex-1 min-w-0 text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
+                        <button
+                          onClick={() => setUserAdmin(u, !already)}
+                          className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0"
+                          style={{ background: already ? "var(--muted)" : "var(--primary)", color: already ? "var(--muted-foreground)" : "white" }}
+                        >
+                          {already ? "관리자 해제" : "관리자로 추가"}
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
+              현재 관리자
+            </label>
+            <div className="flex flex-col gap-2">
+              {adminList.length === 0 ? (
+                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>관리자가 없습니다.</p>
+              ) : (
+                adminList.map((u) => (
+                  <div key={u._id} className="flex items-center gap-3 p-2.5 rounded-xl" style={{ background: "var(--card)" }}>
+                    <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
+                      <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                    </div>
+                    <p className="flex-1 min-w-0 text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
+                    <button
+                      onClick={() => setUserAdmin(u, false)}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0"
+                      style={{ background: "var(--muted)", color: "#d4183d" }}
+                    >
+                      관리자 해제
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+        {AlertModal}
+        {ConfirmModal}
+      </div>
+    );
+  }
+
   if (activeSection === "account") {
     return (
       <div className="relative flex flex-col flex-1 overflow-hidden">
@@ -904,6 +1136,21 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       </div>
 
       <div className="px-4 flex flex-col gap-2.5 pb-3">
+        {isAdmin && (
+          <Section title="관리자">
+            <SettingRow
+              icon={<AlertTriangle size={18} style={{ color: "#d4183d" }} />}
+              label="신고 관리"
+              onPress={() => setActiveSection("adminReports")}
+            />
+            <SettingRow
+              icon={<Shield size={18} style={{ color: "var(--primary)" }} />}
+              label="관리자 관리"
+              onPress={() => setActiveSection("adminUsers")}
+            />
+          </Section>
+        )}
+
         <Section title="계정">
           <SettingRow
             icon={<User size={18} style={{ color: "var(--primary)" }} />}

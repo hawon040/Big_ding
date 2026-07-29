@@ -40,6 +40,14 @@ router.get("/", auth, async (req, res) => {
 // POST /api/posts
 router.post("/", auth, upload.array("images", 5), profanityFilter, async (req, res) => {
   try {
+    // 행사공지 게시판은 관리자만 작성할 수 있다 (클라이언트 체크는 우회 가능하므로 서버에서도 확인).
+    if (req.body.board === "event") {
+      const me = await User.findById(req.user.id).select("isAdmin");
+      if (!me?.isAdmin) {
+        return res.status(403).json({ message: "행사공지 게시판은 관리자만 작성할 수 있습니다." });
+      }
+    }
+
     const images = req.files?.length
       ? (await Promise.all(req.files.map((file) => uploadImage(file.buffer, "posts")))).map((r) => r.secure_url)
       : [];
@@ -269,8 +277,10 @@ router.delete("/:id/comments/:commentId", auth, async (req, res) => {
     const post = await Post.findById(req.params.id);
     const comment = post.comments.id(req.params.commentId);
     if (!comment) return res.status(404).json({ message: "댓글을 찾을 수 없습니다." });
-    if (comment.author.toString() !== req.user.id)
-      return res.status(403).json({ message: "권한이 없습니다." });
+    if (comment.author.toString() !== req.user.id) {
+      const me = await User.findById(req.user.id).select("isAdmin");
+      if (!me?.isAdmin) return res.status(403).json({ message: "권한이 없습니다." });
+    }
     comment.deleteOne();
     await post.save();
     await post.populate("comments.author", "nickname avatar");
@@ -322,8 +332,10 @@ router.post("/:id/poll/vote", auth, async (req, res) => {
 router.delete("/:id", auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
-    if (post.author.toString() !== req.user.id)
-      return res.status(403).json({ message: "권한이 없습니다." });
+    if (post.author.toString() !== req.user.id) {
+      const me = await User.findById(req.user.id).select("isAdmin");
+      if (!me?.isAdmin) return res.status(403).json({ message: "권한이 없습니다." });
+    }
     await post.deleteOne();
     res.json({ message: "삭제되었습니다." });
   } catch (err) {

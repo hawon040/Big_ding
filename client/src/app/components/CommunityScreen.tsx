@@ -10,8 +10,7 @@ import {
 } from "lucide-react";
 
 export type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting" | "alumni";
-// "행사공지" 게시판은 관리자 학번만 글을 작성할 수 있다.
-const ADMIN_STUDENT_IDS = ["20232023"];
+// "행사공지" 게시판은 관리자(User.isAdmin)만 글을 작성할 수 있다. 서버(POST /api/posts)에서도 검증한다.
 
 // 글쓰기 모달에서 한 게시물에 첨부할 수 있는 사진 최대 개수.
 const MAX_POST_IMAGES = 5;
@@ -40,6 +39,7 @@ export interface CurrentUser {
   isPrivate?: boolean;
   followers?: string[];
   following?: string[];
+  isAdmin?: boolean;
 }
 
 // 로그인 시 서버에서 받아 localStorage에 저장해 둔 사용자 정보를 그대로 "현재 로그인한 나"로 사용한다.
@@ -57,7 +57,8 @@ export const getCurrentUser = (): CurrentUser | null => {
   professor: user.professor,
   isPrivate: user.isPrivate,
   followers: user.followers,
-  following: user.following
+  following: user.following,
+  isAdmin: user.isAdmin,
 };
   } catch {
     return null;
@@ -808,7 +809,7 @@ export function CommunityScreen({
   // 새로고침해도 그대로 유지되도록 한다.
   const [storedInit] = useState(loadStoredInteractions);
   const [currentUser] = useState(getCurrentUser);
-  const isAdmin = ADMIN_STUDENT_IDS.includes(getCurrentStudentId());
+  const isAdmin = !!currentUser?.isAdmin;
 
   // 채팅 실시간 수신용 소켓 연결 (로그인 토큰이 있는 동안만 연결된다)
   const [authToken] = useState(() => localStorage.getItem("token"));
@@ -2540,7 +2541,7 @@ const handleDeleteFriends = () => {
               className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
               style={{ background: "var(--card)", border: "1px solid var(--border)" }}
             >
-              {currentUser && c.author._id === currentUser._id ? (
+              {currentUser && (c.author._id === currentUser._id || isAdmin) ? (
                 <button
                   onClick={() => handleDeleteComment(selectedPost._id, c._id)}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
@@ -3475,6 +3476,24 @@ const handleDeleteFriends = () => {
                         <Trash2 size={14} /> 삭제
                       </button>
                     </>
+                  ) : isAdmin ? (
+                    <button
+                      onClick={() => {
+                        showConfirm("관리자 권한으로 이 게시물을 삭제하시겠습니까?", async () => {
+                          setShowMoreMenu(null);
+                          try {
+                            await api.delete(`/posts/${post._id}`);
+                            setPosts((prev) => prev.filter((p) => p._id !== post._id));
+                          } catch {
+                            showAlert("게시물 삭제에 실패했습니다.");
+                          }
+                        });
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+                      style={{ color: "#d4183d" }}
+                    >
+                      <Trash2 size={14} /> 삭제 (관리자)
+                    </button>
                   ) : (
                     <button
                       onClick={() => {
