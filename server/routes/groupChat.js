@@ -98,15 +98,19 @@ router.get("/by-post/:postId", auth, async (req, res) => {
       });
     }
 
+    // populate 전에(멤버가 아직 순수 ObjectId인 상태에서) 확인해야 한다.
+    // populate 이후에 비교하면 배열 요소가 populate된 User 문서가 되어 toString()이
+    // "[object Object]"를 반환하므로 항상 false가 되는 버그가 있었다.
+    if (!isMember(groupChat, req.user.id)) {
+      return res.status(403).json({ message: "채팅방 멤버만 볼 수 있습니다." });
+    }
+
     groupChat = await groupChat.populate([
       { path: "post", select: "title board" },
       { path: "host", select: USER_FIELDS },
       { path: "members", select: USER_FIELDS },
     ]);
 
-    if (!isMember(groupChat, req.user.id)) {
-      return res.status(403).json({ message: "채팅방 멤버만 볼 수 있습니다." });
-    }
     res.json(groupChat);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
