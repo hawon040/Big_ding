@@ -1153,6 +1153,7 @@ useEffect(() => {
   }, []);
 
   const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
+  const [returnToChatFriend, setReturnToChatFriend] = useState<Friend | null>(null);
   const [chatMessages, setChatMessages] = useState<Record<string, Message[]>>({});
   // 인스타처럼 상대가 지금 접속 중이면 아바타에 초록 점과 "활동 중"을 표시한다.
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
@@ -1172,6 +1173,8 @@ useEffect(() => {
   const [groupMessages, setGroupMessages] = useState<Record<string, GroupMessage[]>>({});
   const [groupChatInput, setGroupChatInput] = useState("");
   const [showGroupChatMembers, setShowGroupChatMembers] = useState(false);
+  const [viewingGroupMember, setViewingGroupMember] = useState<PostAuthor | null>(null);
+  
   // 내가 속한 모든 단체 채팅방 목록(공강모임 채팅방 + 친구끼리 만든 채팅방)
   const [groupChatList, setGroupChatList] = useState<GroupChatSummary[]>([]);
   // 친구끼리 단체 채팅방 만들기
@@ -1581,6 +1584,14 @@ useEffect(() => {
   // 서버에서 상대가 보낸 메시지를 읽음 처리해준다.
   const openFriendChat = (friend: Friend) => {
     setActiveFriend(friend);
+  };
+
+  const openFriendProfileFromChat = () => {
+    const friend = activeFriend;
+    if (!friend) return;
+    setActiveFriend(null);
+    setViewedAuthor(friend);
+    setReturnToChatFriend(friend);
   };
 
   // 커스텀 알림/확인 팝업 상태
@@ -2032,20 +2043,30 @@ const handleDeleteFriends = () => {
         </div>
 
         {/* 멤버 목록 */}
-        {showGroupChatMembers && (
-          <div className="px-4 py-3 border-b flex flex-col gap-2 shrink-0" style={{ borderColor: "var(--border)" }}>
-            {activeGroupChat.members.map((m) => (
-              <div key={m._id} className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full overflow-hidden shrink-0">
-                  <img src={resolveAssetUrl(m.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                </div>
-                <p className="text-xs font-medium" style={{ color: "var(--foreground)" }}>
-                  {m.nickname}{m._id === activeGroupChat.host._id ? " (방장)" : ""}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
+{showGroupChatMembers && (
+  <div className="px-4 py-3 border-b flex flex-col gap-2 shrink-0" style={{ borderColor: "var(--border)" }}>
+    {activeGroupChat.members.map((m) => (
+      <button
+        key={m._id}
+        onClick={() => {
+          if (currentUser && m._id === currentUser._id) {
+            onViewOwnProfile();
+          } else {
+            setViewingGroupMember(m);
+          }
+        }}
+        className="flex items-center gap-2 text-left"
+      >
+        <div className="w-7 h-7 rounded-full overflow-hidden shrink-0">
+          <img src={resolveAssetUrl(m.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+        </div>
+        <p className="text-xs font-medium" style={{ color: "var(--foreground)" }}>
+          {m.nickname}{m._id === activeGroupChat.host._id ? " (방장)" : ""}
+        </p>
+      </button>
+    ))}
+  </div>
+)}
 
         {/* 메시지 목록 */}
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
@@ -2054,14 +2075,23 @@ const handleDeleteFriends = () => {
             return (
               <div key={msg._id} className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}>
                 {!mine && (
-                  <div className="w-7 h-7 rounded-full overflow-hidden shrink-0">
-                    <img src={resolveAssetUrl(msg.sender.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                  </div>
-                )}
-                <div className={`max-w-[70%] flex flex-col gap-1 ${mine ? "items-end" : "items-start"}`}>
-                  {!mine && (
-                    <span className="text-[11px] font-semibold" style={{ color: "var(--muted-foreground)" }}>{msg.sender.nickname}</span>
-                  )}
+  <button
+    onClick={() => setViewingGroupMember(msg.sender)}
+    className="w-7 h-7 rounded-full overflow-hidden shrink-0 self-start mt-5"
+  >
+    <img src={resolveAssetUrl(msg.sender.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+  </button>
+)}
+<div className={`max-w-[70%] flex flex-col gap-1 ${mine ? "items-end" : "items-start"}`}>
+  {!mine && (
+    <button
+      onClick={() => setViewingGroupMember(msg.sender)}
+      className="text-[11px] font-semibold"
+      style={{ color: "var(--muted-foreground)" }}
+    >
+      {msg.sender.nickname}
+    </button>
+  )}
                   {msg.content && (
                     <div
                       className="px-3 py-2 rounded-2xl text-sm"
@@ -2107,6 +2137,21 @@ const handleDeleteFriends = () => {
             전송
           </button>
         </div>
+        {viewingGroupMember && (
+          <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+            <OtherUserProfile
+              author={viewingGroupMember}
+              posts={allPosts}
+              currentUserId={currentUser?._id}
+              onBack={() => setViewingGroupMember(null)}
+              onOpenPost={(postId) => {
+                setViewingGroupMember(null);
+                setActiveGroupChat(null);
+                setSelectedPostId(postId);
+              }}
+            />
+          </div>
+        )}
         {alertAndConfirmModals}
       </div>
     );
@@ -2124,7 +2169,7 @@ const handleDeleteFriends = () => {
             <button onClick={() => setActiveFriend(null)} className="text-lg">←</button>
           )}
           <button
-            onClick={() => { const friend = activeFriend; setActiveFriend(null); setViewedAuthor(friend); }}
+            onClick={openFriendProfileFromChat}
             className="relative w-9 h-9 rounded-full overflow-hidden shrink-0"
           >
             <img src={resolveAssetUrl(activeFriend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
@@ -2136,7 +2181,7 @@ const handleDeleteFriends = () => {
             )}
           </button>
           <button
-            onClick={() => { const friend = activeFriend; setActiveFriend(null); setViewedAuthor(friend); }}
+            onClick={openFriendProfileFromChat}
             className="flex-1 text-left"
           >
             <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>{activeFriend.nickname}</p>
@@ -2326,14 +2371,17 @@ const handleDeleteFriends = () => {
                   />
                 )}
                 {!msg.mine && (
-                  isLastInCluster ? (
-                    <div className="w-6 h-6 rounded-full overflow-hidden shrink-0">
-                      <img src={resolveAssetUrl(activeFriend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                    </div>
-                  ) : (
-                    <div className="w-6 shrink-0" />
-                  )
-                )}
+  isLastInCluster ? (
+    <button
+      onClick={openFriendProfileFromChat}
+      className="w-6 h-6 rounded-full overflow-hidden shrink-0"
+    >
+      <img src={resolveAssetUrl(activeFriend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+    </button>
+  ) : (
+    <div className="w-6 shrink-0" />
+  )
+)}
                 <div className={`max-w-[70%] flex flex-col gap-1 ${msg.mine ? "items-end" : "items-start"}`}>
                   {msg.content && (
                     <div
@@ -2482,10 +2530,17 @@ const handleDeleteFriends = () => {
         author={viewedAuthor}
         posts={allPosts}
         currentUserId={currentUser?._id}
-        onBack={() => setViewedAuthor(null)}
+        onBack={() => {
+          setViewedAuthor(null);
+          if (returnToChatFriend) {
+            setActiveFriend(returnToChatFriend);
+            setReturnToChatFriend(null);
+          }
+        }}
         onOpenPost={(postId) => {
           setViewedAuthor(null);
           setSelectedPostId(postId);
+          setReturnToChatFriend(null);
         }}
       />
     );
