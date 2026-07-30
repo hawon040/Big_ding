@@ -4,6 +4,7 @@ const User = require("../models/User");
 const FriendRequest = require("../models/FriendRequest");
 const Notification = require("../models/Notification");
 const auth = require("../middleware/authMiddleware");
+const isAdmin = require("../middleware/adminMiddleware");
 const upload = require("../middleware/upload");
 const { uploadImage } = require("../config/cloudinary");
 
@@ -253,6 +254,32 @@ router.delete("/account", auth, async (req, res) => {
     await user.save();
 
     res.json({ message: "계정이 탈퇴되었습니다." });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// GET /api/users/admins - 현재 관리자 목록 (관리자 전용)
+router.get("/admins", auth, isAdmin, async (req, res) => {
+  try {
+    const admins = await User.find({ isAdmin: true }).select("nickname avatar studentId");
+    res.json(admins);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// PATCH /api/users/:id/admin - 관리자 권한 부여/해제 (관리자 전용)
+router.patch("/:id/admin", auth, isAdmin, async (req, res) => {
+  try {
+    const { isAdmin: nextIsAdmin } = req.body;
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { isAdmin: !!nextIsAdmin },
+      { new: true }
+    ).select("nickname studentId isAdmin");
+    if (!user) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    res.json(user);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }
