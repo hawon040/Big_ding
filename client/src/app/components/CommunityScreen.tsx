@@ -885,13 +885,63 @@ export function CommunityScreen({
   }, []);
 
   const handleReportCommentAuthor = (comment: PostComment) => {
-    const counts = loadCommentReportCounts();
+   const counts = loadCommentReportCounts();
     if ((counts[comment.author.nickname] || 0) >= MAX_COMMENT_REPORTS_PER_AUTHOR) {
       showAlert("이미 신고 가능 횟수를 모두 사용했습니다.");
       return;
     }
     setReportingComment(comment);
   };
+  const reportCommentModal = reportingComment && (
+  <div className="absolute inset-0 z-[60] flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
+    <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>댓글 신고</h3>
+        <button onClick={() => setReportingComment(null)}>
+          <X size={20} style={{ color: "var(--foreground)" }} />
+        </button>
+      </div>
+      <p className="text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>
+        {reportingComment.author.nickname}님의 댓글을 신고하는 이유를 선택해주세요
+      </p>
+      {["스팸/도배", "욕설/비방", "음란물", "허위 정보", "기타"].map((reason) => (
+        <button
+          key={reason}
+          onClick={async () => {
+            try {
+              await api.post("/reports", {
+                targetType: "comment",
+                targetId: reportingComment._id,
+                reason,
+              });
+            } catch {
+              showAlert("신고 접수에 실패했습니다.");
+              return;
+            }
+            incrementCommentReportCount(reportingComment.author.nickname);
+            const now = new Date();
+            const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
+            addReportToHistory({
+              id: Date.now(),
+              type: reason,
+              target: `${reportingComment.author.nickname}의 댓글`,
+              status: "처리 중",
+              date,
+              postId: selectedPostId ?? "",
+              sanction: null,
+            });
+            setReportingComment(null);
+            showAlert(`신고가 접수되었습니다: ${reason}`);
+          }}
+          className="w-full px-4 py-3 rounded-xl text-left text-sm"
+          style={{ background: "var(--card)", color: "var(--foreground)" }}
+        >
+          {reason}
+        </button>
+      ))}
+    </div>
+  </div>
+);
   // 게시물 상세/작성자 화면은 id만 들고 있다가 posts에서 찾아 쓴다.
   // 그래야 좋아요/댓글 등으로 posts가 갱신될 때 상세 화면에도 즉시 반영된다.
 const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
@@ -3093,6 +3143,7 @@ const handleDeleteFriends = () => {
         </div>
       )}
 
+      {reportCommentModal} 
       {alertAndConfirmModals}
       {fullscreenImageViewer}
     </div>
