@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import defaultAvatar from "@/assets/default-avatar.svg";
 import api, { resolveAssetUrl } from "@/api";
@@ -946,6 +946,17 @@ export function CommunityScreen({
   // 그래야 좋아요/댓글 등으로 posts가 갱신될 때 상세 화면에도 즉시 반영된다.
 const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
 const selectedPost = selectedPostId ? posts.find((p) => p._id === selectedPostId) ?? null : null;
+
+// 메인 피드 목록의 스크롤 위치. 게시물 상세화면을 열면(selectedPostId가 생기면) 목록
+// 컴포넌트 자체가 언마운트되므로(상세화면이 완전히 다른 return문으로 그려짐), 상세화면을
+// 닫고 목록으로 돌아왔을 때 이 값으로 스크롤 위치를 복원해 맨 위로 튀지 않게 한다.
+const feedScrollRef = useRef<HTMLDivElement>(null);
+const feedScrollPositionRef = useRef(0);
+useLayoutEffect(() => {
+  if (!selectedPostId && feedScrollRef.current) {
+    feedScrollRef.current.scrollTop = feedScrollPositionRef.current;
+  }
+}, [selectedPostId]);
 const [viewedAuthor, setViewedAuthor] = useState<PostAuthor | null>(null);
 
 // 게시물 상세 화면(하단에 댓글 입력창이 고정으로 붙어있음)이 열려 있는 동안에는
@@ -3454,7 +3465,11 @@ const handleDeleteFriends = () => {
         />
       )}
       {/* Posts */}
-<div className="flex-1 overflow-y-auto px-4 pb-20 flex flex-col gap-3 no-scrollbar">
+<div
+  ref={feedScrollRef}
+  onScroll={(e) => { feedScrollPositionRef.current = e.currentTarget.scrollTop; }}
+  className="flex-1 overflow-y-auto px-4 pb-20 flex flex-col gap-3 no-scrollbar"
+>
         {postsLoading && sortedVisiblePosts.length === 0 && (
           <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
             게시물을 불러오는 중...
