@@ -884,6 +884,15 @@ export function CommunityScreen({
     return () => clearInterval(interval);
   }, []);
 
+  // 공강모임 채팅방 멤버 신고
+  const [reportingGroupMember, setReportingGroupMember] = useState<Friend | null>(null);
+  // 채팅 내용을 증거로 첨부해 신고하기: 신고 대상 멤버를 지정하면 그 사람이 보낸 메시지에
+  // 체크박스가 나타나고, 최대 5개까지 골라 신고 사유와 함께 접수한다.
+  const [groupReportTarget, setGroupReportTarget] = useState<Friend | null>(null);
+  const [selectedGroupMsgIds, setSelectedGroupMsgIds] = useState<string[]>([]);
+  const MAX_REPORT_EVIDENCE = 5;
+  const [reportingGroupMemberEvidence, setReportingGroupMemberEvidence] = useState<{ content: string }[]>([]);
+
   const handleReportCommentAuthor = (comment: PostComment) => {
    const counts = loadCommentReportCounts();
     if ((counts[comment.author.nickname] || 0) >= MAX_COMMENT_REPORTS_PER_AUTHOR) {
@@ -931,6 +940,77 @@ export function CommunityScreen({
               sanction: null,
             });
             setReportingComment(null);
+            showAlert(`신고가 접수되었습니다: ${reason}`);
+          }}
+          className="w-full px-4 py-3 rounded-xl text-left text-sm"
+          style={{ background: "var(--card)", color: "var(--foreground)" }}
+        >
+          {reason}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+// 공강모임 채팅방 멤버 신고 모달. groupReportTarget이 함께 있으면 evidenceMessages에
+// 담긴 메시지 내용도 신고 사유와 함께 접수한다.
+const reportGroupMemberModal = reportingGroupMember && (
+  <div className="absolute inset-0 z-[60] flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
+    <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>사용자 신고</h3>
+        <button onClick={() => { setReportingGroupMember(null); setReportingGroupMemberEvidence([]); }}>
+          <X size={20} style={{ color: "var(--foreground)" }} />
+        </button>
+      </div>
+      <p className="text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>
+        {reportingGroupMember.nickname}님을 신고하는 이유를 선택해주세요
+      </p>
+      {reportingGroupMemberEvidence.length > 0 && (
+        <div className="flex flex-col gap-1.5 p-3 rounded-xl" style={{ background: "var(--muted)" }}>
+          <p className="text-[11px] font-semibold" style={{ color: "var(--muted-foreground)" }}>
+            첨부된 메시지 ({reportingGroupMemberEvidence.length}개)
+          </p>
+          {reportingGroupMemberEvidence.map((m, i) => (
+            <p key={i} className="text-xs" style={{ color: "var(--foreground)" }}>
+              "{m.content}"
+            </p>
+          ))}
+        </div>
+      )}
+      {["스팸/도배", "욕설/비방", "음란물", "허위 정보", "기타"].map((reason) => (
+        <button
+          key={reason}
+          onClick={async () => {
+            try {
+              await api.post("/reports", {
+                targetType: "user",
+                targetId: reportingGroupMember._id,
+                reason,
+                evidence: reportingGroupMemberEvidence.map((m) => m.content),
+              });
+            } catch {
+              showAlert("신고 접수에 실패했습니다.");
+              return;
+            }
+            const now = new Date();
+            const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
+            const evidenceNote = reportingGroupMemberEvidence.length > 0
+              ? ` (메시지 ${reportingGroupMemberEvidence.length}개 첨부: ${reportingGroupMemberEvidence.map((m) => `"${m.content}"`).join(", ")})`
+              : "";
+            addReportToHistory({
+              id: Date.now(),
+              type: reason,
+              target: `${reportingGroupMember.nickname}님${evidenceNote}`,
+              status: "처리 중",
+              date,
+              postId: "",
+              sanction: null,
+            });
+            setReportingGroupMember(null);
+            setReportingGroupMemberEvidence([]);
+            setGroupReportTarget(null);
+            setSelectedGroupMsgIds([]);
             showAlert(`신고가 접수되었습니다: ${reason}`);
           }}
           className="w-full px-4 py-3 rounded-xl text-left text-sm"
@@ -2104,28 +2184,78 @@ const handleDeleteFriends = () => {
           </button>
         </div>
 
+        {/* 메시지 선택으로 신고하기 안내 바 */}
+        {groupReportTarget && (
+          <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b shrink-0" style={{ background: "var(--muted)", borderColor: "var(--border)" }}>
+            <p className="text-xs" style={{ color: "var(--foreground)" }}>
+              <span className="font-semibold">{groupReportTarget.nickname}</span>님의 메시지를 선택하세요 ({selectedGroupMsgIds.length}/{MAX_REPORT_EVIDENCE})
+            </p>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => { setGroupReportTarget(null); setSelectedGroupMsgIds([]); }}
+                className="text-xs font-semibold px-2 py-1"
+                style={{ color: "var(--muted-foreground)" }}
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  const evidence = messages
+                    .filter((m) => selectedGroupMsgIds.includes(m._id))
+                    .map((m) => ({ content: m.content && m.content.trim() ? m.content : "(사진)" }));
+                  setReportingGroupMemberEvidence(evidence);
+                  setReportingGroupMember(groupReportTarget);
+                }}
+                disabled={selectedGroupMsgIds.length === 0}
+                className="text-xs font-semibold px-3 py-1.5 rounded-xl"
+                style={{
+                  background: selectedGroupMsgIds.length === 0 ? "var(--card)" : "#d4183d",
+                  color: selectedGroupMsgIds.length === 0 ? "var(--muted-foreground)" : "white",
+                }}
+              >
+                신고하기
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 멤버 목록 */}
 {showGroupChatMembers && (
   <div className="px-4 py-3 border-b flex flex-col gap-2 shrink-0" style={{ borderColor: "var(--border)" }}>
     {activeGroupChat.members.map((m) => (
-      <button
-        key={m._id}
-        onClick={() => {
-          if (currentUser && m._id === currentUser._id) {
-            onViewOwnProfile();
-          } else {
-            setViewingGroupMember(m);
-          }
-        }}
-        className="flex items-center gap-2 text-left"
-      >
-        <div className="w-7 h-7 rounded-full overflow-hidden shrink-0">
-          <img src={resolveAssetUrl(m.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-        </div>
-        <p className="text-xs font-medium" style={{ color: "var(--foreground)" }}>
-          {m.nickname}{m._id === activeGroupChat.host._id ? " (방장)" : ""}
-        </p>
-      </button>
+      <div key={m._id} className="flex items-center justify-between gap-2">
+        <button
+          onClick={() => {
+            if (currentUser && m._id === currentUser._id) {
+              onViewOwnProfile();
+            } else {
+              setViewingGroupMember(m);
+            }
+          }}
+          className="flex items-center gap-2 text-left flex-1 min-w-0"
+        >
+          <div className="w-7 h-7 rounded-full overflow-hidden shrink-0">
+            <img src={resolveAssetUrl(m.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+          </div>
+          <p className="text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
+            {m.nickname}{m._id === activeGroupChat.host._id ? " (방장)" : ""}
+          </p>
+        </button>
+        {currentUser && m._id !== currentUser._id && (
+          <button
+            onClick={() => {
+              setGroupReportTarget(m);
+              setSelectedGroupMsgIds([]);
+              setShowGroupChatMembers(false);
+            }}
+            className="shrink-0"
+            style={{ color: "var(--muted-foreground)" }}
+            aria-label="사용자 신고"
+          >
+            <AlertTriangle size={14} />
+          </button>
+        )}
+      </div>
     ))}
   </div>
 )}
@@ -2134,8 +2264,29 @@ const handleDeleteFriends = () => {
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
           {messages.map((msg) => {
             const mine = currentUser?._id === msg.sender._id;
+            const isReportable = !!groupReportTarget && msg.sender._id === groupReportTarget._id;
+            const isSelected = selectedGroupMsgIds.includes(msg._id);
+            const toggleSelectForReport = () => {
+              if (!isReportable) return;
+              setSelectedGroupMsgIds((prev) => {
+                if (prev.includes(msg._id)) return prev.filter((id) => id !== msg._id);
+                if (prev.length >= MAX_REPORT_EVIDENCE) {
+                  showAlert(`메시지는 최대 ${MAX_REPORT_EVIDENCE}개까지 선택할 수 있습니다.`);
+                  return prev;
+                }
+                return [...prev, msg._id];
+              });
+            };
             return (
               <div key={msg._id} className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}>
+                {isReportable && (
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={toggleSelectForReport}
+                    className="w-4 h-4 accent-orange-400 shrink-0"
+                  />
+                )}
                 {!mine && (
   <button
     onClick={() => setViewingGroupMember(msg.sender)}
@@ -2156,8 +2307,14 @@ const handleDeleteFriends = () => {
   )}
                   {msg.content && (
                     <div
+                      onClick={isReportable ? toggleSelectForReport : undefined}
                       className="px-3 py-2 rounded-2xl text-sm"
-                      style={{ background: mine ? "var(--primary)" : "var(--card)", color: mine ? "white" : "var(--foreground)" }}
+                      style={{
+                        background: mine ? "var(--primary)" : "var(--card)",
+                        color: mine ? "white" : "var(--foreground)",
+                        cursor: isReportable ? "pointer" : "default",
+                        outline: isSelected ? "2px solid #d4183d" : "none",
+                      }}
                     >
                       <p>{msg.content}</p>
                     </div>
@@ -2167,7 +2324,7 @@ const handleDeleteFriends = () => {
                       src={resolveAssetUrl(msg.image)}
                       alt="사진"
                       className="rounded-xl max-w-full"
-                      style={{ maxHeight: "200px" }}
+                      style={{ maxHeight: "200px", outline: isSelected ? "2px solid #d4183d" : "none" }}
                     />
                   )}
                   <p className="text-[10px] opacity-70" style={{ color: "var(--muted-foreground)" }}>{formatMessageTime(msg.createdAt, nowTick)}</p>
@@ -2214,6 +2371,7 @@ const handleDeleteFriends = () => {
             />
           </div>
         )}
+        {reportGroupMemberModal}
         {alertAndConfirmModals}
       </div>
     );
