@@ -1,7 +1,3 @@
-.big-ding-search-input::placeholder {
-  color: #9AA3C0;
-}
-
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
