@@ -1,11 +1,12 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import defaultAvatar from "@/assets/default-avatar.svg";
 import api, { resolveAssetUrl } from "@/api";
 import { useSocket } from "@/hooks/useSocket";
 import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
   Search, Star, Send, UserPlus, ChevronDown, ChevronUp, FileText,
-  Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, MoreHorizontal, Repeat2, Edit2, Trash2, AlertTriangle, Bell, Lock, ChartScatter
+  Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, MoreHorizontal, Repeat2, Edit2, Trash2, AlertTriangle, Bell, Lock
 } from "lucide-react";
 
 export type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting" | "alumni";
@@ -1129,6 +1130,12 @@ useEffect(() => {
   const closeWriteModal = () => {
     resetWriteForm();
     setShowWrite(false);
+  };
+
+  // 커뮤니티 화면 우하단 FAB(글쓰기 버튼)에서 호출한다. 하단 네비게이션의 펜 버튼과 동일한 방식으로 연다.
+  const openWriteFromFab = () => {
+    setNewBoard(activeBoard === "event" && !isAdmin ? "free" : activeBoard);
+    setShowWrite(true);
   };
 
   // 하단 네비게이션의 펜 버튼(BottomNav)을 눌렀을 때도 헤더 + 버튼과 동일하게 글쓰기 모달을 연다.
@@ -3337,7 +3344,7 @@ const handleDeleteFriends = () => {
             ←
           </button>
           <div className="flex-1 relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--muted-foreground)" }} />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "#9AA3C0" }} />
             <input
               type="text"
               autoFocus
@@ -3345,8 +3352,8 @@ const handleDeleteFriends = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") addRecentSearch(searchQuery); }}
-              className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm outline-none"
-              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+              className="big-ding-search-input w-full pl-9 pr-8 py-2.5 rounded-xl text-sm outline-none"
+              style={{ background: "#F1F3F9", color: "#1A2340", border: "1.5px solid transparent" }}
             />
             {searchQuery && (
               <button
@@ -3466,69 +3473,61 @@ const handleDeleteFriends = () => {
   return (
   <div
     className="flex flex-col flex-1 overflow-hidden relative"
-    style={{
-      backgroundImage:
-        "linear-gradient(rgba(76, 125, 240, 0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(76, 125, 240, 0.07) 1px, transparent 1px)",
-      backgroundSize: "24px 24px",
-    }}
+    style={{ background: "#F8FAFC" }}
   >
 
     {/* Header */}
-    <div className="px-4 pt-5 pb-3 shrink-0 relative overflow-hidden">
+    <div className="px-4 pt-4 pb-2 shrink-0 relative overflow-hidden" style={{ background: "#FFFFFF" }}>
       <svg
-        className="absolute inset-0 w-full h-full pointer-events-none"
-        style={{ opacity: 0.45 }}
-        viewBox="0 0 400 120"
-        preserveAspectRatio="none"
-        aria-hidden="true"
+        width="140" height="90" viewBox="0 0 140 90"
+        className="absolute top-2 right-24 pointer-events-none"
+        style={{ opacity: 0.35 }}
       >
-        <g stroke="#4C7DF0" strokeWidth="1" opacity="0.5">
-          <line x1="230" y1="14" x2="290" y2="38" />
-          <line x1="290" y1="38" x2="270" y2="78" />
-          <line x1="290" y1="38" x2="345" y2="20" />
-          <line x1="345" y1="20" x2="385" y2="55" />
-          <line x1="270" y1="78" x2="330" y2="95" />
-          <line x1="330" y1="95" x2="385" y2="55" />
-        </g>
-        <circle cx="230" cy="14" r="2.5" fill="#4C7DF0" />
-        <circle cx="290" cy="38" r="3" fill="#4C7DF0" />
-        <circle cx="345" cy="20" r="2.5" fill="#E0A64E" />
-        <circle cx="270" cy="78" r="2.5" fill="#4C7DF0" />
-        <circle cx="385" cy="55" r="3" fill="#4C7DF0" />
-        <circle cx="330" cy="95" r="2.5" fill="#E8607A" />
+        <line x1="10" y1="60" x2="55" y2="20" stroke="#C7CEDF" strokeWidth="1" />
+        <line x1="55" y1="20" x2="95" y2="45" stroke="#C7CEDF" strokeWidth="1" />
+        <line x1="95" y1="45" x2="130" y2="15" stroke="#C7CEDF" strokeWidth="1" />
+        <circle cx="10" cy="60" r="2.5" fill="#4C7DF0" />
+        <circle cx="55" cy="20" r="2.5" fill="#4C7DF0" />
+        <circle cx="95" cy="45" r="2.5" fill="#4C7DF0" />
+        <circle cx="130" cy="15" r="2.5" fill="#4C7DF0" />
       </svg>
       <div className="flex items-center justify-between mb-3 relative z-10">
         <div className="flex items-center gap-3">
-          <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-            style={{ background: "var(--secondary)" }}
+          <img
+            src={bigRoadingIcon}
+            alt="Big Ding"
+            className="w-14 h-14 object-cover rounded-2xl"
+            style={{ boxShadow: "0 2px 8px rgba(20,30,60,0.12)" }}
+          />
+          <h1
+            className="text-2xl"
+            style={{
+              color: "#1E293B",
+              fontFamily: "'Brush Script MT', cursive",
+            }}
           >
-            <ChartScatter size={24} color="var(--primary)" />
-          </div>
-          <div>
-            <h1
-              className="text-2xl font-semibold"
-              style={{ color: "var(--foreground)" }}
-            >
-              Big Ding
-            </h1>
-          </div>
+            Big Ding
+          </h1>
         </div>
 
           <div className="flex gap-2">
             <button
               onClick={() => setShowSearch(!showSearch)}
-              className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
-              style={{ background: showSearch ? "var(--primary)" : "var(--muted)" }}
+              className="w-10 h-10 rounded-full flex items-center justify-center"
+              style={{
+                background: showSearch ? "var(--primary)" : "#FFFFFF",
+                border: showSearch ? "none" : "1px solid #E2E8F0",
+                boxShadow: "0 1px 4px rgba(20,30,60,0.06)",
+              }}
             >
-              <Search size={18} color={showSearch ? "white" : "var(--foreground)"} />
+              <Search size={16} color={showSearch ? "white" : "#64748B"} />
             </button>
             <button
               onClick={openNotifications}
-              className="relative w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
-              style={{ background: "var(--muted)" }}
+              className="relative w-10 h-10 rounded-full flex items-center justify-center"
+              style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", boxShadow: "0 1px 4px rgba(20,30,60,0.06)" }}
             >
-              <Bell size={18} color="var(--foreground)" />
+              <Bell size={16} color="#64748B" />
               {unreadNotifCount > 0 && (
                 <span
                   className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold text-white flex items-center justify-center"
@@ -3545,18 +3544,23 @@ const handleDeleteFriends = () => {
 
       {/* Board tabs */}
       {!showSearch && (
-        <div className="flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar shrink-0">
+        <div
+          className="flex gap-5 px-4 overflow-x-auto no-scrollbar shrink-0"
+          style={{ background: "#FFFFFF", borderBottom: "1px solid #E2E8F0" }}
+        >
           {BOARDS.map(({ id, label, emoji }) => (
             <button
               key={id}
               onClick={() => setActiveBoard(id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap"
+              className="flex items-center gap-1 pb-2 text-sm whitespace-nowrap shrink-0"
               style={{
-                background: activeBoard === id ? "var(--primary)" : "var(--muted)",
-                color: activeBoard === id ? "white" : "var(--muted-foreground)",
+                color: activeBoard === id ? "#1E293B" : "#94A3B8",
+                fontWeight: activeBoard === id ? 500 : 400,
+                borderBottom: activeBoard === id ? "2px solid #4C7DF0" : "2px solid transparent",
               }}
             >
-              {emoji} {label}
+              <span>{emoji}</span>
+              <span>{label}</span>
             </button>
           ))}
         </div>
@@ -3564,15 +3568,19 @@ const handleDeleteFriends = () => {
 
       {/* 정렬(모든 게시판) + 꿀팁 게시판 카테고리 필터 */}
       {!showSearch && (
-        <div className="relative flex justify-end items-center gap-2 px-4 pb-3 shrink-0">
+        <div
+          className="relative flex justify-end items-center gap-2 px-4 pt-3 pb-1 shrink-0"
+          style={{ background: "#FFFFFF", borderBottom: "1px solid #E2E8F0" }}
+        >
           {activeBoard === "contest" && (
             <div className="relative">
               <button
                 onClick={() => setShowContestFilterMenu((v) => !v)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap"
+                className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs"
                 style={{
-                  background: activeContestFilter ? "var(--primary)" : "var(--muted)",
-                  color: activeContestFilter ? "white" : "var(--muted-foreground)",
+                  background: activeContestFilter ? "var(--primary)" : "#FFFFFF",
+                  border: activeContestFilter ? "none" : "1px solid #E2E8F0",
+                  color: activeContestFilter ? "white" : "#64748B",
                 }}
               >
                 {activeContestFilter ?? "필터"}
@@ -3581,8 +3589,8 @@ const handleDeleteFriends = () => {
 
               {showContestFilterMenu && (
                 <div
-                  className="absolute right-0 top-full mt-1 z-20 rounded-xl shadow-lg py-1 min-w-[110px]"
-                  style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                  className="absolute right-0 top-full mt-1 z-20 rounded-xl py-1 min-w-[110px]"
+                  style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", boxShadow: "0 4px 16px rgba(20,30,60,0.10)" }}
                 >
                   <button
                     onClick={() => {
@@ -3590,7 +3598,7 @@ const handleDeleteFriends = () => {
                       setShowContestFilterMenu(false);
                     }}
                     className="w-full px-3 py-2 text-xs text-left"
-                    style={{ color: activeContestFilter === null ? "var(--primary)" : "var(--foreground)" }}
+                    style={{ color: activeContestFilter === null ? "#4C7DF0" : "#1E293B" }}
                   >
                     전체
                   </button>
@@ -3602,7 +3610,7 @@ const handleDeleteFriends = () => {
                         setShowContestFilterMenu(false);
                       }}
                       className="w-full px-3 py-2 text-xs text-left"
-                      style={{ color: activeContestFilter === filter ? "var(--primary)" : "var(--foreground)" }}
+                      style={{ color: activeContestFilter === filter ? "#4C7DF0" : "#1E293B" }}
                     >
                       {filter}
                     </button>
@@ -3616,8 +3624,8 @@ const handleDeleteFriends = () => {
           <div className="relative">
             <button
               onClick={() => setShowSortDropdown((v) => !v)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap"
-              style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs"
+              style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", color: "#64748B" }}
             >
               {sortOrder === "latest" ? "최신순" : "인기순"}
               {showSortDropdown ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -3625,20 +3633,20 @@ const handleDeleteFriends = () => {
 
             {showSortDropdown && (
               <div
-                className="absolute right-0 top-full mt-1 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
-                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                className="absolute right-0 top-full mt-1 z-20 rounded-xl py-1 min-w-[90px]"
+                style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", boxShadow: "0 4px 16px rgba(20,30,60,0.10)" }}
               >
                 <button
                   onClick={() => { setSortOrder("latest"); setShowSortDropdown(false); }}
                   className="w-full px-3 py-2 text-xs text-left"
-                  style={{ color: sortOrder === "latest" ? "var(--primary)" : "var(--foreground)" }}
+                  style={{ color: sortOrder === "latest" ? "#4C7DF0" : "#1E293B" }}
                 >
                   최신순
                 </button>
                 <button
                   onClick={() => { setSortOrder("popular"); setShowSortDropdown(false); }}
                   className="w-full px-3 py-2 text-xs text-left"
-                  style={{ color: sortOrder === "popular" ? "var(--primary)" : "var(--foreground)" }}
+                  style={{ color: sortOrder === "popular" ? "#4C7DF0" : "#1E293B" }}
                 >
                   인기순
                 </button>
@@ -3659,6 +3667,21 @@ const handleDeleteFriends = () => {
           }}
         />
       )}
+
+      {/* FAB: 글쓰기 */}
+      <button
+        onClick={openWriteFromFab}
+        className="fixed z-30 w-14 h-14 rounded-full flex items-center justify-center"
+        style={{
+          right: 20,
+          bottom: 84,
+          background: "linear-gradient(135deg, #6E8CF0, #8B7CF0)",
+          boxShadow: "0 6px 16px rgba(110,140,240,0.4)",
+        }}
+      >
+        <Edit2 size={20} color="#FFFFFF" />
+      </button>
+
       {/* Posts */}
 <div
   ref={feedScrollRef}
@@ -3677,26 +3700,19 @@ const handleDeleteFriends = () => {
         )}
         {sortedVisiblePosts.map((post) => {
           const boardMeta = BOARDS.find((b) => b.id === post.board);
-          const boardAccent = boardMeta?.accentColor ?? "var(--primary)";
           return (
          <div
   key={post._id}
   onClick={() => setSelectedPostId(post._id)}
-  className="rounded-2xl p-4 shadow-sm relative flex flex-col shrink-0 cursor-pointer"
+  className="rounded-2xl p-4 relative flex flex-col shrink-0 cursor-pointer"
   style={
   post.board === "event" || post.board === "qna"
-    ? { background: "var(--card)", borderLeft: `3px solid ${boardAccent}` }
+    ? { background: "#FFFFFF", boxShadow: "0 2px 8px rgba(30,41,59,0.05)" }
     : post.poll || post.board === "lecture" || post.board === "meeting"
-      ? { background: "var(--card)", minHeight: "184px", borderLeft: `3px solid ${boardAccent}` }
-      : { background: "var(--card)", height: "184px", overflow: "hidden", borderLeft: `3px solid ${boardAccent}` }
+      ? { background: "#FFFFFF", boxShadow: "0 2px 8px rgba(30,41,59,0.05)", minHeight: "184px" }
+      : { background: "#FFFFFF", boxShadow: "0 2px 8px rgba(30,41,59,0.05)", height: "184px", overflow: "hidden" }
 }
 >
-            <span
-              className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold mb-2 w-fit"
-              style={{ background: `${boardAccent}1A`, color: boardAccent }}
-            >
-              {boardMeta?.label}
-            </span>
             {/* Author */}
 {post.board === "event" || post.board === "qna" ? (
   <div className="flex items-center gap-2 mb-2 pr-8">
@@ -3706,7 +3722,7 @@ const handleDeleteFriends = () => {
         openAuthor(post.author);
       }}
       className="w-9 h-9 rounded-full flex items-center justify-center overflow-hidden shrink-0"
-      style={{ background: "var(--muted)" }}
+      style={{ background: "#F1F5F9" }}
     >
       <img src={getAuthorAvatarUrl(post.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
     </button>
@@ -3714,11 +3730,11 @@ const handleDeleteFriends = () => {
   onClick={(e) => { e.stopPropagation(); openAuthor(post.author); }}
   className="flex-1 min-w-0 text-left"
 >
-  <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
+  <p className="text-sm font-semibold truncate" style={{ color: "#1E293B" }}>
     {post.author.nickname}
   </p>
-  <p className="text-[11px] uppercase tracking-wide" style={{ color: "var(--muted-foreground)" }}>
-    {getDisplayTime(post, nowTick)}
+  <p className="text-[11px]" style={{ color: "#94A3B8" }}>
+    {getDisplayTime(post, nowTick)} · <span style={{ color: "#6366F1", fontWeight: 500 }}>{boardMeta?.label}</span>
   </p>
 </button>
   </div>
@@ -3730,17 +3746,19 @@ const handleDeleteFriends = () => {
         openAuthor(post.author);
       }}
       className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
-      style={{ background: "var(--muted)" }}
+      style={{ background: "#F1F5F9" }}
     >
       <img src={getAuthorAvatarUrl(post.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
     </button>
     <div className="flex-1">
-      <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{post.author.nickname}</p>
-      <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(post, nowTick)}</p>
+      <p className="text-sm font-semibold" style={{ color: "#1E293B" }}>{post.author.nickname}</p>
+      <p className="text-[11px]" style={{ color: "#94A3B8" }}>
+        {getDisplayTime(post, nowTick)} · <span style={{ color: "#6366F1", fontWeight: 500 }}>{boardMeta?.label}</span>
+      </p>
     </div>
     {post.price && (
       <span className="px-2 py-1 rounded-xl text-xs font-bold"
-        style={{ background: "var(--accent)", color: "var(--foreground)" }}>
+        style={{ background: "#EEF2FF", color: "#4F46E5" }}>
         {post.price}원
       </span>
     )}
@@ -3755,14 +3773,14 @@ const handleDeleteFriends = () => {
                   setShowMoreMenu(showMoreMenu === post._id ? null : post._id);
                 }}
                 className="w-8 h-8 rounded-full flex items-center justify-center"
-                style={{ color: "var(--muted-foreground)" }}
+                style={{ color: "#64748B" }}
               >
                 <MoreVertical size={18} />
               </button>
               {showMoreMenu === post._id && (
                 <div
-                  className="absolute right-0 top-9 z-20 rounded-xl shadow-lg py-1 min-w-[110px]"
-                  style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                  className="absolute right-0 top-9 z-20 rounded-xl py-1 min-w-[110px]"
+                  style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", boxShadow: "0 4px 16px rgba(20,30,60,0.10)" }}
                 >
                   {currentUser && post.author._id === currentUser._id ? (
                     <>
@@ -3779,7 +3797,7 @@ const handleDeleteFriends = () => {
                           setShowMoreMenu(null);
                         }}
                         className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-                        style={{ color: "var(--foreground)" }}
+                        style={{ color: "#1E293B" }}
                       >
                         <Edit2 size={14} /> 수정
                       </button>
@@ -3841,7 +3859,7 @@ const handleDeleteFriends = () => {
     {post.images[0] && (
       <div
         className="relative w-full aspect-square rounded-xl overflow-hidden mb-2"
-        style={{ background: "var(--muted)" }}
+        style={{ background: "#F1F5F9" }}
       >
         <img
           src={resolveAssetUrl(post.images[getFeedImageIndex(post._id)] || post.images[0])}
@@ -3894,23 +3912,23 @@ const handleDeleteFriends = () => {
       <div className="flex items-center gap-3">
         <button onClick={(e) => { e.stopPropagation(); handleLike(post); }}>
           <Heart size={20} fill={isLiked(post) ? "#E8607A" : "none"}
-            color={isLiked(post) ? "#E8607A" : "var(--foreground)"} />
+            color={isLiked(post) ? "#E8607A" : "#1E293B"} />
         </button>
         <button onClick={(e) => { e.stopPropagation(); setSelectedPostId(post._id); }}>
-  <MessageCircle size={20} style={{ color: "var(--foreground)" }} />
+  <MessageCircle size={20} style={{ color: "#1E293B" }} />
 </button>
       </div>
       <button onClick={(e) => { e.stopPropagation(); toggleSave(post._id); }}>
         <Bookmark size={20} fill={savedPosts[post._id] ? "var(--primary)" : "none"}
-          color={savedPosts[post._id] ? "var(--primary)" : "var(--foreground)"} />
+          color={savedPosts[post._id] ? "var(--primary)" : "#1E293B"} />
       </button>
     </div>
 
-    <p className="text-sm font-semibold mb-1" style={{ color: "var(--foreground)" }}>
+    <p className="text-sm font-semibold mb-1" style={{ color: "#1E293B" }}>
       좋아요 {post.likes.length}개
     </p>
 
-    <div className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+    <div className="text-sm leading-relaxed" style={{ color: "#1E293B" }}>
   <span
     className="font-semibold mr-1.5 cursor-pointer"
     onClick={(e) => { e.stopPropagation(); openAuthor(post.author); }}
@@ -3926,22 +3944,22 @@ const handleDeleteFriends = () => {
     {/* 클릭하면 상세화면으로 이동. 사진이 있으면 오른쪽에 정사각형 썸네일로 붙인다. */}
     <div onClick={() => setSelectedPostId(post._id)} className="cursor-pointer flex gap-3 items-start">
       <div className="flex-1 min-w-0">
-        <h3 className="font-semibold mb-1 truncate" style={{ color: "var(--foreground)" }}>{post.title}</h3>
+        <h3 className="font-semibold mb-1 truncate" style={{ color: "#1E293B" }}>{post.title}</h3>
 
         {post.board === "meeting" && post.tags && post.tags.length >= 2 && (
-          <p className="text-xs mb-1.5" style={{ color: "var(--muted-foreground)" }}>
+          <p className="text-xs mb-1.5" style={{ color: "#94A3B8" }}>
             ⏰ {post.tags[0]} · 📍 {post.tags[1]}
           </p>
         )}
         {post.board === "lecture" && post.tags && post.tags.length >= 2 && (
-          <p className="text-xs mb-1.5" style={{ color: "var(--muted-foreground)" }}>
+          <p className="text-xs mb-1.5" style={{ color: "#94A3B8" }}>
             {post.tags[0]} · {post.tags[1]} 교수님
           </p>
         )}
         {post.rating && (
           <div className="flex items-center gap-1 mb-1.5">
             {renderRatingStars(post.rating, 14)}
-            <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
+            <span className="text-xs ml-1 font-semibold" style={{ color: "#1E293B" }}>
               {post.rating.toFixed(1)}
             </span>
           </div>
@@ -3951,8 +3969,8 @@ const handleDeleteFriends = () => {
             <span
               className="text-xs px-2 py-1 rounded-full font-medium"
               style={{
-                background: post.currentParticipants === post.maxParticipants ? "#5cb85c22" : "var(--secondary)",
-                color: post.currentParticipants === post.maxParticipants ? "#5cb85c" : "var(--primary)",
+                background: post.currentParticipants === post.maxParticipants ? "#5cb85c22" : "#EEF2FF",
+                color: post.currentParticipants === post.maxParticipants ? "#5cb85c" : "#4F46E5",
               }}
             >
               {post.currentParticipants}/{post.maxParticipants}명
@@ -3965,7 +3983,7 @@ const handleDeleteFriends = () => {
           style={{
             wordBreak: "break-all",
             whiteSpace: "pre-wrap",
-            color: "var(--muted-foreground)",
+            color: "#475569",
             display: "-webkit-box",
             WebkitLineClamp: 2,
             WebkitBoxOrient: "vertical",
@@ -4004,29 +4022,29 @@ const handleDeleteFriends = () => {
     {renderPoll(post)}
 
     {/* Actions: 카드 높이가 짧아도 항상 카드 맨 아래에 붙도록 mt-auto로 고정 */}
-    <div className="flex items-center gap-3 mt-auto pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+    <div className="flex items-center gap-3 mt-auto pt-2.5 border-t" style={{ borderColor: "#E2E8F0" }}>
       <button className="flex items-center gap-1.5" onClick={(e) => { e.stopPropagation(); handleLike(post); }}>
         <Heart size={16} fill={isLiked(post) ? "#E8607A" : "none"}
-          color={isLiked(post) ? "#E8607A" : "var(--muted-foreground)"} />
-        <span className="text-xs" style={{ color: isLiked(post) ? "#E8607A" : "var(--muted-foreground)" }}>
+          color={isLiked(post) ? "#E8607A" : "#64748B"} />
+        <span className="text-xs" style={{ color: isLiked(post) ? "#E8607A" : "#64748B" }}>
           {post.likes.length}
         </span>
       </button>
       <button className="flex items-center gap-1.5" onClick={(e) => { e.stopPropagation(); handleDislike(post); }}>
         <ThumbsDown size={16} fill={isDisliked(post) ? "#d4183d" : "none"}
-          color={isDisliked(post) ? "#d4183d" : "var(--muted-foreground)"} />
-        <span className="text-xs" style={{ color: isDisliked(post) ? "#d4183d" : "var(--muted-foreground)" }}>
+          color={isDisliked(post) ? "#d4183d" : "#64748B"} />
+        <span className="text-xs" style={{ color: isDisliked(post) ? "#d4183d" : "#64748B" }}>
           {post.dislikes.length}
         </span>
       </button>
       <button className="flex items-center gap-1.5" onClick={() => setSelectedPostId(post._id)}>
-        <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
-        <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(post)}</span>
+        <MessageCircle size={16} style={{ color: "#64748B" }} />
+        <span className="text-xs" style={{ color: "#64748B" }}>{getCommentCount(post)}</span>
       </button>
       <button className="flex items-center gap-1.5"
         onClick={(e) => { e.stopPropagation(); toggleSave(post._id); }}>
         <Bookmark size={16} fill={savedPosts[post._id] ? "var(--primary)" : "none"}
-          color={savedPosts[post._id] ? "var(--primary)" : "var(--muted-foreground)"} />
+          color={savedPosts[post._id] ? "var(--primary)" : "#64748B"} />
       </button>
 
       {post.board === "meeting" && currentUser && hasJoinedMeeting(post) && (
@@ -4036,7 +4054,7 @@ const handleDeleteFriends = () => {
             openGroupChatForPost(post._id);
           }}
           className="ml-auto px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1"
-          style={{ background: "var(--secondary)", color: "var(--primary)" }}
+          style={{ background: "#EEF2FF", color: "#4F46E5" }}
         >
           <MessageCircle size={13} /> 채팅방
         </button>
@@ -4050,8 +4068,8 @@ const handleDeleteFriends = () => {
           disabled={!hasJoinedMeeting(post) && isMeetingFull(post)}
           className={`${hasJoinedMeeting(post) ? "" : "ml-auto"} px-3 py-1.5 rounded-xl text-xs font-semibold`}
           style={{
-            background: hasJoinedMeeting(post) ? "var(--muted)" : isMeetingFull(post) ? "var(--muted)" : "var(--primary)",
-            color: hasJoinedMeeting(post) ? "var(--muted-foreground)" : isMeetingFull(post) ? "var(--muted-foreground)" : "white",
+            background: hasJoinedMeeting(post) ? "#F1F5F9" : isMeetingFull(post) ? "#F1F5F9" : "var(--primary)",
+            color: hasJoinedMeeting(post) ? "#94A3B8" : isMeetingFull(post) ? "#94A3B8" : "white",
             cursor: !hasJoinedMeeting(post) && isMeetingFull(post) ? "not-allowed" : "pointer",
           }}
         >
