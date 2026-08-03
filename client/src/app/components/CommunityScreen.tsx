@@ -1,11 +1,12 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
+import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import defaultAvatar from "@/assets/default-avatar.svg";
 import api, { resolveAssetUrl } from "@/api";
 import { useSocket } from "@/hooks/useSocket";
 import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
   Search, Star, Send, UserPlus, ChevronDown, ChevronUp, FileText,
-  Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, MoreHorizontal, Repeat2, Edit2, Trash2, AlertTriangle, Bell, Lock, ChartScatter
+  Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, MoreHorizontal, Repeat2, Edit2, Trash2, AlertTriangle, Bell, Lock
 } from "lucide-react";
 
 export type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting" | "alumni";
@@ -395,13 +396,13 @@ export const loadStoredInteractions = (): StoredInteractions => {
 };
 
 export const BOARDS = [
-  { id: "free" as BoardType, label: "게시판", emoji: "💬", icon: MessageCircle, accentColor: "#4C7DF0" },
-  { id: "event" as BoardType, label: "행사공지", emoji: "📢", icon: Megaphone, accentColor: "#E0A64E" },
-  { id: "qna" as BoardType, label: "선배들 작품 전시 공간", emoji: "🏆", icon: Users, accentColor: "#8B96B8" },
-  { id: "contest" as BoardType, label: "꿀팁 게시판", emoji: "💡", icon: Trophy, accentColor: "#6E7A9E" },
-  { id: "lecture" as BoardType, label: "전공 강의평가", emoji: "⭐", icon: BookOpen, accentColor: "#5C6690" },
-  { id: "meeting" as BoardType, label: "공강모임", emoji: "☕", icon: Coffee, accentColor: "#8B96B8" },
-  { id: "alumni" as BoardType, label: "졸업생 게시판", emoji: "🎓", icon: Users, accentColor: "#6E7A9E" },
+  { id: "free" as BoardType, label: "게시판", emoji: "💬", icon: MessageCircle },
+  { id: "event" as BoardType, label: "행사공지", emoji: "📢", icon: Megaphone },
+  { id: "qna" as BoardType, label: "선배들 작품 전시 공간", emoji: "🏆", icon: Users },
+  { id: "contest" as BoardType, label: "꿀팁 게시판", emoji: "💡", icon: Trophy },
+  { id: "lecture" as BoardType, label: "전공 강의평가", emoji: "⭐", icon: BookOpen },
+  { id: "meeting" as BoardType, label: "공강모임", emoji: "☕", icon: Coffee },
+  { id: "alumni" as BoardType, label: "졸업생 게시판", emoji: "🎓", icon: Users },
 ];
 const RECENT_SEARCH_KEY = "bigding_recent_search_v1";
 const MAX_RECENT_SEARCHES = 10;
@@ -669,7 +670,7 @@ export function OtherUserProfile({
                       {p.content}
                     </p>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs flex items-center gap-1" style={{ color: "#E8607A" }}>
+                      <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
                         <Heart size={12} /> {p.likes.length}
                       </span>
                       <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
@@ -2964,8 +2965,8 @@ const handleDeleteFriends = () => {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
                       <button onClick={() => handleLike(selectedPost)}>
-                        <Heart size={22} fill={isLiked(selectedPost) ? "#E8607A" : "none"}
-                          color={isLiked(selectedPost) ? "#E8607A" : "var(--foreground)"} />
+                        <Heart size={22} fill={isLiked(selectedPost) ? "#3b82f6" : "none"}
+                          color={isLiked(selectedPost) ? "#3b82f6" : "var(--foreground)"} />
                       </button>
                       <button
                         onClick={() => {
@@ -3163,12 +3164,12 @@ const handleDeleteFriends = () => {
         <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
           <div className="flex items-center gap-1.5">
             <button onClick={() => handleLike(selectedPost)}>
-              <Heart size={16} fill={isLiked(selectedPost) ? "#E8607A" : "none"}
-                color={isLiked(selectedPost) ? "#E8607A" : "var(--muted-foreground)"} />
+              <Heart size={16} fill={isLiked(selectedPost) ? "#3b82f6" : "none"}
+                color={isLiked(selectedPost) ? "#3b82f6" : "var(--muted-foreground)"} />
             </button>
             <span
               className="text-xs cursor-pointer"
-              style={{ color: isLiked(selectedPost) ? "#E8607A" : "var(--muted-foreground)" }}
+              style={{ color: isLiked(selectedPost) ? "var(--primary)" : "var(--muted-foreground)" }}
               onClick={() => openReactionList(selectedPost._id, "likes")}
             >
               {selectedPost.likes.length}
@@ -3401,10 +3402,7 @@ const handleDeleteFriends = () => {
               검색 결과가 없어요.
             </p>
           )}
-          {searchQuery.trim() && visiblePosts.map((post) => {
-            const boardMeta = BOARDS.find((b) => b.id === post.board);
-            const boardAccent = boardMeta?.accentColor ?? "var(--primary)";
-            return (
+          {searchQuery.trim() && visiblePosts.map((post) => (
             <div
               key={post._id}
               onClick={() => {
@@ -3412,15 +3410,12 @@ const handleDeleteFriends = () => {
                 setSelectedPostId(post._id);
               }}
               className="p-4 rounded-2xl cursor-pointer"
-              style={{ background: "var(--card)", borderLeft: `3px solid ${boardAccent}` }}
+              style={{ background: "var(--card)" }}
             >
-              <span
-                className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold mb-1.5 w-fit"
-                style={{ background: `${boardAccent}1A`, color: boardAccent }}
-              >
+              <p className="text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>
                 {getBoardLabel(post.board)}
-              </span>
-              <h3 className="font-semibold text-sm mb-1 mt-1.5" style={{ color: "var(--foreground)" }}>
+              </p>
+              <h3 className="font-semibold text-sm mb-1" style={{ color: "var(--foreground)" }}>
                 {post.title}
               </h3>
               <p
@@ -3440,7 +3435,7 @@ const handleDeleteFriends = () => {
   {renderLinkifiedText(post.content)}
 </p>
               <div className="flex items-center gap-3">
-                <span className="text-xs flex items-center gap-1" style={{ color: "#E8607A" }}>
+                <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
                   <Heart size={12} /> {post.likes.length}
                 </span>
                 <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
@@ -3451,8 +3446,7 @@ const handleDeleteFriends = () => {
                 </span>
               </div>
             </div>
-            );
-          })}
+          ))}
         </div>
 
         {alertAndConfirmModals}
@@ -3464,51 +3458,20 @@ const handleDeleteFriends = () => {
 
 
   return (
-  <div
-    className="flex flex-col flex-1 overflow-hidden relative"
-    style={{
-      backgroundImage:
-        "linear-gradient(rgba(76, 125, 240, 0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(76, 125, 240, 0.07) 1px, transparent 1px)",
-      backgroundSize: "24px 24px",
-    }}
-  >
+  <div className="flex flex-col flex-1 overflow-hidden relative">
 
     {/* Header */}
-    <div className="px-4 pt-5 pb-3 shrink-0 relative overflow-hidden">
-      <svg
-        className="absolute inset-0 w-full h-full pointer-events-none"
-        style={{ opacity: 0.45 }}
-        viewBox="0 0 400 120"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        <g stroke="#4C7DF0" strokeWidth="1" opacity="0.5">
-          <line x1="230" y1="14" x2="290" y2="38" />
-          <line x1="290" y1="38" x2="270" y2="78" />
-          <line x1="290" y1="38" x2="345" y2="20" />
-          <line x1="345" y1="20" x2="385" y2="55" />
-          <line x1="270" y1="78" x2="330" y2="95" />
-          <line x1="330" y1="95" x2="385" y2="55" />
-        </g>
-        <circle cx="230" cy="14" r="2.5" fill="#4C7DF0" />
-        <circle cx="290" cy="38" r="3" fill="#4C7DF0" />
-        <circle cx="345" cy="20" r="2.5" fill="#E0A64E" />
-        <circle cx="270" cy="78" r="2.5" fill="#4C7DF0" />
-        <circle cx="385" cy="55" r="3" fill="#4C7DF0" />
-        <circle cx="330" cy="95" r="2.5" fill="#E8607A" />
-      </svg>
-      <div className="flex items-center justify-between mb-3 relative z-10">
+    <div className="px-4 pt-5 pb-3 shrink-0">
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
-            style={{ background: "var(--secondary)" }}
-          >
-            <ChartScatter size={24} color="var(--primary)" />
-          </div>
+          <img src={bigRoadingIcon} alt="Big Roading" className="w-14 h-14 object-cover" />
           <div>
             <h1
-              className="text-2xl font-semibold"
-              style={{ color: "var(--foreground)" }}
+              className="text-2xl"
+              style={{
+                color: "var(--foreground)",
+                fontFamily: "'Brush Script MT', cursive",
+              }}
             >
               Big Ding
             </h1>
@@ -3675,28 +3638,19 @@ const handleDeleteFriends = () => {
             아직 게시물이 없어요.
           </p>
         )}
-        {sortedVisiblePosts.map((post) => {
-          const boardMeta = BOARDS.find((b) => b.id === post.board);
-          const boardAccent = boardMeta?.accentColor ?? "var(--primary)";
-          return (
+        {sortedVisiblePosts.map((post) => (
          <div
   key={post._id}
   onClick={() => setSelectedPostId(post._id)}
   className="rounded-2xl p-4 shadow-sm relative flex flex-col shrink-0 cursor-pointer"
   style={
   post.board === "event" || post.board === "qna"
-    ? { background: "var(--card)", borderLeft: `3px solid ${boardAccent}` }
+    ? { background: "var(--card)" }
     : post.poll || post.board === "lecture" || post.board === "meeting"
-      ? { background: "var(--card)", minHeight: "184px", borderLeft: `3px solid ${boardAccent}` }
-      : { background: "var(--card)", height: "184px", overflow: "hidden", borderLeft: `3px solid ${boardAccent}` }
+      ? { background: "var(--card)", minHeight: "184px" }
+      : { background: "var(--card)", height: "184px", overflow: "hidden" }
 }
 >
-            <span
-              className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold mb-2 w-fit"
-              style={{ background: `${boardAccent}1A`, color: boardAccent }}
-            >
-              {boardMeta?.label}
-            </span>
             {/* Author */}
 {post.board === "event" || post.board === "qna" ? (
   <div className="flex items-center gap-2 mb-2 pr-8">
@@ -3893,8 +3847,8 @@ const handleDeleteFriends = () => {
     <div className="flex items-center justify-between mb-1.5">
       <div className="flex items-center gap-3">
         <button onClick={(e) => { e.stopPropagation(); handleLike(post); }}>
-          <Heart size={20} fill={isLiked(post) ? "#E8607A" : "none"}
-            color={isLiked(post) ? "#E8607A" : "var(--foreground)"} />
+          <Heart size={20} fill={isLiked(post) ? "#3b82f6" : "none"}
+            color={isLiked(post) ? "#3b82f6" : "var(--foreground)"} />
         </button>
         <button onClick={(e) => { e.stopPropagation(); setSelectedPostId(post._id); }}>
   <MessageCircle size={20} style={{ color: "var(--foreground)" }} />
@@ -4005,14 +3959,14 @@ const handleDeleteFriends = () => {
 
     {/* Actions: 카드 높이가 짧아도 항상 카드 맨 아래에 붙도록 mt-auto로 고정 */}
     <div className="flex items-center gap-3 mt-auto pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-      <button className="flex items-center gap-1.5" onClick={(e) => { e.stopPropagation(); handleLike(post); }}>
-        <Heart size={16} fill={isLiked(post) ? "#E8607A" : "none"}
-          color={isLiked(post) ? "#E8607A" : "var(--muted-foreground)"} />
-        <span className="text-xs" style={{ color: isLiked(post) ? "#E8607A" : "var(--muted-foreground)" }}>
+      <button className="flex items-center gap-1.5" onClick={() => handleLike(post)}>
+        <Heart size={16} fill={isLiked(post) ? "#3b82f6" : "none"}
+          color={isLiked(post) ? "#3b82f6" : "var(--muted-foreground)"} />
+        <span className="text-xs" style={{ color: isLiked(post) ? "var(--primary)" : "var(--muted-foreground)" }}>
           {post.likes.length}
         </span>
       </button>
-      <button className="flex items-center gap-1.5" onClick={(e) => { e.stopPropagation(); handleDislike(post); }}>
+      <button className="flex items-center gap-1.5" onClick={() => handleDislike(post)}>
         <ThumbsDown size={16} fill={isDisliked(post) ? "#d4183d" : "none"}
           color={isDisliked(post) ? "#d4183d" : "var(--muted-foreground)"} />
         <span className="text-xs" style={{ color: isDisliked(post) ? "#d4183d" : "var(--muted-foreground)" }}>
@@ -4024,7 +3978,7 @@ const handleDeleteFriends = () => {
         <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(post)}</span>
       </button>
       <button className="flex items-center gap-1.5"
-        onClick={(e) => { e.stopPropagation(); toggleSave(post._id); }}>
+        onClick={() => toggleSave(post._id)}>
         <Bookmark size={16} fill={savedPosts[post._id] ? "var(--primary)" : "none"}
           color={savedPosts[post._id] ? "var(--primary)" : "var(--muted-foreground)"} />
       </button>
@@ -4062,8 +4016,7 @@ const handleDeleteFriends = () => {
   </>
 )}
           </div>
-          );
-        })}
+        ))}
       </div>
 
         {/* 친구 채팅 패널 */}
