@@ -57,6 +57,10 @@ export function ProfileScreen({ nickname, setNickname, onBack }: ProfileScreenPr
   const [activeTab, setActiveTab] = useState<"posts" | "comments" | "scrapped">("posts");
   const [currentUser] = useState(getCurrentUser);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [showPostMenu, setShowPostMenu] = useState<string | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [studentId] = useState(loadStudentId);
   const [showVisibilityModal, setShowVisibilityModal] = useState<string | null>(null);
@@ -720,6 +724,45 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
             <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
               <button onClick={() => setSelectedPostId(null)} className="text-lg">←</button>
               <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
+              {currentUser && selectedPost.author._id === currentUser._id && (
+            <div className="relative">
+              <button
+                onClick={() => setShowPostMenu(showPostMenu ? null : selectedPost._id)}
+                style={{ color: "var(--foreground)" }}
+              >
+                <MoreVertical size={20} />
+              </button>
+              {showPostMenu === selectedPost._id && (
+                <div
+                  className="absolute right-0 top-7 z-50 rounded-xl shadow-lg overflow-hidden"
+                  style={{ background: "var(--card)", border: "1px solid var(--border)", minWidth: "120px" }}
+                >
+                  <button
+                    onClick={() => {
+                      setShowPostMenu(null);
+                      setEditTitle(selectedPost.title);
+                      setEditContent(selectedPost.content);
+                      setEditingPost(selectedPost);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left"
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    <Edit3 size={14} /> 수정
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowPostMenu(null);
+                      handleDeletePost(selectedPost._id);
+                    }}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left border-t"
+                    style={{ color: "#d4183d", borderColor: "var(--border)" }}
+                  >
+                    <Trash2 size={14} /> 삭제
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
             </div>
 
             <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
@@ -981,7 +1024,54 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
           />
         </div>
       )}
-
+      {editingPost && (
+        <div className="absolute inset-0 z-[60] flex flex-col" style={{ background: "var(--background)" }}>
+          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+            <button onClick={() => setEditingPost(null)} className="text-lg">←</button>
+            <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물 수정</h2>
+            <button
+              onClick={async () => {
+                try {
+                  const res = await api.patch(`/posts/${editingPost._id}`, {
+                    title: editTitle,
+                    content: editContent,
+                  });
+                  setPosts((prev) => prev.map((p) => p._id === editingPost._id ? res.data : p));
+                  setEditingPost(null);
+                  showAlert("게시물이 수정되었습니다.");
+                } catch {
+                  showAlert("수정에 실패했습니다.");
+                }
+              }}
+              style={{ color: "var(--primary)" }}
+              className="text-sm font-semibold"
+            >
+              완료
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4">
+            <div>
+              <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>제목</label>
+              <input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>내용</label>
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={8}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
+                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
       {/* Visibility modal */}
       {showVisibilityModal && (
         <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>

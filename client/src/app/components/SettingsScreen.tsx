@@ -398,7 +398,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 className="w-full px-4 py-3 rounded-xl text-sm outline-none pr-12"
-                style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
+                style={{ background: "var(--input-background)", color: "var(--muted-foreground)", border: "1.5px solid var(--border)" }}
               />
               <button
                 onClick={() => setShowPassword(!showPassword)}
@@ -421,7 +421,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-              style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
+             style={{ background: "var(--input-background)", color: "var(--muted-foreground)", border: "1.5px solid var(--border)" }}
             />
             <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
               비밀번호 (8~15자의 영문, 숫자 또는 특수문자 조합)
@@ -436,7 +436,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-              style={{ background: "var(--input-background)", color: "black", border: "1.5px solid var(--border)" }}
+              style={{ background: "var(--input-background)", color: "var(--muted-foreground)", border: "1.5px solid var(--border)" }}
             />
             <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
               안전한 사용을 위해 8자 이상 입력해주세요!

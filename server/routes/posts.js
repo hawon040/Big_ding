@@ -328,6 +328,25 @@ router.post("/:id/poll/vote", auth, async (req, res) => {
   }
 });
 
+// PATCH /api/posts/:id - 게시물 수정
+router.patch("/:id", auth, async (req, res) => {
+  try {
+    const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "게시물을 찾을 수 없습니다." });
+    if (post.author.toString() !== req.user.id) {
+      return res.status(403).json({ message: "권한이 없습니다." });
+    }
+    const { title, content } = req.body;
+    if (title) post.title = title;
+    if (content) post.content = content;
+    await post.save();
+    const updated = await Post.findById(post._id).populate("author", "nickname avatar studentId");
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 // DELETE /api/posts/:id
 router.delete("/:id", auth, async (req, res) => {
   try {
