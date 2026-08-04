@@ -193,6 +193,13 @@ router.post("/block/:targetId", auth, async (req, res) => {
     // 차단하면 더 이상 친구 사이가 아니게 된다.
     await User.findByIdAndUpdate(req.user.id, { $pull: { friends: req.params.targetId } });
     await User.findByIdAndUpdate(req.params.targetId, { $pull: { friends: req.user.id } });
+    // 차단하면 서로 팔로우/팔로워 관계도 끊는다 (양방향 모두 정리).
+    await User.findByIdAndUpdate(req.user.id, {
+      $pull: { following: req.params.targetId, followers: req.params.targetId },
+    });
+    await User.findByIdAndUpdate(req.params.targetId, {
+      $pull: { following: req.user.id, followers: req.user.id },
+    });
     res.json({ message: "사용자가 차단되었습니다." });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });

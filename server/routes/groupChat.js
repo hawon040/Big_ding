@@ -167,4 +167,56 @@ router.post("/:id/messages", auth, upload.single("image"), async (req, res) => {
   }
 });
 
+// PATCH /api/group-chats/messages/:messageId/like - 메시지 하트 반응 토글 (1:1 채팅과 동일)
+router.patch("/messages/:messageId/like", auth, async (req, res) => {
+  try {
+    const message = await GroupMessage.findById(req.params.messageId);
+    if (!message) return res.status(404).json({ message: "메시지를 찾을 수 없습니다." });
+
+    const groupChat = await GroupChat.findById(message.groupChat);
+    if (!groupChat) return res.status(404).json({ message: "채팅방을 찾을 수 없습니다." });
+    if (!isMember(groupChat, req.user.id)) {
+      return res.status(403).json({ message: "채팅방 멤버만 반응할 수 있습니다." });
+    }
+
+    message.liked = !message.liked;
+    await message.save();
+    await message.populate("sender", USER_FIELDS);
+
+    groupChat.members
+      .filter((memberId) => memberId.toString() !== req.user.id)
+      .forEach((memberId) => emitToUser(memberId, "receive_group_message", message));
+
+    res.status(201).json(message);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// PATCH /api/group-chats/messages/:messageId/like - 메시지 하트 반응 토글 (1:1 채팅과 동일)
+router.patch("/messages/:messageId/like", auth, async (req, res) => {
+  try {
+    const message = await GroupMessage.findById(req.params.messageId);
+    if (!message) return res.status(404).json({ message: "메시지를 찾을 수 없습니다." });
+
+    const groupChat = await GroupChat.findById(message.groupChat);
+    if (!groupChat) return res.status(404).json({ message: "채팅방을 찾을 수 없습니다." });
+    if (!isMember(groupChat, req.user.id)) {
+      return res.status(403).json({ message: "채팅방 멤버만 반응할 수 있습니다." });
+    }
+
+    message.liked = !message.liked;
+    await message.save();
+    await message.populate("sender", USER_FIELDS);
+
+    groupChat.members
+      .filter((memberId) => memberId.toString() !== req.user.id)
+      .forEach((memberId) => emitToUser(memberId, "group_message_liked", message));
+
+    res.json(message);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 module.exports = router;

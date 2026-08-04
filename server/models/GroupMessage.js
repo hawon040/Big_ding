@@ -5,6 +5,7 @@ const groupMessageSchema = new mongoose.Schema({
   sender: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   content: { type: String, default: "" },
   image: { type: String },
+  liked: { type: Boolean, default: false },
 }, { timestamps: true });
 
 module.exports = mongoose.model("GroupMessage", groupMessageSchema);

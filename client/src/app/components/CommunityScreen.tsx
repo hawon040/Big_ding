@@ -189,6 +189,7 @@ export interface GroupMessage {
   sender: Friend;
   content: string;
   image?: string;
+  liked?: boolean;
   createdAt: string;
 }
 
@@ -1403,6 +1404,36 @@ useEffect(() => {
     }
   };
 
+  // 입력창이 비어있을 때 하트 버튼을 누르면 1:1 채팅처럼 하트 메시지를 바로 보낸다.
+  const sendGroupHeartMessage = async () => {
+    if (!activeGroupChat) return;
+    const groupChatId = activeGroupChat._id;
+    try {
+      const res = await api.post(`/group-chats/${groupChatId}/messages`, { content: "❤️" });
+      setGroupMessages((prev) => ({ ...prev, [groupChatId]: [...(prev[groupChatId] || []), res.data] }));
+    } catch {
+      showAlert("메시지 전송에 실패했습니다.");
+    }
+  };
+
+  // 메시지 더블탭 하트 반응 토글 (1:1 채팅과 동일)
+  const handleToggleGroupMessageLike = async (messageId: string) => {
+    if (!activeGroupChat) return;
+    const groupChatId = activeGroupChat._id;
+    setGroupMessages((prev) => ({
+      ...prev,
+      [groupChatId]: (prev[groupChatId] || []).map((m) => (m._id === messageId ? { ...m, liked: !m.liked } : m)),
+    }));
+    try {
+      await api.patch(`/group-chats/messages/${messageId}/like`);
+    } catch {
+      setGroupMessages((prev) => ({
+        ...prev,
+        [groupChatId]: (prev[groupChatId] || []).map((m) => (m._id === messageId ? { ...m, liked: !m.liked } : m)),
+      }));
+    }
+  };
+
   // 그룹채팅 메시지가 소켓으로 도착하면, 현재 열려있는 채팅방이면 바로 목록에 추가한다.
   useEffect(() => {
     if (!socket) return;
@@ -1410,8 +1441,19 @@ useEffect(() => {
       setGroupMessages((prev) => ({ ...prev, [msg.groupChat]: [...(prev[msg.groupChat] || []), msg] }));
     };
     socket.on("receive_group_message", handleReceiveGroupMessage);
+
+    // 다른 멤버가 메시지에 하트를 붙이면 실시간으로 반영한다.
+    const handleGroupMessageLiked = (msg: { _id: string; groupChat: string; liked?: boolean }) => {
+      setGroupMessages((prev) => ({
+        ...prev,
+        [msg.groupChat]: (prev[msg.groupChat] || []).map((m) => (m._id === msg._id ? { ...m, liked: !!msg.liked } : m)),
+      }));
+    };
+    socket.on("group_message_liked", handleGroupMessageLiked);
+
     return () => {
       socket.off("receive_group_message", handleReceiveGroupMessage);
+      socket.off("group_message_liked", handleGroupMessageLiked);
     };
   }, [socket]);
   const [showAddFriend, setShowAddFriend] = useState(false);
@@ -2306,23 +2348,53 @@ const handleDeleteFriends = () => {
     </button>
   )}
                   {msg.content && (
-                    <div
-                      onClick={isReportable ? toggleSelectForReport : undefined}
-                      className="px-3 py-2 rounded-2xl text-sm"
-                      style={{
-                        background: mine ? "var(--primary)" : "var(--card)",
-                        color: mine ? "white" : "var(--foreground)",
-                        cursor: isReportable ? "pointer" : "default",
-                        outline: isSelected ? "2px solid #d4183d" : "none",
-                      }}
-                    >
-                      <p>{msg.content}</p>
+                    <div className="relative">
+                      <div
+                        onClick={isReportable ? toggleSelectForReport : undefined}
+                        onDoubleClick={() => !isReportable && handleToggleGroupMessageLike(msg._id)}
+                        className="px-3 py-2 rounded-2xl text-sm select-none"
+                        style={{
+                          background: mine ? "var(--primary)" : "var(--card)",
+                          color: mine ? "white" : "var(--foreground)",
+                          cursor: isReportable ? "pointer" : "default",
+                          outline: isSelected ? "2px solid #d4183d" : "none",
+                        }}
+                      >
+                        <p>{msg.content}</p>
+                      </div>
+                      {msg.liked && (
+                        <span
+                          className="absolute -bottom-2 flex items-center justify-center w-5 h-5 rounded-full"
+                          style={mine ? { background: "var(--background)", left: -4 } : { background: "var(--background)", right: -4 }}
+                        >
+                          <Heart size={12} fill="#d4183d" color="#d4183d" />
+                        </span>
+                      )}
                     </div>
                   )}
                   {msg.image && (
+                    <div className="relative">
+                      <img
+                        src={resolveAssetUrl(msg.image)}
+                        alt="사진"
+                        onDoubleClick={() => !isReportable && handleToggleGroupMessageLike(msg._id)}
+                        className="rounded-xl max-w-full"
+                        style={{ maxHeight: "200px", outline: isSelected ? "2px solid #d4183d" : "none" }}
+                      />
+                      {msg.liked && (
+                        <span
+                          className="absolute -bottom-2 flex items-center justify-center w-5 h-5 rounded-full"
+                          style={mine ? { background: "var(--background)", left: -4 } : { background: "var(--background)", right: -4 }}
+                        >
+                          <Heart size={12} fill="#d4183d" color="#d4183d" />
+                        </span>
+                      )}
+                    </div>
+                  )}{msg.image && (
                     <img
                       src={resolveAssetUrl(msg.image)}
                       alt="사진"
+                      onDoubleClick={() => !isReportable && handleToggleGroupMessageLike(msg._id)}
                       className="rounded-xl max-w-full"
                       style={{ maxHeight: "200px", outline: isSelected ? "2px solid #d4183d" : "none" }}
                     />
@@ -2334,27 +2406,59 @@ const handleDeleteFriends = () => {
           })}
         </div>
 
-        {/* 입력창 */}
-        <div className="flex items-center gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+       {/* 입력창 */}
+        <div className="flex items-center gap-2 px-3 py-2.5 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+          <label
+            className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 cursor-pointer"
+            style={{ background: "var(--muted)" }}
+          >
+            <Image size={17} style={{ color: "var(--foreground)" }} />
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file || !activeGroupChat) return;
+                const groupChatId = activeGroupChat._id;
+                try {
+                  const formData = new FormData();
+                  formData.append("image", file);
+                  const res = await api.post(`/group-chats/${groupChatId}/messages`, formData);
+                  setGroupMessages((prev) => ({ ...prev, [groupChatId]: [...(prev[groupChatId] || []), res.data] }));
+                } catch {
+                  showAlert("이미지 전송에 실패했습니다.");
+                }
+              }}
+            />
+          </label>
           <input
             value={groupChatInput}
             onChange={(e) => setGroupChatInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleSendGroupMessage(); }}
             placeholder="메시지 입력..."
-            className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
+            className="flex-1 px-4 py-2.5 rounded-full text-sm outline-none"
             style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
           />
-          <button
-            onClick={handleSendGroupMessage}
-            disabled={!groupChatInput.trim()}
-            className="px-4 py-2 rounded-xl text-sm font-semibold"
-            style={{
-              background: groupChatInput.trim() ? "var(--primary)" : "var(--muted)",
-              color: groupChatInput.trim() ? "white" : "var(--muted-foreground)",
-            }}
-          >
-            전송
-          </button>
+          {groupChatInput.trim() ? (
+            <button
+              onClick={handleSendGroupMessage}
+              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: "var(--primary)" }}
+            >
+              <Send size={15} color="white" />
+            </button>
+          ) : (
+            <button
+              onClick={sendGroupHeartMessage}
+              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+              style={{ background: "var(--muted)" }}
+              aria-label="하트 보내기"
+            >
+              <Heart size={17} color="#d4183d" />
+            </button>
+          )}
         </div>
         {viewingGroupMember && (
           <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
@@ -2631,17 +2735,27 @@ const handleDeleteFriends = () => {
                     </div>
                   )}
                   {msg.image && (
-                    <img
-                      src={resolveAssetUrl(msg.image)}
-                      alt="사진"
-                      onClick={() => setViewingImage(msg.image!)}
-                      onDoubleClick={() => handleToggleMessageLike(msg._id)}
-                      className="rounded-2xl max-w-full cursor-pointer"
-                      style={{
-                        maxHeight: "200px",
-                        outline: selectedMsgs.includes(msg._id) ? "2px solid var(--primary)" : "none",
-                      }}
-                    />
+                    <div className="relative">
+                      <img
+                        src={resolveAssetUrl(msg.image)}
+                        alt="사진"
+                        onClick={() => setViewingImage(msg.image!)}
+                        onDoubleClick={() => handleToggleMessageLike(msg._id)}
+                        className="rounded-2xl max-w-full cursor-pointer"
+                        style={{
+                          maxHeight: "200px",
+                          outline: selectedMsgs.includes(msg._id) ? "2px solid var(--primary)" : "none",
+                        }}
+                      />
+                      {msg.liked && (
+                        <span
+                          className="absolute -bottom-2 flex items-center justify-center w-5 h-5 rounded-full"
+                          style={msg.mine ? { background: "var(--background)", left: -4 } : { background: "var(--background)", right: -4 }}
+                        >
+                          <Heart size={12} fill="#d4183d" color="#d4183d" />
+                        </span>
+                      )}
+                    </div>
                   )}
                   {(revealedTimeId === msg._id || (isLastInCluster && isVeryLast && msg.mine && msg.read)) && (
                     <p className="text-[10px] opacity-70" style={{ color: "var(--muted-foreground)" }}>
