@@ -219,4 +219,159 @@ router.patch("/messages/:messageId/like", auth, async (req, res) => {
   }
 });
 
+// 변경된 채팅방 정보를 나 자신을 뺀 나머지 멤버들에게 실시간으로 알린다(설정창이 열려있으면 바로 반영).
+const notifyGroupChatUpdated = (groupChat, exceptUserId) => {
+  groupChat.members
+    .filter((memberId) => memberId.toString() !== String(exceptUserId))
+    .forEach((memberId) => emitToUser(memberId, "group_chat_updated", groupChat));
+};
+
+// PATCH /api/group-chats/:id/name - 채팅방 이름 변경 (멤버만)
+router.patch("/:id/name", auth, async (req, res) => {
+  try {
+    const groupChat = await GroupChat.findById(req.params.id);
+    if (!groupChat) return res.status(404).json({ message: "채팅방을 찾을 수 없습니다." });
+    if (!isMember(groupChat, req.user.id)) {
+      return res.status(403).json({ message: "채팅방 멤버만 이름을 바꿀 수 있습니다." });
+    }
+
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: "채팅방 이름을 입력해주세요." });
+    }
+
+    groupChat.name = name.trim().slice(0, 30);
+    await groupChat.save();
+    await groupChat.populate([
+      { path: "post", select: "title board" },
+      { path: "host", select: USER_FIELDS },
+      { path: "members", select: USER_FIELDS },
+    ]);
+
+    notifyGroupChatUpdated(groupChat, req.user.id);
+    res.json(groupChat);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// PATCH /api/group-chats/:id/avatar - 채팅방 대표 사진 변경 (멤버만, multipart의 image 필드)
+router.patch("/:id/avatar", auth, upload.single("image"), async (req, res) => {
+  try {
+    const groupChat = await GroupChat.findById(req.params.id);
+    if (!groupChat) return res.status(404).json({ message: "채팅방을 찾을 수 없습니다." });
+    if (!isMember(groupChat, req.user.id)) {
+      return res.status(403).json({ message: "채팅방 멤버만 대표 사진을 바꿀 수 있습니다." });
+    }
+    if (!req.file) {
+      return res.status(400).json({ message: "이미지를 선택해주세요." });
+    }
+
+    const uploaded = await uploadImage(req.file.buffer, "group-chat-avatars");
+    groupChat.avatar = uploaded.secure_url;
+    await groupChat.save();
+    await groupChat.populate([
+      { path: "post", select: "title board" },
+      { path: "host", select: USER_FIELDS },
+      { path: "members", select: USER_FIELDS },
+    ]);
+
+    notifyGroupChatUpdated(groupChat, req.user.id);
+    res.json(groupChat);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// GET /api/group-chats/:id/photos - 채팅방에 올라온 모든 사진 모아보기 (멤버만)
+router.get("/:id/photos", auth, async (req, res) => {
+  try {
+    const groupChat = await GroupChat.findById(req.params.id);
+    if (!groupChat) return res.status(404).json({ message: "채팅방을 찾을 수 없습니다." });
+    if (!isMember(groupChat, req.user.id)) {
+      return res.status(403).json({ message: "채팅방 멤버만 볼 수 있습니다." });
+    }
+
+    const messages = await GroupMessage.find({ groupChat: groupChat._id, image: { $ne: null } })
+      .sort({ createdAt: -1 })
+      .select("image createdAt");
+
+    res.json(messages.map((m) => ({ image: m.image, createdAt: m.createdAt })));
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// POST /api/group-chats/:id/leave - 채팅방 나가기 (멤버만)
+router.post("/:id/leave", auth, async (req, res) => {
+  try {
+    const groupChat = await GroupChat.findById(req.params.id);
+    if (!groupChat) return res.status(404).json({ message: "채팅방을 찾을 수 없습니다." });
+    if (!isMember(groupChat, req.user.id)) {
+      return res.status(403).json({ message: "채팅방 멤버가 아닙니다." });
+    }
+
+    const leavingUser = await User.findById(req.user.id).select(USER_FIELDS);
+    const remainingMemberIds = groupChat.members
+      .map((id) => id.toString())
+      .filter((id) => id !== req.user.id);
+
+    groupChat.members = groupChat.members.filter((id) => id.toString() !== req.user.id);
+
+    // 마지막 멤버가 나가면 채팅방과 대화 내역을 함께 정리한다.
+    if (groupChat.members.length === 0) {
+      await GroupMessage.deleteMany({ groupChat: groupChat._id });
+      await groupChat.deleteOne();
+      return res.json({ deleted: true });
+    }
+
+    // 방장이 나갔다면 남은 멤버 중 가장 먼저 들어온 사람에게 방장을 넘긴다.
+    if (groupChat.host.toString() === req.user.id) {
+      groupChat.host = groupChat.members[0];
+    }
+
+    await groupChat.save();
+    await groupChat.populate([
+      { path: "post", select: "title board" },
+      { path: "host", select: USER_FIELDS },
+      { path: "members", select: USER_FIELDS },
+    ]);
+
+    // "OO님이 채팅방을 나갔습니다" 시스템 메시지를 남기고, 남은 멤버들에게 실시간으로 보낸다.
+    const systemMessage = await GroupMessage.create({
+      groupChat: groupChat._id,
+      sender: req.user.id,
+      content: `${leavingUser?.nickname ?? "알 수 없음"}님이 채팅방을 나갔습니다`,
+      type: "system",
+    });
+    await systemMessage.populate("sender", USER_FIELDS);
+    remainingMemberIds.forEach((id) => emitToUser(id, "receive_group_message", systemMessage));
+
+    notifyGroupChatUpdated(groupChat, req.user.id);
+    res.json({ deleted: false, groupChat });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// DELETE /api/group-chats/:id - 채팅방 완전 삭제 (방장만 가능, 모든 멤버에게서 사라진다)
+router.delete("/:id", auth, async (req, res) => {
+  try {
+    const groupChat = await GroupChat.findById(req.params.id);
+    if (!groupChat) return res.status(404).json({ message: "채팅방을 찾을 수 없습니다." });
+    if (groupChat.host.toString() !== req.user.id) {
+      return res.status(403).json({ message: "방장만 채팅방을 삭제할 수 있습니다." });
+    }
+
+    const memberIds = groupChat.members.map((id) => id.toString());
+    await GroupMessage.deleteMany({ groupChat: groupChat._id });
+    await groupChat.deleteOne();
+
+    memberIds.forEach((id) => emitToUser(id, "group_chat_deleted", { _id: groupChat._id.toString() }));
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 module.exports = router;

@@ -6,7 +6,8 @@ import { useSocket } from "@/hooks/useSocket";
 import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
   Search, Star, Send, UserPlus, ChevronDown, ChevronUp, FileText,
-  Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, MoreHorizontal, Repeat2, Edit2, Trash2, AlertTriangle, Bell, Lock
+  Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, MoreHorizontal, Repeat2, Edit2, Trash2, AlertTriangle, Bell, Lock,
+  Settings, Camera, LogOut, ChevronRight, Images
 } from "lucide-react";
 
 export type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting" | "alumni";
@@ -190,6 +191,7 @@ export interface GroupMessage {
   content: string;
   image?: string;
   liked?: boolean;
+  type?: "text" | "system";
   createdAt: string;
 }
 
@@ -197,9 +199,15 @@ export interface GroupChatSummary {
   _id: string;
   post?: { _id: string; title: string; board: string } | null;
   name?: string;
+  avatar?: string;
   host: Friend;
   members: Friend[];
   lastMessage?: GroupMessage | null;
+}
+
+export interface ChatPhoto {
+  image: string;
+  createdAt: string;
 }
 
 export interface NotificationItem {
@@ -1316,7 +1324,95 @@ useEffect(() => {
   const [groupMessages, setGroupMessages] = useState<Record<string, GroupMessage[]>>({});
   const [groupChatInput, setGroupChatInput] = useState("");
   const [showGroupChatMembers, setShowGroupChatMembers] = useState(false);
+  // 방장이 이 단체채팅방을 삭제했는지(그래서 더 이상 메시지를 보낼 수 없는지)
+  const [activeGroupChatDeleted, setActiveGroupChatDeleted] = useState(false);
   const [viewingGroupMember, setViewingGroupMember] = useState<PostAuthor | null>(null);
+
+  // 채팅 설정 플로팅 패널 (단체 채팅방 전용: 이름 변경/나가기/대표 사진 변경 등)
+  const [showChatSettings, setShowChatSettings] = useState(false);
+  const [chatSettingsView, setChatSettingsView] = useState<"menu" | "rename">("menu");
+  const [renameInput, setRenameInput] = useState("");
+  const [isUploadingGroupAvatar, setIsUploadingGroupAvatar] = useState(false);
+
+  // 채팅방 사진 모아보기 (단체/1:1 채팅 공용)
+  const [showPhotoGallery, setShowPhotoGallery] = useState(false);
+  const [chatPhotos, setChatPhotos] = useState<ChatPhoto[]>([]);
+  const [chatPhotosLoading, setChatPhotosLoading] = useState(false);
+  const [galleryViewingImage, setGalleryViewingImage] = useState<string | null>(null);
+
+  const openPhotoGallery = async () => {
+    setShowPhotoGallery(true);
+    setChatPhotosLoading(true);
+    try {
+      const res = activeGroupChat
+        ? await api.get(`/group-chats/${activeGroupChat._id}/photos`)
+        : activeFriend
+        ? await api.get(`/chat/${activeFriend._id}/photos`)
+        : null;
+      setChatPhotos(res?.data || []);
+    } catch {
+      setChatPhotos([]);
+    } finally {
+      setChatPhotosLoading(false);
+    }
+  };
+
+  const handleOpenChatSettings = () => {
+    if (activeGroupChat) setRenameInput(activeGroupChat.name || "");
+    setChatSettingsView("menu");
+    setShowChatSettings(true);
+  };
+
+  const handleRenameGroupChat = async () => {
+    if (!activeGroupChat || !renameInput.trim()) return;
+    const groupChatId = activeGroupChat._id;
+    try {
+      const res = await api.patch(`/group-chats/${groupChatId}/name`, { name: renameInput.trim() });
+      setActiveGroupChat(res.data);
+      setGroupChatList((prev) => prev.map((c) => (c._id === groupChatId ? res.data : c)));
+      setChatSettingsView("menu");
+    } catch (err: any) {
+      showAlert(err.response?.data?.message || "이름 변경에 실패했습니다.");
+    }
+  };
+
+  const handleChangeGroupAvatar = async (file: File) => {
+    if (!activeGroupChat) return;
+    const groupChatId = activeGroupChat._id;
+    setIsUploadingGroupAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await api.patch(`/group-chats/${groupChatId}/avatar`, formData);
+      setActiveGroupChat(res.data);
+      setGroupChatList((prev) => prev.map((c) => (c._id === groupChatId ? res.data : c)));
+    } catch (err: any) {
+      showAlert(err.response?.data?.message || "대표 사진 변경에 실패했습니다.");
+    } finally {
+      setIsUploadingGroupAvatar(false);
+    }
+  };
+
+  const handleLeaveGroupChat = () => {
+    if (!activeGroupChat) return;
+    const groupChatId = activeGroupChat._id;
+    showConfirm("채팅방을 나가시겠습니까?\n대화 내용은 더 이상 볼 수 없습니다.", async () => {
+      try {
+        await api.post(`/group-chats/${groupChatId}/leave`);
+      } catch {
+        showAlert("채팅방 나가기에 실패했습니다.");
+        return;
+      }
+      setGroupChatList((prev) => prev.filter((c) => c._id !== groupChatId));
+      setGroupMessages((prev) => {
+        const next = { ...prev };
+        delete next[groupChatId];
+        return next;
+      });
+      setShowChatSettings(false);
+      setActiveGroupChat(null);
+    });
+  };
   
   // 내가 속한 모든 단체 채팅방 목록(공강모임 채팅방 + 친구끼리 만든 채팅방)
   const [groupChatList, setGroupChatList] = useState<GroupChatSummary[]>([]);
@@ -1347,14 +1443,34 @@ useEffect(() => {
       setGroupChatList((prev) => (prev.some((c) => c._id === chat._id) ? prev : [chat, ...prev]));
     };
     socket.on("group_chat_created", handleGroupChatCreated);
+
+    // 다른 멤버가 이름/대표 사진을 바꾸거나, 방장이 넘어가는 등 채팅방 정보가 바뀌면 실시간 반영한다.
+    const handleGroupChatUpdated = (chat: GroupChatSummary) => {
+      setGroupChatList((prev) => prev.map((c) => (c._id === chat._id ? { ...c, ...chat } : c)));
+      setActiveGroupChat((prev) => (prev && prev._id === chat._id ? { ...prev, ...chat } : prev));
+    };
+    socket.on("group_chat_updated", handleGroupChatUpdated);
+
+    // 방장이 채팅방을 완전히 삭제하면 모든 멤버의 목록/열려있는 화면에서도 사라진다.
+    const handleGroupChatDeleted = ({ _id }: { _id: string }) => {
+      setGroupChatList((prev) => prev.filter((c) => c._id !== _id));
+      setActiveGroupChat((prev) => {
+        if (prev && prev._id === _id) setActiveGroupChatDeleted(true);
+        return prev;
+      });
+    };
+    socket.on("group_chat_deleted", handleGroupChatDeleted);
+
     return () => {
       socket.off("group_chat_created", handleGroupChatCreated);
+      socket.off("group_chat_updated", handleGroupChatUpdated);
+      socket.off("group_chat_deleted", handleGroupChatDeleted);
     };
   }, [socket]);
-
   const openGroupChat = async (chat: GroupChatSummary) => {
     try {
       setActiveGroupChat(chat);
+      setActiveGroupChatDeleted(false);
       const msgsRes = await api.get(`/group-chats/${chat._id}/messages`);
       setGroupMessages((prev) => ({ ...prev, [chat._id]: msgsRes.data }));
     } catch (err: any) {
@@ -1463,6 +1579,12 @@ useEffect(() => {
   const [friendRequests, setFriendRequests] = useState<FriendRequestItem[]>([]);
   const [isFriendSelectMode, setIsFriendSelectMode] = useState(false);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
+  // 단체채팅 중 내가 방장인 것만 선택 삭제 가능
+  const [selectedGroupChatIds, setSelectedGroupChatIds] = useState<string[]>([]);
+  // 1:1 채팅에서 "채팅 삭제"를 누르면 친구 관계는 유지한 채 내 채팅 목록에서만 숨긴다.
+  const [hiddenChatFriendIds, setHiddenChatFriendIds] = useState<string[]>([]);
+  // 지금 열려있는 1:1 채팅에서 상대방이 채팅을 나갔는지(그래서 더 이상 보낼 수 없는지)
+  const [activeFriendTheyLeft, setActiveFriendTheyLeft] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   // 좋아요/싫어요 누른 사람 목록 보기
   const [reactionListModal, setReactionListModal] = useState<{ type: "likes" | "dislikes"; postId: string } | null>(null);
@@ -1524,6 +1646,7 @@ useEffect(() => {
     const fetchFriendsData = () => {
       api.get("/friends").then((res) => { if (!cancelled) setFriends(res.data); }).catch(() => {});
       api.get("/friends/requests").then((res) => { if (!cancelled) setFriendRequests(res.data); }).catch(() => {});
+      api.get("/chat/hidden-friends").then((res) => { if (!cancelled) setHiddenChatFriendIds(res.data); }).catch(() => {});
     };
     fetchFriendsData();
     const interval = setInterval(fetchFriendsData, 2000);
@@ -1676,7 +1799,10 @@ useEffect(() => {
 
   // 1:1 대화창을 열 때 대화 내역을 불러온다(이후 새 메시지는 소켓으로 실시간 수신).
   useEffect(() => {
-    if (!activeFriend) return;
+    if (!activeFriend) {
+      setActiveFriendTheyLeft(false);
+      return;
+    }
     let cancelled = false;
     const requestedAt = Date.now();
     api.get(`/chat/${activeFriend._id}`)
@@ -1684,6 +1810,9 @@ useEffect(() => {
         if (cancelled) return;
         applyChatMessages(activeFriend._id, requestedAt, res.data);
       })
+      .catch(() => {});
+    api.get(`/chat/${activeFriend._id}/state`)
+      .then((res) => { if (!cancelled) setActiveFriendTheyLeft(!!res.data.theyLeft); })
       .catch(() => {});
     return () => {
       cancelled = true;
@@ -1704,6 +1833,8 @@ useEffect(() => {
           applyChatMessages(friendId, requestedAt, res.data);
         })
         .catch(() => {});
+      // 삭제(숨김)했던 채팅이었다면, 상대가 새 메시지를 보냈으니 목록에 다시 나타나게 한다.
+      setHiddenChatFriendIds((prev) => prev.filter((id) => id !== friendId));
     };
     socket.on("receive_message", handleReceiveMessage);
 
@@ -1718,9 +1849,16 @@ useEffect(() => {
     };
     socket.on("message_liked", handleMessageLiked);
 
+    // 상대방이 이 1:1 채팅을 나갔으면(채팅삭제) 지금 보고 있는 화면에 바로 안내문구를 띄운다.
+    const handleChatLeft = ({ friendId }: { friendId: string }) => {
+      if (activeFriend?._id === friendId) setActiveFriendTheyLeft(true);
+    };
+    socket.on("chat_left", handleChatLeft);
+
     return () => {
       socket.off("receive_message", handleReceiveMessage);
       socket.off("message_liked", handleMessageLiked);
+      socket.off("chat_left", handleChatLeft);
     };
   }, [socket, activeFriend]);
 
@@ -1760,9 +1898,9 @@ useEffect(() => {
     const msgs = chatMessages[friend._id] || [];
     return msgs.length === 0 ? 0 : new Date(msgs[msgs.length - 1].createdAt).getTime();
   };
-  const sortedFriends = [...friends].sort(
-    (a, b) => getLastMessageSortKey(b) - getLastMessageSortKey(a)
-  );
+  const sortedFriends = [...friends]
+    .filter((f) => !hiddenChatFriendIds.includes(f._id))
+    .sort((a, b) => getLastMessageSortKey(b) - getLastMessageSortKey(a));
 
   // 친구와의 채팅방에 들어가면 대화 내역을 불러오는데(useEffect 폴링), 그 요청 자체가
   // 서버에서 상대가 보낸 메시지를 읽음 처리해준다.
@@ -1912,6 +2050,67 @@ const fullscreenImageViewer = fullscreenPostImage && (
       className="max-w-full max-h-full object-contain"
       onClick={(e) => e.stopPropagation()}
     />
+  </div>
+);
+
+// 채팅방 사진 모아보기 모달. 단체 채팅과 1:1 채팅 화면 둘 다에서 열 수 있으므로,
+// alertAndConfirmModals와 같은 이유로 공용 변수로 뽑아 각 채팅 화면에서 렌더링한다.
+const photoGalleryModal = showPhotoGallery && (
+  <div className="absolute inset-0 z-[75] flex flex-col" style={{ background: "var(--background)" }}>
+    <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+      <button
+        onClick={() => {
+          setShowPhotoGallery(false);
+          setGalleryViewingImage(null);
+          // 단체 채팅방 설정에서 열었던 경우(즉 지금 단체 채팅방에 들어와 있는 경우)엔
+          // 채팅창이 아니라 설정 패널이 열려있던 상태로 되돌아간다.
+          if (activeGroupChat) setShowChatSettings(true);
+        }}
+        className="text-lg"
+        style={{ color: "var(--foreground)" }}
+      >←</button>
+      <p className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>사진 모아보기</p>
+    </div>
+    <div className="flex-1 overflow-y-auto p-1">
+      {chatPhotosLoading ? (
+        <p className="text-center text-xs py-10" style={{ color: "var(--muted-foreground)" }}>불러오는 중...</p>
+      ) : chatPhotos.length === 0 ? (
+        <p className="text-center text-xs py-10" style={{ color: "var(--muted-foreground)" }}>아직 채팅방에 올라온 사진이 없습니다.</p>
+      ) : (
+        <div className="grid grid-cols-3 gap-1">
+          {chatPhotos.map((photo, i) => (
+            <button
+              key={`${photo.image}-${i}`}
+              onClick={() => setGalleryViewingImage(photo.image)}
+              className="aspect-square overflow-hidden"
+            >
+              <img src={resolveAssetUrl(photo.image)} alt="채팅 사진" className="w-full h-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+    {galleryViewingImage && (
+      <div
+        className="absolute inset-0 z-[80] flex items-center justify-center px-6"
+        style={{ background: "rgba(0,0,0,0.9)" }}
+        onClick={() => setGalleryViewingImage(null)}
+      >
+        <button
+          onClick={() => setGalleryViewingImage(null)}
+          className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+          style={{ background: "rgba(255,255,255,0.15)" }}
+        >
+          <X size={20} color="white" />
+        </button>
+        <img
+          src={resolveAssetUrl(galleryViewingImage)}
+          alt="사진 크게 보기"
+          onClick={(e) => e.stopPropagation()}
+          className="max-w-full max-h-full rounded-xl object-contain"
+        />
+      </div>
+    )}
   </div>
 );
 
@@ -2116,6 +2315,7 @@ const renderRatingStars = (rating: number, size: number = 14) => (
   const toggleFriendSelectMode = () => {
   setIsFriendSelectMode((prev) => !prev);
   setSelectedFriendIds([]);
+  setSelectedGroupChatIds([]);
 };
 
 const toggleFriendSelect = (id: string) => {
@@ -2124,17 +2324,39 @@ const toggleFriendSelect = (id: string) => {
   );
 };
 
-const handleDeleteFriends = () => {
-  if (selectedFriendIds.length === 0) return;
-  showConfirm(`선택한 ${selectedFriendIds.length}명의 친구를 삭제하시겠습니까?`, async () => {
-    const idsToDelete = selectedFriendIds;
+const toggleGroupChatSelect = (id: string) => {
+  setSelectedGroupChatIds((prev) =>
+    prev.includes(id) ? prev.filter((cid) => cid !== id) : [...prev, id]
+  );
+};
+
+// 채팅삭제: 1:1 채팅은 친구 관계를 유지한 채 내 목록에서만 나가고(상대방에게는 "상대방이
+// 나갔습니다"가 표시됨), 단체채팅은 내가 방장인 것만 선택할 수 있으며 삭제하면 모든
+// 멤버에게서 채팅방이 완전히 사라진다.
+const handleDeleteSelectedChats = () => {
+  const totalCount = selectedFriendIds.length + selectedGroupChatIds.length;
+  if (totalCount === 0) return;
+  showConfirm(`선택한 ${totalCount}개의 채팅을 삭제하시겠습니까?`, async () => {
+    const friendIdsToLeave = selectedFriendIds;
+    const groupChatIdsToDelete = selectedGroupChatIds;
     setSelectedFriendIds([]);
+    setSelectedGroupChatIds([]);
     setIsFriendSelectMode(false);
-    const results = await Promise.allSettled(idsToDelete.map((id) => api.delete(`/friends/${id}`)));
-    const succeededIds = idsToDelete.filter((_, i) => results[i].status === "fulfilled");
-    setFriends((prev) => prev.filter((f) => !succeededIds.includes(f._id)));
-    if (succeededIds.length < idsToDelete.length) {
-      showAlert("일부 친구 삭제에 실패했습니다.");
+
+    const [friendResults, groupResults] = await Promise.all([
+      Promise.allSettled(friendIdsToLeave.map((id) => api.post(`/chat/${id}/leave`))),
+      Promise.allSettled(groupChatIdsToDelete.map((id) => api.delete(`/group-chats/${id}`))),
+    ]);
+
+    const succeededFriendIds = friendIdsToLeave.filter((_, i) => friendResults[i].status === "fulfilled");
+    const succeededGroupChatIds = groupChatIdsToDelete.filter((_, i) => groupResults[i].status === "fulfilled");
+
+    setHiddenChatFriendIds((prev) => [...prev, ...succeededFriendIds]);
+    setGroupChatList((prev) => prev.filter((c) => !succeededGroupChatIds.includes(c._id)));
+
+    const failedCount = (friendIdsToLeave.length - succeededFriendIds.length) + (groupChatIdsToDelete.length - succeededGroupChatIds.length);
+    if (failedCount > 0) {
+      showAlert("일부 채팅 삭제에 실패했습니다.");
     }
   });
 };
@@ -2203,11 +2425,81 @@ const handleDeleteFriends = () => {
   // ── 채팅 창 ──────────────────────────────────────────────────────────────
   if (activeGroupChat) {
     const messages = groupMessages[activeGroupChat._id] || [];
+
+    // 멤버 목록 화면: 채팅 UI 자체를 렌더링하지 않고 이 화면만 단독으로 보여준다.
+    if (showGroupChatMembers) {
+      return (
+        <div className="flex flex-col flex-1 overflow-hidden relative">
+          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+            <button onClick={() => { setShowGroupChatMembers(false); setShowChatSettings(true); }} className="text-lg" style={{ color: "var(--foreground)" }}>←</button>
+            <p className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>
+              멤버 {activeGroupChat.members.length}
+            </p>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1">
+            {activeGroupChat.members.map((m) => (
+              <div key={m._id} className="flex items-center justify-between gap-2 py-2">
+                <button
+                  onClick={() => {
+                    if (currentUser && m._id === currentUser._id) {
+                      onViewOwnProfile();
+                    } else {
+                      setViewingGroupMember(m);
+                    }
+                  }}
+                  className="flex items-center gap-3 text-left flex-1 min-w-0"
+                >
+                  <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
+                    <img src={resolveAssetUrl(m.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                  </div>
+                  <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
+                    {m.nickname}{m._id === activeGroupChat.host._id ? " (방장)" : ""}
+                  </p>
+                </button>
+                {currentUser && m._id !== currentUser._id && (
+                  <button
+                    onClick={() => {
+                      setGroupReportTarget(m);
+                      setSelectedGroupMsgIds([]);
+                      setShowGroupChatMembers(false);
+                    }}
+                    className="shrink-0"
+                    style={{ color: "var(--muted-foreground)" }}
+                    aria-label="사용자 신고"
+                  >
+                    <AlertTriangle size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          {viewingGroupMember && (
+            <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+              <OtherUserProfile
+                author={viewingGroupMember}
+                posts={allPosts}
+                currentUserId={currentUser?._id}
+                onBack={() => setViewingGroupMember(null)}
+                onOpenPost={(postId) => {
+                  setViewingGroupMember(null);
+                  setShowGroupChatMembers(false);
+                  setActiveGroupChat(null);
+                  setSelectedPostId(postId);
+                }}
+              />
+            </div>
+          )}
+          {reportGroupMemberModal}
+          {alertAndConfirmModals}
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-col flex-1 overflow-hidden relative">
         {/* 헤더 */}
         <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => { setActiveGroupChat(null); setShowGroupChatMembers(false); }} className="text-lg">←</button>
+          <button onClick={() => { setActiveGroupChat(null); setShowGroupChatMembers(false); setActiveGroupChatDeleted(false); }} className="text-lg">←</button>
           <div className="flex-1 min-w-0">
             <p className="font-semibold text-sm truncate" style={{ color: "var(--foreground)" }}>
               {activeGroupChat.name || activeGroupChat.post?.title ||
@@ -2218,11 +2510,12 @@ const handleDeleteFriends = () => {
             </p>
           </div>
           <button
-            onClick={() => setShowGroupChatMembers((v) => !v)}
-            className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl font-medium shrink-0"
+            onClick={handleOpenChatSettings}
+            className="flex items-center justify-center w-8 h-8 rounded-full shrink-0"
             style={{ background: "var(--secondary)", color: "var(--primary)" }}
+            aria-label="채팅 설정"
           >
-            <Users size={14} /> {activeGroupChat.members.length}
+            <Settings size={15} />
           </button>
         </div>
 
@@ -2262,49 +2555,18 @@ const handleDeleteFriends = () => {
         )}
 
         {/* 멤버 목록 */}
-{showGroupChatMembers && (
-  <div className="px-4 py-3 border-b flex flex-col gap-2 shrink-0" style={{ borderColor: "var(--border)" }}>
-    {activeGroupChat.members.map((m) => (
-      <div key={m._id} className="flex items-center justify-between gap-2">
-        <button
-          onClick={() => {
-            if (currentUser && m._id === currentUser._id) {
-              onViewOwnProfile();
-            } else {
-              setViewingGroupMember(m);
-            }
-          }}
-          className="flex items-center gap-2 text-left flex-1 min-w-0"
-        >
-          <div className="w-7 h-7 rounded-full overflow-hidden shrink-0">
-            <img src={resolveAssetUrl(m.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-          </div>
-          <p className="text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
-            {m.nickname}{m._id === activeGroupChat.host._id ? " (방장)" : ""}
-          </p>
-        </button>
-        {currentUser && m._id !== currentUser._id && (
-          <button
-            onClick={() => {
-              setGroupReportTarget(m);
-              setSelectedGroupMsgIds([]);
-              setShowGroupChatMembers(false);
-            }}
-            className="shrink-0"
-            style={{ color: "var(--muted-foreground)" }}
-            aria-label="사용자 신고"
-          >
-            <AlertTriangle size={14} />
-          </button>
-        )}
-      </div>
-    ))}
-  </div>
-)}
+
 
         {/* 메시지 목록 */}
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
           {messages.map((msg) => {
+            if (msg.type === "system") {
+              return (
+                <p key={msg._id} className="text-center text-[11px] my-1" style={{ color: "var(--muted-foreground)" }}>
+                  {msg.content}
+                </p>
+              );
+            }
             const mine = currentUser?._id === msg.sender._id;
             const isReportable = !!groupReportTarget && msg.sender._id === groupReportTarget._id;
             const isSelected = selectedGroupMsgIds.includes(msg._id);
@@ -2377,8 +2639,9 @@ const handleDeleteFriends = () => {
                       <img
                         src={resolveAssetUrl(msg.image)}
                         alt="사진"
+                        onClick={() => (isReportable ? toggleSelectForReport() : setViewingImage(msg.image!))}
                         onDoubleClick={() => !isReportable && handleToggleGroupMessageLike(msg._id)}
-                        className="rounded-xl max-w-full"
+                        className="rounded-xl max-w-full cursor-pointer"
                         style={{ maxHeight: "200px", outline: isSelected ? "2px solid #d4183d" : "none" }}
                       />
                       {msg.liked && (
@@ -2390,14 +2653,6 @@ const handleDeleteFriends = () => {
                         </span>
                       )}
                     </div>
-                  )}{msg.image && (
-                    <img
-                      src={resolveAssetUrl(msg.image)}
-                      alt="사진"
-                      onDoubleClick={() => !isReportable && handleToggleGroupMessageLike(msg._id)}
-                      className="rounded-xl max-w-full"
-                      style={{ maxHeight: "200px", outline: isSelected ? "2px solid #d4183d" : "none" }}
-                    />
                   )}
                   <p className="text-[10px] opacity-70" style={{ color: "var(--muted-foreground)" }}>{formatMessageTime(msg.createdAt, nowTick)}</p>
                 </div>
@@ -2407,6 +2662,11 @@ const handleDeleteFriends = () => {
         </div>
 
        {/* 입력창 */}
+        {activeGroupChatDeleted ? (
+          <div className="flex items-center justify-center px-3 py-4 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>호스트가 채팅방을 삭제했습니다</p>
+          </div>
+        ) : (
         <div className="flex items-center gap-2 px-3 py-2.5 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
           <label
             className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 cursor-pointer"
@@ -2460,6 +2720,7 @@ const handleDeleteFriends = () => {
             </button>
           )}
         </div>
+        )}
         {viewingGroupMember && (
           <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
             <OtherUserProfile
@@ -2475,6 +2736,142 @@ const handleDeleteFriends = () => {
             />
           </div>
         )}
+        {/* 채팅 설정 플로팅 패널 */}
+        {showChatSettings && (
+          <div
+            className="absolute inset-0 z-50 flex items-start justify-end"
+            style={{ background: "rgba(0,0,0,0.3)" }}
+            onClick={() => setShowChatSettings(false)}
+          >
+            <div
+              className="mt-16 mr-3 w-[260px] rounded-2xl shadow-lg overflow-hidden"
+              style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {chatSettingsView === "menu" ? (
+                <>
+                  {/* 대표 사진 + 이름 */}
+                  <div className="flex flex-col items-center gap-2 px-4 pt-5 pb-4 border-b" style={{ borderColor: "var(--border)" }}>
+                    <label className="relative w-16 h-16 rounded-full overflow-hidden cursor-pointer shrink-0">
+                      <img
+                        src={resolveAssetUrl(activeGroupChat.avatar) || defaultAvatar}
+                        alt="채팅방 대표 사진"
+                        className="w-full h-full object-cover"
+                        style={{ opacity: isUploadingGroupAvatar ? 0.5 : 1 }}
+                      />
+                      <span
+                        className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center"
+                        style={{ background: "var(--primary)" }}
+                      >
+                        <Camera size={11} color="white" />
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={isUploadingGroupAvatar}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          e.target.value = "";
+                          if (file) handleChangeGroupAvatar(file);
+                        }}
+                      />
+                    </label>
+                    <p className="text-sm font-semibold text-center truncate max-w-full" style={{ color: "var(--foreground)" }}>
+                      {activeGroupChat.name || activeGroupChat.post?.title ||
+                        activeGroupChat.members.filter((m) => m._id !== currentUser?._id).map((m) => m.nickname).join(", ")}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => { setRenameInput(activeGroupChat.name || ""); setChatSettingsView("rename"); }}
+                    className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm text-left"
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    <span className="flex items-center gap-2"><Edit2 size={14} /> 채팅방 이름 변경</span>
+                    <ChevronRight size={14} style={{ color: "var(--muted-foreground)" }} />
+                  </button>
+                  <button
+                    onClick={() => { setShowChatSettings(false); setShowGroupChatMembers(true); }}
+                    className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm text-left"
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    <span className="flex items-center gap-2"><Users size={14} /> 멤버 목록</span>
+                    <span className="flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
+                      {activeGroupChat.members.length} <ChevronRight size={14} />
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => { setShowChatSettings(false); openPhotoGallery(); }}
+                    className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm text-left"
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    <span className="flex items-center gap-2"><Images size={14} /> 사진 모아보기</span>
+                    <ChevronRight size={14} style={{ color: "var(--muted-foreground)" }} />
+                  </button>
+                  <button
+                    onClick={handleLeaveGroupChat}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left border-t"
+                    style={{ color: "#d4183d", borderColor: "var(--border)" }}
+                  >
+                    <LogOut size={14} /> 채팅방 나가기
+                  </button>
+                </>
+              ) : (
+                <div className="px-4 py-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <button onClick={() => setChatSettingsView("menu")} className="text-sm" style={{ color: "var(--muted-foreground)" }}>←</button>
+                    <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>채팅방 이름 변경</p>
+                  </div>
+                  <input
+                    value={renameInput}
+                    onChange={(e) => setRenameInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleRenameGroupChat()}
+                    maxLength={30}
+                    placeholder="채팅방 이름"
+                    className="w-full px-3 py-2 rounded-xl text-sm outline-none mb-3"
+                    style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleRenameGroupChat}
+                    disabled={!renameInput.trim()}
+                    className="w-full py-2.5 rounded-xl text-sm font-semibold"
+                    style={{
+                      background: renameInput.trim() ? "var(--primary)" : "var(--muted)",
+                      color: renameInput.trim() ? "white" : "var(--muted-foreground)",
+                    }}
+                  >
+                    저장
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        {/* 사진 확대 보기 팝업 */}
+        {viewingImage && (
+          <div
+            className="absolute inset-0 z-[80] flex items-center justify-center px-6"
+            style={{ background: "rgba(0,0,0,0.9)" }}
+            onClick={() => setViewingImage(null)}
+          >
+            <button
+              onClick={() => setViewingImage(null)}
+              className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+              style={{ background: "rgba(255,255,255,0.15)" }}
+            >
+              <X size={20} color="white" />
+            </button>
+            <img
+              src={resolveAssetUrl(viewingImage)}
+              alt="사진 크게 보기"
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-full max-h-full rounded-xl object-contain"
+            />
+          </div>
+        )}
+        {photoGalleryModal}
         {reportGroupMemberModal}
         {alertAndConfirmModals}
       </div>
@@ -2555,6 +2952,13 @@ const handleDeleteFriends = () => {
               style={{ color: "var(--foreground)" }}
             >
               ☑️ 메시지 선택
+            </button>
+            <button
+              onClick={() => { setShowChatMenu(false); openPhotoGallery(); }}
+              className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left"
+              style={{ color: "var(--foreground)" }}
+            >
+              <Images size={14} /> 사진 모아보기
             </button>
             <button
               onClick={() => {
@@ -2771,6 +3175,11 @@ const handleDeleteFriends = () => {
         </div>
 
         {/* 입력창 */}
+        {activeFriendTheyLeft ? (
+          <div className="flex items-center justify-center px-3 py-4 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>상대방이 나갔습니다</p>
+          </div>
+        ) : (
         <div className="flex items-center gap-2 px-3 py-2.5 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
           <label
             className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 cursor-pointer"
@@ -2828,6 +3237,7 @@ const handleDeleteFriends = () => {
             </button>
           )}
         </div>
+        )}
 
         {/* 이미지 뷰어 팝업 */}
         {viewingImage && (
@@ -2852,6 +3262,7 @@ const handleDeleteFriends = () => {
           </div>
         )}
 
+        {photoGalleryModal}
         {alertAndConfirmModals}
       </div>
     );
@@ -4262,7 +4673,7 @@ const handleDeleteFriends = () => {
         className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
         style={{ background: "var(--secondary)", color: "#d4183d" }}
       >
-        <Trash2 size={12} /> 친구삭제
+        <Trash2 size={12} /> 채팅삭제
       </button>
     </div>
   ) : (
@@ -4276,6 +4687,38 @@ const handleDeleteFriends = () => {
   )}
 </div>
 
+{showAddFriend && (
+  <div className="flex flex-col gap-2 mb-2">
+    <input
+      value={friendSearch}
+      onChange={(e) => setFriendSearch(e.target.value)}
+      placeholder="학번 또는 닉네임 검색"
+      className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
+      style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+    />
+    {friendSearch.trim() && friendSearchResults.length === 0 && (
+      <p className="text-xs px-1" style={{ color: "var(--muted-foreground)" }}>검색 결과가 없습니다.</p>
+    )}
+    {friendSearchResults.map((u) => (
+      <div key={u._id} className="flex items-center gap-2 px-1">
+        <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
+          <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+        </div>
+        <p className="flex-1 min-w-0 text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
+          {u.nickname}
+        </p>
+        <button
+          onClick={() => handleSendFriendRequest(u._id)}
+          className="px-3 py-1.5 rounded-xl text-xs font-semibold"
+          style={{ background: "var(--primary)", color: "white" }}
+        >
+          신청
+        </button>
+      </div>
+    ))}
+  </div>
+)}
+
 {groupChatList.length > 0 && (
   <div className="flex flex-col gap-1.5 mb-2">
     <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>단체채팅</span>
@@ -4285,19 +4728,45 @@ const handleDeleteFriends = () => {
       const preview = chat.lastMessage
         ? (chat.lastMessage.image && !chat.lastMessage.content ? "사진을 보냈습니다" : chat.lastMessage.content)
         : "아직 대화가 없습니다";
+      const isHost = !!currentUser && chat.host._id === currentUser._id;
+      const isSelectable = isFriendSelectMode && isHost;
+      const isSelected = selectedGroupChatIds.includes(chat._id);
       return (
         <button
           key={chat._id}
-          onClick={() => openGroupChat(chat)}
+          onClick={() => {
+            if (isFriendSelectMode) {
+              if (isHost) toggleGroupChatSelect(chat._id);
+            } else {
+              openGroupChat(chat);
+            }
+          }}
           className="flex items-center gap-3 p-2.5 rounded-xl text-left"
-          style={{ background: "var(--card)" }}
+          style={{
+            background: "var(--card)",
+            opacity: isFriendSelectMode && !isHost ? 0.5 : 1,
+            outline: isSelected ? "2px solid var(--primary)" : "none",
+          }}
         >
+          {isSelectable && (
+            <div
+              className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+              style={{
+                background: isSelected ? "var(--primary)" : "var(--muted)",
+                border: "1.5px solid var(--border)",
+              }}
+            >
+              {isSelected && <span className="text-white text-[10px] font-bold">✓</span>}
+            </div>
+          )}
           <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--secondary)" }}>
             <Users size={18} style={{ color: "var(--primary)" }} />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>{title}</p>
-            <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{preview}</p>
+            <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
+              {isFriendSelectMode && !isHost ? "방장만 삭제할 수 있어요" : preview}
+            </p>
           </div>
         </button>
       );
@@ -4335,51 +4804,23 @@ const handleDeleteFriends = () => {
   </div>
 )}
 
-{showAddFriend && (
-  <div className="flex flex-col gap-2 mb-2">
-    <input
-      value={friendSearch}
-      onChange={(e) => setFriendSearch(e.target.value)}
-      placeholder="학번 또는 닉네임 검색"
-      className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
-      style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-    />
-    {friendSearch.trim() && friendSearchResults.length === 0 && (
-      <p className="text-xs px-1" style={{ color: "var(--muted-foreground)" }}>검색 결과가 없습니다.</p>
-    )}
-    {friendSearchResults.map((u) => (
-      <div key={u._id} className="flex items-center gap-2 px-1">
-        <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
-          <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-        </div>
-        <p className="flex-1 min-w-0 text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
-          {u.nickname}
-        </p>
-        <button
-          onClick={() => handleSendFriendRequest(u._id)}
-          className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-          style={{ background: "var(--primary)", color: "white" }}
-        >
-          신청
-        </button>
-      </div>
-    ))}
-  </div>
-)}
-
 {friends.length === 0 && (
   <p className="text-sm text-center mt-4" style={{ color: "var(--muted-foreground)" }}>
     아직 친구가 없습니다.
   </p>
 )}
 
-{isFriendSelectMode && selectedFriendIds.length > 0 && (
+{friends.length > 0 && (
+  <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>개인채팅</span>
+)}
+
+{isFriendSelectMode && (selectedFriendIds.length > 0 || selectedGroupChatIds.length > 0) && (
   <button
-    onClick={handleDeleteFriends}
+    onClick={handleDeleteSelectedChats}
     className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold"
     style={{ background: "#d4183d", color: "white" }}
   >
-    {selectedFriendIds.length}명 삭제
+    {selectedFriendIds.length + selectedGroupChatIds.length}개 채팅 삭제
   </button>
 )}
 
