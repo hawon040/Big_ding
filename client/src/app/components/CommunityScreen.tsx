@@ -701,87 +701,119 @@ export function OtherUserProfile({
         )}
       </div>
 
-      {/* 팔로워/팔로잉 목록 */}
-      {userListModal && (
-        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-            <button onClick={() => setUserListModal(null)}>
-              <X size={20} style={{ color: "var(--foreground)" }} />
-            </button>
-            <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>
-              {userListModal === "followers" ? "팔로워" : "팔로잉"}
-            </h2>
-          </div>
-          {userList.length > 0 && (
-            <div className="px-4 pt-3 shrink-0">
-              <input
-                value={userListQuery}
-                onChange={(e) => setUserListQuery(e.target.value)}
-                placeholder="검색"
-                className="w-full px-3 py-2 rounded-xl text-sm outline-none"
-                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-              />
-            </div>
-          )}
-          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar">
-            {userList.length === 0 ? (
-              <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
-                {userListModal === "followers" ? "아직 팔로워가 없습니다." : "아직 팔로잉하는 사람이 없습니다."}
-              </p>
-            ) : (
-              userList
-                .filter((u) =>
-                  !userListQuery.trim() ||
-                  u.nickname.toLowerCase().includes(userListQuery.trim().toLowerCase()) ||
-                  u.studentId?.toLowerCase().includes(userListQuery.trim().toLowerCase())
-                )
-                .map((u) => (
-                <div
-                  key={u._id}
-                  className="flex items-center gap-3 p-2.5 rounded-xl text-left"
-                  style={{ background: "var(--card)" }}
-                >
-                  <button
-                    onClick={() => {
-                      setUserListModal(null);
-                      setViewingNestedUser(u);
-                    }}
-                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
-                  >
-                    <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                      <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
-                      {u.studentId && (
-                        <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{u.studentId}</p>
-                      )}
-                    </div>
-                  </button>
-                  {u._id !== currentUserId && (
-                    <button
-                      onClick={() => toggleListFollow(u)}
-                      className="text-xs px-3 py-1.5 rounded-xl font-semibold shrink-0"
-                      style={{
-                        background: u.isFollowedByMe ? "var(--muted)" : "var(--primary)",
-                        color: u.isFollowedByMe ? "var(--muted-foreground)" : "white",
-                      }}
-                    >
-                      {u.isFollowedByMe ? "팔로잉" : "팔로우"}
-                    </button>
+{/* 팔로워/팔로잉 목록 */}
+{userListModal && (
+  <div
+    className="absolute inset-0 z-50 flex flex-col pointer-events-auto"
+    style={{ background: "var(--background)" }}
+  >
+    {/* 상단 헤더 */}
+    <div
+      className="flex items-center gap-3 px-4 py-4 border-b shrink-0 pointer-events-auto"
+      style={{ borderColor: "var(--border)" }}
+    >
+      <button onClick={() => setUserListModal(null)}>
+        <X size={20} style={{ color: "var(--foreground)" }} />
+      </button>
+      <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>
+        {userListModal === "followers" ? "팔로워" : "팔로잉"}
+      </h2>
+    </div>
+
+    {/* 검색창 */}
+    {userList.length > 0 && (
+      <div className="px-4 pt-3 shrink-0 pointer-events-auto">
+        <input
+          value={userListQuery}
+          onChange={(e) => setUserListQuery(e.target.value)}
+          placeholder="검색"
+          className="w-full px-3 py-2 rounded-xl text-sm outline-none"
+          style={{
+            background: "var(--input-background)",
+            color: "var(--foreground)",
+            border: "1.5px solid var(--border)",
+          }}
+        />
+      </div>
+    )}
+
+    {/* 목록 */}
+    <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar pointer-events-auto">
+      {userList.length === 0 ? (
+        <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+          {userListModal === "followers"
+            ? "아직 팔로워가 없습니다."
+            : "아직 팔로잉하는 사람이 없습니다."}
+        </p>
+      ) : (
+        userList
+          .filter((u) =>
+            !userListQuery.trim() ||
+            u.nickname.toLowerCase().includes(userListQuery.trim().toLowerCase()) ||
+            u.studentId?.toLowerCase().includes(userListQuery.trim().toLowerCase())
+          )
+          .map((u) => (
+            <div
+              key={u._id}
+              className="flex items-center gap-3 p-2.5 rounded-xl text-left"
+              style={{ background: "var(--card)" }}
+            >
+              {/* 프로필 클릭 */}
+              <button
+                onClick={() => {
+                  setUserListModal(null);
+                  setViewingNestedUser(u);
+                  setShowAvatarZoom(true);
+                }}
+                className="flex items-center gap-3 flex-1 min-w-0 text-left"
+              >
+                <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+                  <img
+                    src={resolveAssetUrl(u.avatar) || defaultAvatar}
+                    alt="프로필 사진"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
+                    {u.nickname}
+                  </p>
+                  {u.studentId && (
+                    <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
+                      {u.studentId}
+                    </p>
                   )}
                 </div>
-              ))
-            )}
-          </div>
-        </div>
+              </button>
+
+              {/* 팔로우 버튼 */}
+              {u._id !== currentUserId && (
+                <button
+                  onClick={() => toggleListFollow(u)}
+                  className="text-xs px-3 py-1.5 rounded-xl font-semibold shrink-0"
+                  style={{
+                    background: u.isFollowedByMe ? "var(--muted)" : "var(--primary)",
+                    color: u.isFollowedByMe ? "var(--muted-foreground)" : "white",
+                  }}
+                >
+                  {u.isFollowedByMe ? "팔로잉" : "팔로우"}
+                </button>
+              )}
+            </div>
+          ))
       )}
+    </div>
+  </div>
+)}
+
 
       {/* 프로필 사진 크게 보기 */}
-      {showAvatarZoom && (
+{showAvatarZoom && author && (
+
         <div
-          className="absolute inset-0 z-[80] flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.92)" }}
+  className="absolute inset-0 z-[80] flex items-center justify-center pointer-events-auto"
+ style={{ background: "rgba(0,0,0,0.92)" }}
           onClick={() => setShowAvatarZoom(false)}
         >
           <button
@@ -1944,39 +1976,42 @@ const closeConfirm = () => setConfirmState(null);
 const alertAndConfirmModals = (
   <>
     {/* 커스텀 알림 팝업 (확인 1개) */}
-    {alertMessage && (
+{alertMessage && (
+  <div
+    className="absolute inset-0 z-[70] flex items-center justify-center px-6 pointer-events-auto"
+    style={{ background: "rgba(0,0,0,0.6)" }}
+  >
+    <div
+      className="w-full rounded-2xl overflow-hidden shadow-2xl pointer-events-auto"
+      style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+    >
       <div
-        className="absolute inset-0 z-[70] flex items-center justify-center px-6"
-        style={{ background: "rgba(0,0,0,0.6)" }}
+        className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+        style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
       >
-        <div
-          className="w-full rounded-2xl overflow-hidden shadow-2xl"
-          style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
-        >
-          <div
-            className="flex items-center justify-between px-5 py-4 text-base font-semibold"
-            style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
-          >
-            Code
-            <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
-              <X size={18} />
-            </button>
-          </div>
-          <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-            {alertMessage}
-          </div>
-          <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-            <button
-              className="w-full py-3 text-sm font-medium"
-              style={{ color: "var(--foreground)" }}
-              onClick={closeAlert}
-            >
-              확인
-            </button>
-          </div>
-        </div>
+        Code
+        <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
+          <X size={18} />
+        </button>
       </div>
-    )}
+
+      <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+        {alertMessage}
+      </div>
+
+      <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+        <button
+          className="w-full py-3 text-sm font-medium"
+          style={{ color: "var(--foreground)" }}
+          onClick={closeAlert}
+        >
+          확인
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
 
     {/* 커스텀 확인 팝업 (확인/취소 2개) */}
     {confirmState && (
@@ -3858,7 +3893,7 @@ const handleDeleteSelectedChats = () => {
               {reactionListModal.type === "likes" ? "좋아요" : "싫어요"}
             </h2>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar">
+<div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar pointer-events-auto">
             {reactionListUsers.length === 0 ? (
               <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
                 {reactionListModal.type === "likes" ? "아직 좋아요를 누른 사람이 없습니다." : "아직 싫어요를 누른 사람이 없습니다."}
@@ -5709,166 +5744,190 @@ const handleDeleteSelectedChats = () => {
         </div>
       )}
 
-      {/* 커스텀 알림 팝업 (확인 1개) */}
-      {alertMessage && (
-        <div
-          className="absolute inset-0 z-[70] flex items-center justify-center px-6"
-          style={{ background: "rgba(0,0,0,0.6)" }}
-        >
-          <div
-            className="w-full rounded-2xl overflow-hidden shadow-2xl"
-            style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
-          >
-            <div
-              className="flex items-center justify-between px-5 py-4 text-base font-semibold"
-              style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
-            >
-              Code
-              <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-              {alertMessage}
-            </div>
-            <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-              <button
-                className="w-full py-3 text-sm font-medium"
-                style={{ color: "var(--foreground)" }}
-                onClick={closeAlert}
-              >
-                확인
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+    {/* 커스텀 알림 팝업 (확인 1개) */}
+{alertMessage && (
+  <div
+    className="absolute inset-0 z-[70] flex items-center justify-center px-6 pointer-events-auto"
+    style={{ background: "rgba(0,0,0,0.6)" }}
+  >
+    <div
+      className="w-full rounded-2xl overflow-hidden shadow-2xl pointer-events-auto"
+      style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+    >
+      <div
+        className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+        style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+      >
+        Code
+        <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
+          <X size={18} />
+        </button>
+      </div>
 
-      {/* 커스텀 확인 팝업 (확인/취소 2개) */}
-      {confirmState && (
-        <div
-          className="absolute inset-0 z-[70] flex items-center justify-center px-6"
-          style={{ background: "rgba(0,0,0,0.6)" }}
+      <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+        {alertMessage}
+      </div>
+
+      <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+        <button
+          className="w-full py-3 text-sm font-medium"
+          style={{ color: "var(--foreground)" }}
+          onClick={closeAlert}
         >
-          <div
-            className="w-full rounded-2xl overflow-hidden shadow-2xl"
-            style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
-          >
-            <div
-              className="flex items-center justify-between px-5 py-4 text-base font-semibold"
-              style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
-            >
-              Code
-              <button onClick={closeConfirm} style={{ color: "var(--muted-foreground)" }}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-              {confirmState.message}
-            </div>
-            <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-              <button
-                className="flex-1 py-3 text-sm font-medium"
-                style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
-                onClick={() => {
-                  const action = confirmState.onConfirm;
-                  setConfirmState(null);
-                  action();
-                }}
-              >
-                확인
-              </button>
-              <button
-                className="flex-1 py-3 text-sm font-medium"
-                style={{ color: "var(--foreground)" }}
-                onClick={closeConfirm}
-              >
-                취소
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          확인
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
+  {/* 커스텀 확인 팝업 (확인/취소 2개) */}
+{confirmState && (
+  <div
+    className="absolute inset-0 z-[70] flex items-center justify-center px-6 pointer-events-auto"
+    style={{ background: "rgba(0,0,0,0.6)" }}
+  >
+    <div
+      className="w-full rounded-2xl overflow-hidden shadow-2xl pointer-events-auto"
+      style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
+    >
+      <div
+        className="flex items-center justify-between px-5 py-4 text-base font-semibold"
+        style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
+      >
+        Code
+        <button onClick={closeConfirm} style={{ color: "var(--muted-foreground)" }}>
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+        {confirmState.message}
+      </div>
+
+      <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
+        <button
+          className="flex-1 py-3 text-sm font-medium"
+          style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
+          onClick={() => {
+            const action = confirmState.onConfirm;
+            setConfirmState(null);
+            action();
+          }}
+        >
+          확인
+        </button>
+
+        <button
+          className="flex-1 py-3 text-sm font-medium"
+          style={{ color: "var(--foreground)" }}
+          onClick={closeConfirm}
+        >
+          취소
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
 {alertAndConfirmModals}
+{/* 알림 패널 (팔로우 알림) */}
+{showNotifications && (
+  <div
+    className="absolute inset-0 z-50 flex flex-col pointer-events-auto"
+    style={{ background: "var(--background)" }}
+  >
+    <div
+      className="flex items-center gap-3 px-4 py-4 border-b shrink-0 pointer-events-auto"
+      style={{ borderColor: "var(--border)" }}
+    >
+      <button onClick={() => setShowNotifications(false)}>
+        <X size={20} style={{ color: "var(--foreground)" }} />
+      </button>
+      <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>
+        알림
+      </h2>
+    </div>
 
-      {/* 알림 패널 (팔로우 알림) */}
-      {showNotifications && (
-        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-            <button onClick={() => setShowNotifications(false)}>
-              <X size={20} style={{ color: "var(--foreground)" }} />
-            </button>
-            <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>알림</h2>
-          </div>
+    <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1 no-scrollbar pointer-events-auto">
+      {notifications.length === 0 ? (
+        <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+          아직 알림이 없습니다.
+        </p>
+      ) : (
+        notifications.map((n) => {
+          const isFollowingBack = followingIds.includes(n.sender._id);
+          const notifMessage =
+            n.type === "join" ? "님이 회원님의 모임에 참여했습니다."
+            : n.type === "leave" ? "님이 회원님의 모임 참여를 취소했습니다."
+            : n.type === "comment" ? "님이 회원님의 게시물에 댓글을 남겼습니다."
+            : n.type === "like" ? "님이 회원님의 게시물을 좋아합니다."
+            : n.type === "dislike" ? "님이 회원님의 게시물을 싫어합니다."
+            : n.type === "scrap" ? "님이 회원님의 게시물을 스크랩했습니다."
+            : "님이 회원님을 팔로우하기 시작했습니다.";
 
-          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1 no-scrollbar">
-            {notifications.length === 0 ? (
-              <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
-                아직 알림이 없습니다.
+          return (
+            <button
+              key={n._id}
+   onClick={() => {
+  // 알림창 즉시 닫기
+  setShowNotifications(false);
+
+  // 이동 로직 즉시 실행
+  if (n.type === "follow") {
+    openAuthor(n.sender);
+  } else if (n.post) {
+    setSelectedPostId(n.post._id);
+  }
+}}
+
+
+              className="flex items-center gap-3 p-2.5 rounded-xl text-left"
+              style={{ background: "var(--card)" }}
+            >
+              <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+                <img
+                  src={resolveAssetUrl(n.sender.avatar) || defaultAvatar}
+                  alt="프로필 사진"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+
+              <p className="flex-1 min-w-0 text-sm" style={{ color: "var(--foreground)" }}>
+                <span className="font-semibold">{n.sender.nickname}</span>
+                {notifMessage}
+                <span className="block text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+                  {getDisplayTime(n, nowTick)}
+                </span>
               </p>
-            ) : (
-              notifications.map((n) => {
-                const isFollowingBack = followingIds.includes(n.sender._id);
-                const notifMessage =
-                  n.type === "join" ? "님이 회원님의 모임에 참여했습니다."
-                  : n.type === "leave" ? "님이 회원님의 모임 참여를 취소했습니다."
-                  : n.type === "comment" ? "님이 회원님의 게시물에 댓글을 남겼습니다."
-                  : n.type === "like" ? "님이 회원님의 게시물을 좋아합니다."
-                  : n.type === "dislike" ? "님이 회원님의 게시물을 싫어합니다."
-                  : n.type === "scrap" ? "님이 회원님의 게시물을 스크랩했습니다."
-                  : "님이 회원님을 팔로우하기 시작했습니다.";
-                return (
-                  <button
-                    key={n._id}
-                    onClick={() => {
-                      if (n.type === "follow") {
-                        openAuthor(n.sender);
-                      } else if (n.post) {
-                        setSelectedPostId(n.post._id);
-                        setShowNotifications(false);
-                      }
-                    }}
-                    className="flex items-center gap-3 p-2.5 rounded-xl text-left"
-                    style={{ background: "var(--card)" }}
+
+              {n.type === "follow" && (
+                isFollowingBack ? (
+                  <span
+                    className="text-xs px-3 py-1.5 rounded-xl font-medium shrink-0"
+                    style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
                   >
-                    <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                      <img src={resolveAssetUrl(n.sender.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                    </div>
-                    <p className="flex-1 min-w-0 text-sm" style={{ color: "var(--foreground)" }}>
-                      <span className="font-semibold">{n.sender.nickname}</span>{notifMessage}
-                      <span className="block text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
-                        {getDisplayTime(n, nowTick)}
-                      </span>
-                    </p>
-                    {n.type === "follow" && (
-                      isFollowingBack ? (
-                        <span
-                          className="text-xs px-3 py-1.5 rounded-xl font-medium shrink-0"
-                          style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
-                        >
-                          맞팔로우
-                        </span>
-                      ) : (
-                        <span
-                          role="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleFollowBack(n.sender._id);
-                          }}
-                          className="text-xs px-3 py-1.5 rounded-xl font-semibold shrink-0"
-                          style={{ background: "var(--primary)", color: "white" }}
-                        >
-                          팔로우
-                        </span>
-                      )
-                    )}
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </div>
+                    맞팔로우
+                  </span>
+                ) : (
+                  <span
+                    role="button"
+                    onClick={() => { /* stopPropagation 제거 */ handleFollowBack(n.sender._id); }}
+                    className="text-xs px-3 py-1.5 rounded-xl font-semibold shrink-0"
+                    style={{ background: "var(--primary)", color: "white" }}
+                  >
+                    팔로우
+                  </span>
+                )
+              )}
+            </button>
+          );
+        })
       )}
+    </div>
+  </div>
+)}
+
 
       {/* 친구끼리 단체 채팅방 만들기 */}
       {showCreateGroupChat && (
