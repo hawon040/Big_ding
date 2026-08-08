@@ -470,12 +470,14 @@ export function OtherUserProfile({
   currentUserId,
   onBack,
   onOpenPost,
+  onMessage,
 }: {
   author: PostAuthor;
   posts: Post[];
   currentUserId?: string;
   onBack: () => void;
   onOpenPost: (postId: string) => void;
+  onMessage?: (author: PostAuthor) => void;
 }) {
   const [tab, setTab] = useState<"posts" | "scrapped">("posts");
   const [followerCount, setFollowerCount] = useState(0);
@@ -564,6 +566,7 @@ export function OtherUserProfile({
         currentUserId={currentUserId}
         onBack={() => setViewingNestedUser(null)}
         onOpenPost={onOpenPost}
+        onMessage={onMessage}
       />
     );
   }
@@ -622,16 +625,25 @@ export function OtherUserProfile({
           </div>
 
           {!isSelf && (
-            <button
-              onClick={toggleFollow}
-              className="w-full mt-3 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5"
-              style={{
-                background: isFollowing ? "var(--muted)" : "var(--primary)",
-                color: isFollowing ? "var(--foreground)" : "white",
-              }}
-            >
-              {isFollowing ? "팔로잉" : "팔로우"}
-            </button>
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={toggleFollow}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5"
+                style={{
+                  background: isFollowing ? "var(--muted)" : "var(--primary)",
+                  color: isFollowing ? "var(--foreground)" : "white",
+                }}
+              >
+                {isFollowing ? "팔로잉" : "팔로우"}
+              </button>
+              <button
+                onClick={() => onMessage?.(author)}
+                className="flex-1 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5"
+                style={{ background: "var(--muted)", color: "var(--foreground)" }}
+              >
+                메시지
+              </button>
+            </div>
           )}
         </div>
 
@@ -1617,11 +1629,7 @@ useEffect(() => {
       socket.off("group_message_liked", handleGroupMessageLiked);
     };
   }, [socket]);
-  const [showAddFriend, setShowAddFriend] = useState(false);
-  const [friendSearch, setFriendSearch] = useState("");
-  const [friendSearchResults, setFriendSearchResults] = useState<Friend[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
-  const [friendRequests, setFriendRequests] = useState<FriendRequestItem[]>([]);
   const [isFriendSelectMode, setIsFriendSelectMode] = useState(false);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
   // 단체채팅 중 내가 방장인 것만 선택 삭제 가능
@@ -1685,14 +1693,13 @@ useEffect(() => {
   setReplyTarget(null);
 }, [selectedPostId]);
 
-  // 친구 목록 / 받은 친구 신청은 실제 DB(GET /api/friends, /api/friends/requests)에서 불러온다.
-  // 친구 신청이 오거나 수락되는 것도 새로고침 없이 보이도록 몇 초마다 다시 불러온다(폴링).
+  // 친구 기능은 폐기되고 팔로우/팔로잉으로 대체되었다. 채팅 탭 하단 패널은 팔로우 여부와
+  // 무관하게, 실제로 메시지를 주고받은 적 있는 상대(대화상대) 목록을 보여준다.
   useEffect(() => {
     if (!isActive) return;
     let cancelled = false;
     const fetchFriendsData = () => {
-      api.get("/friends").then((res) => { if (!cancelled) setFriends(res.data); }).catch(() => {});
-      api.get("/friends/requests").then((res) => { if (!cancelled) setFriendRequests(res.data); }).catch(() => {});
+      api.get("/chat/conversations").then((res) => { if (!cancelled) setFriends(res.data); }).catch(() => {});
       api.get("/chat/hidden-friends").then((res) => { if (!cancelled) setHiddenChatFriendIds(res.data); }).catch(() => {});
     };
     fetchFriendsData();
@@ -1759,58 +1766,6 @@ useEffect(() => {
       );
     } finally {
       setFollowBackPendingId(null);
-    }
-  };
-
-  // 친구 검색: 입력 후 잠시 멈추면(디바운스) 학번/닉네임으로 사용자를 검색한다.
-  useEffect(() => {
-    if (!showAddFriend || !friendSearch.trim()) {
-      setFriendSearchResults([]);
-      return;
-    }
-    let cancelled = false;
-    const timeout = setTimeout(() => {
-      api.get("/users/search", { params: { q: friendSearch.trim() } })
-        .then((res) => { if (!cancelled) setFriendSearchResults(res.data); })
-        .catch(() => {});
-    }, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(timeout);
-    };
-  }, [friendSearch, showAddFriend]);
-
-  const handleSendFriendRequest = async (targetId: string) => {
-    try {
-      const res = await api.post(`/friends/requests/${targetId}`);
-      setFriendSearchResults((prev) => prev.filter((u) => u._id !== targetId));
-      showAlert(res.data.message);
-      if (res.data.message?.includes("친구가 되었습니다")) {
-        const friendsRes = await api.get("/friends");
-        setFriends(friendsRes.data);
-      }
-    } catch (err: any) {
-      showAlert(err.response?.data?.message || "친구 신청에 실패했습니다.");
-    }
-  };
-
-  const handleAcceptFriendRequest = async (requestId: string) => {
-    try {
-      await api.post(`/friends/requests/${requestId}/accept`);
-      setFriendRequests((prev) => prev.filter((r) => r._id !== requestId));
-      const res = await api.get("/friends");
-      setFriends(res.data);
-    } catch {
-      showAlert("친구 요청 수락에 실패했습니다.");
-    }
-  };
-
-  const handleRejectFriendRequest = async (requestId: string) => {
-    try {
-      await api.delete(`/friends/requests/${requestId}`);
-      setFriendRequests((prev) => prev.filter((r) => r._id !== requestId));
-    } catch {
-      showAlert("처리에 실패했습니다.");
     }
   };
 
@@ -2550,6 +2505,13 @@ const handleDeleteSelectedChats = () => {
                   setActiveGroupChat(null);
                   setSelectedPostId(postId);
                 }}
+                onMessage={(target) => {
+                  setViewingGroupMember(null);
+                  setShowGroupChatMembers(false);
+                  setActiveGroupChat(null);
+                  setShowChat(true);
+                  setActiveFriend({ _id: target._id, nickname: target.nickname, avatar: target.avatar, studentId: target.studentId });
+                }}
               />
             </div>
           )}
@@ -2796,6 +2758,12 @@ const handleDeleteSelectedChats = () => {
                 setViewingGroupMember(null);
                 setActiveGroupChat(null);
                 setSelectedPostId(postId);
+              }}
+              onMessage={(target) => {
+                setViewingGroupMember(null);
+                setActiveGroupChat(null);
+                setShowChat(true);
+                setActiveFriend({ _id: target._id, nickname: target.nickname, avatar: target.avatar, studentId: target.studentId });
               }}
             />
           </div>
@@ -3350,6 +3318,12 @@ const handleDeleteSelectedChats = () => {
           setViewedAuthor(null);
           setSelectedPostId(postId);
           setReturnToChatFriend(null);
+        }}
+        onMessage={(target) => {
+          setViewedAuthor(null);
+          setReturnToChatFriend(null);
+          setShowChat(true);
+          setActiveFriend({ _id: target._id, nickname: target.nickname, avatar: target.avatar, studentId: target.studentId });
         }}
       />
     );
@@ -4758,11 +4732,13 @@ const handleDeleteSelectedChats = () => {
         <Users size={12} /> 단체채팅
       </button>
       <button
-        onClick={() => setShowAddFriend(!showAddFriend)}
+        onClick={() => {
+          api.post("/chat/read-all").catch(() => showAlert("처리에 실패했습니다."));
+        }}
         className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
         style={{ background: "var(--secondary)", color: "var(--primary)" }}
       >
-        <UserPlus size={12} /> 친구추가
+        모두 읽음
       </button>
       <button
         onClick={toggleFriendSelectMode}
@@ -4782,38 +4758,6 @@ const handleDeleteSelectedChats = () => {
     </button>
   )}
 </div>
-
-{showAddFriend && (
-  <div className="flex flex-col gap-2 mb-2">
-    <input
-      value={friendSearch}
-      onChange={(e) => setFriendSearch(e.target.value)}
-      placeholder="학번 또는 닉네임 검색"
-      className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
-      style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-    />
-    {friendSearch.trim() && friendSearchResults.length === 0 && (
-      <p className="text-xs px-1" style={{ color: "var(--muted-foreground)" }}>검색 결과가 없습니다.</p>
-    )}
-    {friendSearchResults.map((u) => (
-      <div key={u._id} className="flex items-center gap-2 px-1">
-        <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
-          <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-        </div>
-        <p className="flex-1 min-w-0 text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
-          {u.nickname}
-        </p>
-        <button
-          onClick={() => handleSendFriendRequest(u._id)}
-          className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-          style={{ background: "var(--primary)", color: "white" }}
-        >
-          신청
-        </button>
-      </div>
-    ))}
-  </div>
-)}
 
 {groupChatList.length > 0 && (
   <div className="flex flex-col gap-1.5 mb-2">
@@ -4870,39 +4814,9 @@ const handleDeleteSelectedChats = () => {
   </div>
 )}
 
-{friendRequests.length > 0 && (
-  <div className="flex flex-col gap-1.5 mb-2 p-2 rounded-xl" style={{ background: "var(--secondary)" }}>
-    <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>받은 친구 요청</span>
-    {friendRequests.map((r) => (
-      <div key={r._id} className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded-full overflow-hidden shrink-0">
-          <img src={resolveAssetUrl(r.from.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-        </div>
-        <p className="flex-1 min-w-0 text-xs font-medium truncate" style={{ color: "var(--foreground)" }}>
-          {r.from.nickname}
-        </p>
-        <button
-          onClick={() => handleAcceptFriendRequest(r._id)}
-          className="px-2 py-1 rounded-lg text-xs font-semibold"
-          style={{ background: "var(--primary)", color: "white" }}
-        >
-          수락
-        </button>
-        <button
-          onClick={() => handleRejectFriendRequest(r._id)}
-          className="px-2 py-1 rounded-lg text-xs font-semibold"
-          style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
-        >
-          거절
-        </button>
-      </div>
-    ))}
-  </div>
-)}
-
 {friends.length === 0 && (
   <p className="text-sm text-center mt-4" style={{ color: "var(--muted-foreground)" }}>
-    아직 친구가 없습니다.
+    아직 대화한 상대가 없습니다. 팔로우한 사람의 프로필에서 메시지를 보내보세요.
   </p>
 )}
 

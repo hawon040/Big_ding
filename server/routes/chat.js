@@ -24,10 +24,71 @@ const isBlockedPair = async (userId, friendId) => {
   );
 };
 
+// GET /api/chat/conversations - 실제로 메시지를 주고받은 적 있는 상대 목록.
+// 친구 기능을 없애면서 채팅 탭 하단 패널은 "팔로우 여부"가 아니라
+// "대화 이력이 있는 사람"을 기준으로 보여준다. 최근 메시지 시각 기준 내림차순.
+router.get("/conversations", auth, async (req, res) => {
+  try {
+    const myId = new (require("mongoose").Types.ObjectId)(req.user.id);
+    const results = await Message.aggregate([
+      { $match: { $or: [{ from: myId }, { to: myId }] } },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: {
+          _id: {
+            $cond: [{ $eq: ["$from", myId] }, "$to", "$from"],
+          },
+          lastMessageAt: { $first: "$createdAt" },
+        },
+      },
+      { $sort: { lastMessageAt: -1 } },
+    ]);
+
+    const partnerIds = results.map((r) => r._id);
+    const users = await User.find({ _id: { $in: partnerIds } }).select("nickname avatar studentId");
+    const usersById = new Map(users.map((u) => [u._id.toString(), u]));
+
+    // 차단한 사람/나를 차단한 사람은 대화상대 목록에서 제외한다.
+    const me = await User.findById(req.user.id).select("blockedUsers");
+    const blockedMe = await User.find({ blockedUsers: req.user.id }).select("_id");
+    const excluded = new Set([
+      ...me.blockedUsers.map((id) => id.toString()),
+      ...blockedMe.map((u) => u._id.toString()),
+    ]);
+
+    const conversations = results
+      .filter((r) => usersById.has(r._id.toString()) && !excluded.has(r._id.toString()))
+      .map((r) => usersById.get(r._id.toString()));
+
+    res.json(conversations);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 // GET /api/chat/unread-count - 전체 안 읽은 메시지 개수 (읽음 처리하지 않음, 뱃지 표시 전용)
+// POST /api/chat/read-all - 화면에서 열 수 없는 상대(차단/탈퇴 등)가 보낸 메시지까지
+// 포함해서, 나에게 온 모든 메시지를 강제로 읽음 처리한다. 정상적인 방법으로는
+// 사라지지 않는 채팅 뱃지 잔여값을 초기화하는 용도.
+router.post("/read-all", auth, async (req, res) => {
+  try {
+    await Message.updateMany({ to: req.user.id, read: false }, { read: true });
+    res.json({ message: "모두 읽음 처리했습니다." });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 router.get("/unread-count", auth, async (req, res) => {
   try {
-    const count = await Message.countDocuments({ to: req.user.id, read: false });
+    // 차단한 사용자가 차단 전에 보낸 메시지는 화면에서 열 방법이 없어 영원히
+    // 읽음 처리가 안 되므로, 뱃지 카운트에서도 제외한다.
+    const me = await User.findById(req.user.id).select("blockedUsers");
+    const count = await Message.countDocuments({
+      to: req.user.id,
+      read: false,
+      from: { $nin: me.blockedUsers },
+    });
     res.json({ count });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
