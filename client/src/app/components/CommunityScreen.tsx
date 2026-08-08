@@ -1633,6 +1633,8 @@ useEffect(() => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [followingIds, setFollowingIds] = useState<string[]>(currentUser?.following ?? []);
+  // 알림 패널에서 맞팔로우 요청이 진행 중인 대상 id (중복 클릭 방지용)
+  const [followBackPendingId, setFollowBackPendingId] = useState<string | null>(null);
 const [showChatMenu, setShowChatMenu] = useState(false);
 const [selectMode, setSelectMode] = useState(false);
 const [selectedMsgs, setSelectedMsgs] = useState<string[]>([]);
@@ -1724,12 +1726,26 @@ useEffect(() => {
     }
   };
 
-  const handleFollowBack = async (targetId: string) => {
+  // 알림 패널에서 바로 맞팔로우 / 팔로우 취소를 토글한다.
+  // 패널을 닫거나 프로필로 이동하지 않고 그 자리에서 처리한다.
+  const handleToggleFollowBack = async (targetId: string, isFollowing: boolean) => {
+    if (followBackPendingId) return;
+    setFollowBackPendingId(targetId);
     try {
-      await api.post(`/users/follow/${targetId}`);
-      setFollowingIds((prev) => [...prev, targetId]);
+      if (isFollowing) {
+        await api.delete(`/users/follow/${targetId}`);
+        setFollowingIds((prev) => prev.filter((id) => String(id) !== targetId));
+      } else {
+        await api.post(`/users/follow/${targetId}`);
+        setFollowingIds((prev) => (prev.includes(targetId) ? prev : [...prev, targetId]));
+      }
     } catch (err: any) {
-      showAlert(err.response?.data?.message || "팔로우에 실패했습니다.");
+      showAlert(
+        err.response?.data?.message ||
+          (isFollowing ? "팔로우 취소에 실패했습니다." : "팔로우에 실패했습니다."),
+      );
+    } finally {
+      setFollowBackPendingId(null);
     }
   };
 
@@ -5856,7 +5872,9 @@ const handleDeleteSelectedChats = () => {
         </p>
       ) : (
         notifications.map((n) => {
-          const isFollowingBack = followingIds.includes(n.sender._id);
+          const senderId = String(n.sender._id);
+          const isFollowingBack = followingIds.some((id) => String(id) === senderId);
+          const isFollowBackPending = followBackPendingId === senderId;
           const notifMessage =
             n.type === "join" ? "님이 회원님의 모임에 참여했습니다."
             : n.type === "leave" ? "님이 회원님의 모임 참여를 취소했습니다."
@@ -5867,22 +5885,22 @@ const handleDeleteSelectedChats = () => {
             : "님이 회원님을 팔로우하기 시작했습니다.";
 
           return (
-            <button
+            <div
               key={n._id}
-   onClick={() => {
-  // 알림창 즉시 닫기
-  setShowNotifications(false);
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                // 알림창 즉시 닫기
+                setShowNotifications(false);
 
-  // 이동 로직 즉시 실행
-  if (n.type === "follow") {
-    openAuthor(n.sender);
-  } else if (n.post) {
-    setSelectedPostId(n.post._id);
-  }
-}}
-
-
-              className="flex items-center gap-3 p-2.5 rounded-xl text-left"
+                // 이동 로직 즉시 실행
+                if (n.type === "follow") {
+                  openAuthor(n.sender);
+                } else if (n.post) {
+                  setSelectedPostId(n.post._id);
+                }
+              }}
+              className="flex items-center gap-3 p-2.5 rounded-xl text-left w-full cursor-pointer"
               style={{ background: "var(--card)" }}
             >
               <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
@@ -5902,25 +5920,26 @@ const handleDeleteSelectedChats = () => {
               </p>
 
               {n.type === "follow" && (
-                isFollowingBack ? (
-                  <span
-                    className="text-xs px-3 py-1.5 rounded-xl font-medium shrink-0"
-                    style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
-                  >
-                    맞팔로우
-                  </span>
-                ) : (
-                  <span
-                    role="button"
-                    onClick={() => { /* stopPropagation 제거 */ handleFollowBack(n.sender._id); }}
-                    className="text-xs px-3 py-1.5 rounded-xl font-semibold shrink-0"
-                    style={{ background: "var(--primary)", color: "white" }}
-                  >
-                    팔로우
-                  </span>
-                )
+                <button
+                  type="button"
+                  disabled={isFollowBackPending}
+                  // 알림 카드 클릭(패널 닫기 + 프로필 이동)으로 이벤트가 번지지 않게 막고,
+                  // 알림 패널 안에서 그대로 맞팔로우 / 팔로우 취소를 토글한다.
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleFollowBack(senderId, isFollowingBack);
+                  }}
+                  className="text-xs px-3 py-1.5 rounded-xl shrink-0 disabled:opacity-60"
+                  style={
+                    isFollowingBack
+                      ? { background: "var(--muted)", color: "var(--muted-foreground)", fontWeight: 500 }
+                      : { background: "var(--primary)", color: "white", fontWeight: 600 }
+                  }
+                >
+                  {isFollowBackPending ? "처리 중..." : isFollowingBack ? "팔로잉" : "맞팔로우"}
+                </button>
               )}
-            </button>
+            </div>
           );
         })
       )}
