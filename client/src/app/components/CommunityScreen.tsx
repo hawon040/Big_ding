@@ -413,6 +413,19 @@ export const BOARDS = [
   { id: "meeting" as BoardType, label: "공강모임", emoji: "☕", icon: Coffee },
   { id: "alumni" as BoardType, label: "졸업생 게시판", emoji: "🎓", icon: Users },
 ];
+
+// 게시판별 포인트 컬러: 피드에서 스크롤만으로 어느 게시판 글인지 구분되도록
+// 카드 좌측 컬러바 + 배지에 사용한다. 기존 --primary(블루) 톤과 부딪히지 않는
+// 범위에서 게시판별로만 다르게 선택.
+export const BOARD_ACCENTS: Record<BoardType, string> = {
+  free: "#7dd3fc",     // 하늘색 — 자유게시판
+  event: "#f472b6",    // 핑크 — 행사공지
+  qna: "#c084fc",      // 보라 — 작품 전시
+  contest: "#4ade80",  // 그린 — 꿀팁
+  lecture: "#fbbf24",  // 앰버 — 강의평가(별점과 톤 통일)
+  meeting: "#fb923c",  // 오렌지 — 공강모임
+  alumni: "#94a3b8",   // 슬레이트 — 졸업생
+};
 const RECENT_SEARCH_KEY = "bigding_recent_search_v1";
 const MAX_RECENT_SEARCHES = 10;
 
@@ -1633,7 +1646,7 @@ useEffect(() => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const [followingIds, setFollowingIds] = useState<string[]>(currentUser?.following ?? []);
-  // 알림 패널에서 맞팔로우 요청이 진행 중인 대상 id (중복 클릭 방지용)
+  // 알림 패널에서 맞팔로우/팔로우 취소 요청이 진행 중인 대상 id (중복 클릭 방지용)
   const [followBackPendingId, setFollowBackPendingId] = useState<string | null>(null);
 const [showChatMenu, setShowChatMenu] = useState(false);
 const [selectMode, setSelectMode] = useState(false);
@@ -4318,10 +4331,8 @@ const handleDeleteSelectedChats = () => {
   className="rounded-2xl p-4 shadow-sm relative flex flex-col shrink-0 cursor-pointer"
   style={
   post.board === "event" || post.board === "qna"
-    ? { background: "var(--card)" }
-    : post.poll || post.board === "lecture" || post.board === "meeting"
-      ? { background: "var(--card)", minHeight: "184px" }
-      : { background: "var(--card)", height: "184px", overflow: "hidden" }
+    ? { background: "var(--card)", borderLeft: `3px solid ${BOARD_ACCENTS[post.board]}` }
+    : { background: "var(--card)", minHeight: "184px", borderLeft: `3px solid ${BOARD_ACCENTS[post.board]}` }
 }
 >
             {/* Author */}
@@ -4369,6 +4380,15 @@ const handleDeleteSelectedChats = () => {
       <span className="px-2 py-1 rounded-xl text-xs font-bold"
         style={{ background: "var(--accent)", color: "var(--foreground)" }}>
         {post.price}원
+      </span>
+    )}
+    {post.board === "lecture" && post.rating && (
+      <span
+        className="flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-bold shrink-0"
+        style={{ background: "#fbbf2422", color: "#fbbf24" }}
+      >
+        <Star size={12} fill="#fbbf24" color="#fbbf24" />
+        {post.rating.toFixed(1)}
       </span>
     )}
   </div>
@@ -4556,14 +4576,36 @@ const handleDeleteSelectedChats = () => {
         <h3 className="font-semibold mb-1 truncate" style={{ color: "var(--foreground)" }}>{post.title}</h3>
 
         {post.board === "meeting" && post.tags && post.tags.length >= 2 && (
-          <p className="text-xs mb-1.5" style={{ color: "var(--muted-foreground)" }}>
-            ⏰ {post.tags[0]} · 📍 {post.tags[1]}
-          </p>
+          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+            <span
+              className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
+              style={{ background: "#fb923c22", color: "#fb923c" }}
+            >
+              ⏰ {post.tags[0]}
+            </span>
+            <span
+              className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
+              style={{ background: "#fb923c22", color: "#fb923c" }}
+            >
+              📍 {post.tags[1]}
+            </span>
+          </div>
         )}
         {post.board === "lecture" && post.tags && post.tags.length >= 2 && (
-          <p className="text-xs mb-1.5" style={{ color: "var(--muted-foreground)" }}>
-            {post.tags[0]} · {post.tags[1]} 교수님
-          </p>
+          <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+            <span
+              className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
+              style={{ background: "#fbbf2422", color: "#fbbf24" }}
+            >
+              {post.tags[0]}
+            </span>
+            <span
+              className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
+              style={{ background: "#fbbf2422", color: "#fbbf24" }}
+            >
+              {post.tags[1]} 교수님
+            </span>
+          </div>
         )}
         {post.rating && (
           <div className="flex items-center gap-1 mb-1.5">
@@ -4632,26 +4674,29 @@ const handleDeleteSelectedChats = () => {
 
     {/* Actions: 카드 높이가 짧아도 항상 카드 맨 아래에 붙도록 mt-auto로 고정 */}
     <div className="flex items-center gap-3 mt-auto pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
-      <button className="flex items-center gap-1.5" onClick={() => handleLike(post)}>
+      {/* 카드 전체가 상세화면 이동 핸들러를 갖고 있으므로, 액션 버튼은 전파를 막아야 한다 */}
+      <button className="flex items-center gap-1.5" onClick={(e) => { e.stopPropagation(); handleLike(post); }}>
         <Heart size={16} fill={isLiked(post) ? "#3b82f6" : "none"}
           color={isLiked(post) ? "#3b82f6" : "var(--muted-foreground)"} />
         <span className="text-xs" style={{ color: isLiked(post) ? "var(--primary)" : "var(--muted-foreground)" }}>
           {post.likes.length}
         </span>
       </button>
-      <button className="flex items-center gap-1.5" onClick={() => handleDislike(post)}>
-        <ThumbsDown size={16} fill={isDisliked(post) ? "#d4183d" : "none"}
-          color={isDisliked(post) ? "#d4183d" : "var(--muted-foreground)"} />
-        <span className="text-xs" style={{ color: isDisliked(post) ? "#d4183d" : "var(--muted-foreground)" }}>
-          {post.dislikes.length}
-        </span>
-      </button>
-      <button className="flex items-center gap-1.5" onClick={() => setSelectedPostId(post._id)}>
+      {post.board === "lecture" && (
+        <button className="flex items-center gap-1.5" onClick={(e) => { e.stopPropagation(); handleDislike(post); }}>
+          <ThumbsDown size={16} fill={isDisliked(post) ? "#d4183d" : "none"}
+            color={isDisliked(post) ? "#d4183d" : "var(--muted-foreground)"} />
+          <span className="text-xs" style={{ color: isDisliked(post) ? "#d4183d" : "var(--muted-foreground)" }}>
+            {post.dislikes.length}
+          </span>
+        </button>
+      )}
+      <button className="flex items-center gap-1.5" onClick={(e) => { e.stopPropagation(); setSelectedPostId(post._id); }}>
         <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
         <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(post)}</span>
       </button>
       <button className="flex items-center gap-1.5"
-        onClick={() => toggleSave(post._id)}>
+        onClick={(e) => { e.stopPropagation(); toggleSave(post._id); }}>
         <Bookmark size={16} fill={savedPosts[post._id] ? "var(--primary)" : "none"}
           color={savedPosts[post._id] ? "var(--primary)" : "var(--muted-foreground)"} />
       </button>
