@@ -25,6 +25,7 @@ app.use("/api/chat", require("./routes/chat"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/friends", require("./routes/friends"));
 app.use("/api/reports", require("./routes/reports"));
+app.use("/api/inquiries", require("./routes/inquiries"));
 app.use("/api/admin", require("./routes/admin"));
 app.use("/api/notifications", require("./routes/notifications"));
 app.use("/api/group-chats", require("./routes/groupChat"));
