@@ -55,10 +55,11 @@ router.get("/", auth, async (req, res) => {
 // POST /api/posts
 router.post("/", auth, upload.array("images", 5), profanityFilter, async (req, res) => {
   try {
-    // 행사공지 게시판은 관리자만 작성할 수 있다 (클라이언트 체크는 우회 가능하므로 서버에서도 확인).
+    // 행사공지 게시판은 관리자 또는 행사공지 작성 권한을 부여받은 계정만 작성할 수 있다
+    // (클라이언트 체크는 우회 가능하므로 서버에서도 확인).
     if (req.body.board === "event") {
-      const me = await User.findById(req.user.id).select("isAdmin");
-      if (!me?.isAdmin) {
+      const me = await User.findById(req.user.id).select("isAdmin canPostEvents");
+      if (!me?.isAdmin && !me?.canPostEvents) {
         return res.status(403).json({ message: "행사공지 게시판은 관리자만 작성할 수 있습니다." });
       }
     }
@@ -294,7 +295,7 @@ router.post("/:id/comments", auth, profanityFilter, async (req, res) => {
 
     // 본인 글에 스스로 댓글을 단 경우는 알림을 보내지 않는다.
     if (post.author.toString() !== req.user.id) {
-      await Notification.create({ recipient: post.author, sender: req.user.id, type: "comment", post: post._id });
+      await Notification.create({ recipient: post.author, sender: req.user.id, type: "comment", post: post._id, commentContent: req.body.content });
     }
 
     res.json(post.comments);

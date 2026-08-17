@@ -87,6 +87,37 @@ router.post("/users/:userId/restrict-comments", async (req, res) => {
   }
 });
 
+// GET /api/admin/event-admins - 행사공지 작성 권한을 부여받은 계정 목록
+router.get("/event-admins", async (req, res) => {
+  try {
+    const users = await User.find({ canPostEvents: true }).select("nickname avatar studentId");
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// PATCH /api/admin/users/:userId/event-admin - 행사공지 작성 권한 부여/해제
+// body: { canPostEvents: boolean }
+// 이 권한은 행사공지 게시판 글쓰기만 가능하게 하며, 신고 처리/유저 제재/관리자 관리 등
+// 다른 관리자 권한은 전혀 부여하지 않는다 (isAdmin과는 별개의 필드).
+router.patch("/users/:userId/event-admin", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { canPostEvents } = req.body;
+    if (typeof canPostEvents !== "boolean") {
+      return res.status(400).json({ message: "잘못된 요청입니다." });
+    }
+
+    const target = await User.findByIdAndUpdate(userId, { canPostEvents }, { new: true }).select("nickname avatar studentId canPostEvents");
+    if (!target) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+
+    res.json(target);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 // GET /api/admin/sanctions?type=warning|ban|commentRestriction - 제재 관리 화면 목록 조회
 router.get("/sanctions", async (req, res) => {
   try {

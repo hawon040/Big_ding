@@ -45,8 +45,12 @@ const userSchema = new mongoose.Schema({
   // 탈퇴 여부 (탈퇴해도 게시글/댓글은 남기기 위해 문서를 삭제하지 않고 익명화한다)
   isWithdrawn: { type: Boolean, default: false },
 
-  // 관리자 여부 (행사공지 작성, 신고 처리, 게시물/댓글 강제 삭제 등 운영 권한)
+  // 관리자 여부 (행사공지 작성, 신고 처리, 게시물/댓글 강제 삭제, 유저 제재 등 전체 운영 권한)
   isAdmin: { type: Boolean, default: false },
+
+  // 행사공지 게시판 작성 전용 권한. isAdmin과 별개로, "관리자 관리" 화면에서 부여하는
+  // 제한된 권한이다 — 신고 처리/유저 제재/관리자 관리 등 다른 관리자 권한은 없다.
+  canPostEvents: { type: Boolean, default: false },
 
   // 탈퇴 처리된 시각
   withdrawnAt: { type: Date },

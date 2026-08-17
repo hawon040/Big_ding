@@ -178,7 +178,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
     if (activeSection === "adminReports") {
       api.get("/reports").then((res) => setAdminReports(res.data)).catch(() => {});
     } else if (activeSection === "adminUsers") {
-      api.get("/users/admins").then((res) => setAdminList(res.data)).catch(() => {});
+      api.get("/admin/event-admins").then((res) => setAdminList(res.data)).catch(() => {});
       setAdminSearchQuery("");
       setAdminSearchResults([]);
     }
@@ -238,16 +238,18 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
     }
   };
 
-  const setUserAdmin = async (user: AdminUserItem, nextIsAdmin: boolean) => {
+  // 행사공지 작성 권한만 부여/해제한다 (isAdmin과 별개 — 신고 처리·유저 제재·관리자 관리
+  // 등 다른 권한은 전혀 주지 않는다).
+  const setUserAdmin = async (user: AdminUserItem, nextCanPostEvents: boolean) => {
     try {
-      await api.patch(`/users/${user._id}/admin`, { isAdmin: nextIsAdmin });
-      if (nextIsAdmin) {
+      await api.patch(`/admin/users/${user._id}/event-admin`, { canPostEvents: nextCanPostEvents });
+      if (nextCanPostEvents) {
         setAdminList((prev) => (prev.some((u) => u._id === user._id) ? prev : [...prev, user]));
       } else {
         setAdminList((prev) => prev.filter((u) => u._id !== user._id));
       }
     } catch {
-      showAlert("관리자 권한 변경에 실패했습니다.");
+      showAlert("행사공지 작성 권한 변경에 실패했습니다.");
     }
   };
 
@@ -859,12 +861,15 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           <button onClick={() => setActiveSection(null)}>
             <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
           </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>관리자 관리</h2>
+          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>행사공지 관리자</h2>
         </div>
         <div className="px-4 py-4 flex flex-col gap-4 overflow-y-auto no-scrollbar">
+          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+            여기서 부여하는 권한은 행사공지 게시판 글쓰기만 가능합니다. 신고 처리·유저 제재·관리자 관리 등 다른 권한은 없습니다.
+          </p>
           <div>
             <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
-              학번/닉네임으로 검색해서 관리자로 추가
+              학번/닉네임으로 검색해서 행사공지 작성 권한 부여
             </label>
             <input
               value={adminSearchQuery}
@@ -891,7 +896,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                           className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0"
                           style={{ background: already ? "var(--muted)" : "var(--primary)", color: already ? "var(--muted-foreground)" : "white" }}
                         >
-                          {already ? "관리자 해제" : "관리자로 추가"}
+                          {already ? "권한 해제" : "권한 부여"}
                         </button>
                       </div>
                     );
@@ -903,11 +908,11 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
           <div>
             <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
-              현재 관리자
+              현재 행사공지 관리자
             </label>
             <div className="flex flex-col gap-2">
               {adminList.length === 0 ? (
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>관리자가 없습니다.</p>
+                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>행사공지 관리자가 없습니다.</p>
               ) : (
                 adminList.map((u) => (
                   <div key={u._id} className="flex items-center gap-3 p-2.5 rounded-xl" style={{ background: "var(--card)" }}>
@@ -920,7 +925,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                       className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0"
                       style={{ background: "var(--muted)", color: "#d4183d" }}
                     >
-                      관리자 해제
+                      권한 해제
                     </button>
                   </div>
                 ))
@@ -1256,7 +1261,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             />
             <SettingRow
               icon={<Shield size={18} style={{ color: "var(--primary)" }} />}
-              label="관리자 관리"
+              label="행사공지 관리자"
               onPress={() => setActiveSection("adminUsers")}
             />
             <SettingRow

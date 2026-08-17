@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 
 export type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting" | "alumni";
-// "행사공지" 게시판은 관리자(User.isAdmin)만 글을 작성할 수 있다. 서버(POST /api/posts)에서도 검증한다.
+// "행사공지" 게시판은 관리자(User.isAdmin) 또는 행사공지 작성 권한(User.canPostEvents)을
+// 부여받은 계정만 글을 작성할 수 있다. 서버(POST /api/posts)에서도 검증한다.
 
 // 글쓰기 모달에서 한 게시물에 첨부할 수 있는 사진 최대 개수.
 const MAX_POST_IMAGES = 5;
@@ -41,6 +42,7 @@ export interface CurrentUser {
   followers?: string[];
   following?: string[];
   isAdmin?: boolean;
+  canPostEvents?: boolean;
 }
 
 // 로그인 시 서버에서 받아 localStorage에 저장해 둔 사용자 정보를 그대로 "현재 로그인한 나"로 사용한다.
@@ -60,6 +62,7 @@ export const getCurrentUser = (): CurrentUser | null => {
   followers: user.followers,
   following: user.following,
   isAdmin: user.isAdmin,
+  canPostEvents: user.canPostEvents,
 };
   } catch {
     return null;
@@ -216,6 +219,7 @@ export interface NotificationItem {
   type: "follow" | "join" | "leave" | "comment" | "like" | "dislike" | "scrap"
       | "adminWarning" | "adminBan" | "adminCommentRestriction";
   post?: { _id: string; title: string; board: string } | null;
+  commentContent?: string;
   message?: string;
   until?: string;
   read: boolean;
@@ -879,6 +883,9 @@ export function CommunityScreen({
   const [storedInit] = useState(loadStoredInteractions);
   const [currentUser] = useState(getCurrentUser);
   const isAdmin = !!currentUser?.isAdmin;
+  // 행사공지 작성 권한: 전체 권한을 가진 관리자(isAdmin)이거나, "관리자 관리" 화면에서
+  // 행사공지 작성 권한만 별도로 부여받은 계정(canPostEvents). 후자는 다른 관리자 기능은 없다.
+  const canPostEvents = isAdmin || !!currentUser?.canPostEvents;
 
   // 채팅 실시간 수신용 소켓 연결 (로그인 토큰이 있는 동안만 연결된다)
   const [authToken] = useState(() => localStorage.getItem("token"));
@@ -1204,7 +1211,7 @@ useEffect(() => {
   // 하단 네비게이션의 펜 버튼(BottomNav)을 눌렀을 때도 헤더 + 버튼과 동일하게 글쓰기 모달을 연다.
   useEffect(() => {
     if (openWriteSignal === undefined || openWriteSignal === 0) return;
-    setNewBoard(activeBoard === "event" && !isAdmin ? "free" : activeBoard);
+    setNewBoard(activeBoard === "event" && !canPostEvents ? "free" : activeBoard);
     setShowWrite(true);
   }, [openWriteSignal]);
 
@@ -5035,7 +5042,7 @@ const handleDeleteSelectedChats = () => {
               className="px-4 py-1.5 rounded-xl text-sm font-semibold"
               style={{ background: "var(--primary)", color: "white", opacity: isSubmittingPost ? 0.6 : 1 }}
              onClick={async () => {
-                if (newBoard === "event" && !isAdmin) {
+                if (newBoard === "event" && !canPostEvents) {
                   showAlert("행사공지 게시판은 관리자만 작성할 수 있습니다.");
                   return;
                 }
@@ -5157,7 +5164,7 @@ const handleDeleteSelectedChats = () => {
                 게시판 선택
               </label>
                <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
-                {BOARDS.filter(({ id }) => id !== "event" || isAdmin).map(({ id, label, emoji }) => (
+                {BOARDS.filter(({ id }) => id !== "event" || canPostEvents).map(({ id, label, emoji }) => (
                   <button
                     key={id}
                     onClick={() => setNewBoard(id)}
@@ -6032,17 +6039,24 @@ const handleDeleteSelectedChats = () => {
           const isFollowingBack = followingIds.some((id) => String(id) === senderId);
           const isFollowBackPending = followBackPendingId === senderId;
           const isAdminNotif = n.type === "adminWarning" || n.type === "adminBan" || n.type === "adminCommentRestriction";
+          const commentPreview = n.commentContent
+            ? (n.commentContent.length > 20 ? `${n.commentContent.slice(0, 20)}…` : n.commentContent)
+            : null;
+          // 버튼(행동)마다 알림 문구 형식을 고정해서, 실제 보낸 사람의 행위와 다른 문구가
+          // 뜨는 일이 없게 한다. "follow"도 다른 타입처럼 명시적으로 매칭하고, 정말 알 수
+          // 없는 타입일 때만 중립적인 문구를 보여준다(마지막 else를 follow로 두지 않음).
           const notifMessage =
-            n.type === "join" ? "님이 회원님의 모임에 참여했습니다."
+            n.type === "follow" ? "님이 회원님을 팔로우하기 시작했습니다."
+            : n.type === "join" ? "님이 회원님의 모임에 참여했습니다."
             : n.type === "leave" ? "님이 회원님의 모임 참여를 취소했습니다."
-            : n.type === "comment" ? "님이 회원님의 게시물에 댓글을 남겼습니다."
-            : n.type === "like" ? "님이 회원님의 게시물을 좋아합니다."
-            : n.type === "dislike" ? "님이 회원님의 게시물을 싫어합니다."
-            : n.type === "scrap" ? "님이 회원님의 게시물을 스크랩했습니다."
-            : n.type === "adminWarning" ? `로부터 경고를 받았습니다. 사유: ${n.message ?? "-"}`
-            : n.type === "adminBan" ? `로 인해 계정이 ${n.until ? `${new Date(n.until).toLocaleDateString("ko-KR")}까지` : "영구"} 정지되었습니다. 사유: ${n.message ?? "-"}`
-            : n.type === "adminCommentRestriction" ? `로 인해 ${n.until ? new Date(n.until).toLocaleDateString("ko-KR") : ""}까지 댓글 작성이 제한되었습니다. 사유: ${n.message ?? "-"}`
-            : "님이 회원님을 팔로우하기 시작했습니다.";
+            : n.type === "comment" ? (commentPreview ? `님이 "${commentPreview}"라는 댓글을 작성했습니다.` : "님이 회원님의 게시물에 댓글을 남겼습니다.")
+            : n.type === "like" ? "님이 좋아요 버튼을 눌렀습니다."
+            : n.type === "dislike" ? "님이 싫어요 버튼을 눌렀습니다."
+            : n.type === "scrap" ? "님이 게시물을 스크랩했습니다."
+            : n.type === "adminWarning" ? `에게 경고를 받았습니다.${n.post ? ` (게시물: "${n.post.title}")` : ""} 사유: ${n.message ?? "-"}`
+            : n.type === "adminBan" ? `에게 계정이 ${n.until ? `${new Date(n.until).toLocaleDateString("ko-KR")}까지` : "영구"} 정지되었습니다.${n.post ? ` (게시물: "${n.post.title}")` : ""} 사유: ${n.message ?? "-"}`
+            : n.type === "adminCommentRestriction" ? `에게 ${n.until ? new Date(n.until).toLocaleDateString("ko-KR") : ""}까지 댓글 작성이 제한되었습니다.${n.post ? ` (게시물: "${n.post.title}")` : ""} 사유: ${n.message ?? "-"}`
+            : "님과 관련된 새 알림이 있습니다.";
 
           return (
             <div
