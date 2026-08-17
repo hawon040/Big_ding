@@ -881,7 +881,7 @@ export function CommunityScreen({
   // 좋아요/싫어요/댓글/스크랩/새 글 등은 로컬 저장소에서 초기값을 불러와
   // 새로고침해도 그대로 유지되도록 한다.
   const [storedInit] = useState(loadStoredInteractions);
-  const [currentUser] = useState(getCurrentUser);
+  const [currentUser, setCurrentUser] = useState(getCurrentUser);
   const isAdmin = !!currentUser?.isAdmin;
   // 행사공지 작성 권한: 전체 권한을 가진 관리자(isAdmin)이거나, "관리자 관리" 화면에서
   // 행사공지 작성 권한만 별도로 부여받은 계정(canPostEvents). 후자는 다른 관리자 기능은 없다.
@@ -1851,6 +1851,32 @@ useEffect(() => {
     };
     fetchFriendsData();
     const interval = setInterval(fetchFriendsData, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isActive]);
+
+  // 관리자가 다른 세션에서 내 계정의 관리자 권한(isAdmin) / 행사공지 작성 권한(canPostEvents)을
+  // 바꿨을 수 있다. currentUser는 로그인 시점에 localStorage에 캐시해둔 값을 최초 1회만 읽어오므로,
+  // 그 이후 권한이 바뀌어도 로그아웃 후 재로그인 전까지는 반영되지 않는 문제가 있었다. 그래서
+  // 주기적으로 서버의 최신 값을 확인해 캐시와 화면 상태를 함께 갱신한다.
+  useEffect(() => {
+    if (!isActive) return;
+    let cancelled = false;
+    const syncPermissions = () => {
+      api.get("/auth/me").then((res) => {
+        if (cancelled || !res.data) return;
+        const fresh = res.data;
+        setCurrentUser((prev) => {
+          if (!prev || (prev.isAdmin === fresh.isAdmin && prev.canPostEvents === fresh.canPostEvents)) return prev;
+          updateStoredUser({ isAdmin: fresh.isAdmin, canPostEvents: fresh.canPostEvents });
+          return { ...prev, isAdmin: fresh.isAdmin, canPostEvents: fresh.canPostEvents };
+        });
+      }).catch(() => {});
+    };
+    syncPermissions();
+    const interval = setInterval(syncPermissions, 10000);
     return () => {
       cancelled = true;
       clearInterval(interval);
