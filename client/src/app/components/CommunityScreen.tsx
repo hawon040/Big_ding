@@ -1625,6 +1625,10 @@ useEffect(() => {
   const [showCreateGroupChat, setShowCreateGroupChat] = useState(false);
   const [newGroupChatMemberIds, setNewGroupChatMemberIds] = useState<string[]>([]);
   const [newGroupChatName, setNewGroupChatName] = useState("");
+  // 단체 채팅방에 친구 초대 (채팅 설정 > 친구 초대)
+  const [showInviteToGroupChat, setShowInviteToGroupChat] = useState(false);
+  const [inviteGroupChatMemberIds, setInviteGroupChatMemberIds] = useState<string[]>([]);
+  const [isInvitingToGroupChat, setIsInvitingToGroupChat] = useState(false);
 
   const fetchGroupChatList = () => {
     api.get("/group-chats")
@@ -1720,6 +1724,28 @@ useEffect(() => {
     }
   };
 
+  // 채팅 설정 > 친구 초대: 이미 대화 중인(맞팔로우) 친구 중 아직 채팅방에 없는 사람만 골라
+  // 기존 단체 채팅방에 추가한다.
+  const handleInviteToGroupChat = async () => {
+    if (!activeGroupChat || inviteGroupChatMemberIds.length === 0) return;
+    const groupChatId = activeGroupChat._id;
+    setIsInvitingToGroupChat(true);
+    try {
+      const res = await api.post(`/group-chats/${groupChatId}/invite`, {
+        memberIds: inviteGroupChatMemberIds,
+      });
+      setActiveGroupChat(res.data);
+      setGroupChatList((prev) => prev.map((c) => (c._id === groupChatId ? res.data : c)));
+      setShowInviteToGroupChat(false);
+      setInviteGroupChatMemberIds([]);
+      setShowChatSettings(false);
+    } catch (err: any) {
+      showAlert(err.response?.data?.message || "친구 초대에 실패했습니다.");
+    } finally {
+      setIsInvitingToGroupChat(false);
+    }
+  };
+
   const handleSendGroupMessage = async () => {
     if (!activeGroupChat || !groupChatInput.trim()) return;
     const content = filterProfanity(groupChatInput.trim());
@@ -1785,6 +1811,50 @@ useEffect(() => {
       socket.off("group_message_liked", handleGroupMessageLiked);
     };
   }, [socket]);
+
+  // 단체 채팅방 스크롤 위치 추적 + "새 메시지" 알림 배너 (1:1 채팅과 동일한 방식).
+  const groupChatScrollRef = useRef<HTMLDivElement>(null);
+  const groupChatBottomRef = useRef<HTMLDivElement>(null);
+  const groupChatIsAtBottomRef = useRef(true);
+  const prevGroupMsgCountRef = useRef(0);
+  const prevActiveGroupChatIdRef = useRef<string | null>(null);
+  const [newGroupMsgToast, setNewGroupMsgToast] = useState<{ nickname: string; avatar?: string } | null>(null);
+
+  useEffect(() => {
+    if (!activeGroupChat) return;
+    const msgs = groupMessages[activeGroupChat._id] ?? [];
+    const chatChanged = activeGroupChat._id !== prevActiveGroupChatIdRef.current;
+    prevActiveGroupChatIdRef.current = activeGroupChat._id;
+    if (msgs.length === 0) return;
+
+    if (chatChanged) {
+      requestAnimationFrame(() => {
+        if (groupChatScrollRef.current) groupChatScrollRef.current.scrollTop = groupChatScrollRef.current.scrollHeight;
+      });
+      groupChatIsAtBottomRef.current = true;
+      setNewGroupMsgToast(null);
+      prevGroupMsgCountRef.current = msgs.length;
+      return;
+    }
+
+    if (msgs.length > prevGroupMsgCountRef.current) {
+      if (groupChatIsAtBottomRef.current) {
+        requestAnimationFrame(() => {
+          groupChatScrollRef.current?.scrollTo({ top: groupChatScrollRef.current.scrollHeight, behavior: "smooth" });
+        });
+      } else {
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg.type !== "system") {
+          setNewGroupMsgToast({
+            nickname: lastMsg.sender?._id === currentUser?._id ? (currentUser?.nickname || "나") : (lastMsg.sender?.nickname || "새 메시지"),
+            avatar: lastMsg.sender?._id === currentUser?._id ? currentUser?.avatar : lastMsg.sender?.avatar,
+          });
+        }
+      }
+    }
+    prevGroupMsgCountRef.current = msgs.length;
+  }, [activeGroupChat?._id, groupMessages[activeGroupChat?._id ?? ""]?.length]);
+
   const [friends, setFriends] = useState<Friend[]>([]);
   const [isFriendSelectMode, setIsFriendSelectMode] = useState(false);
   const [selectedFriendIds, setSelectedFriendIds] = useState<string[]>([]);
@@ -1815,9 +1885,13 @@ useEffect(() => {
 const [showChatMenu, setShowChatMenu] = useState(false);
 const [chatToast, setChatToast] = useState<{ nickname: string; content: string } | null>(null);
 const chatToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-const [newMsgToast, setNewMsgToast] = useState(false);
+// 대화창을 위로 스크롤해서 보고 있는 중에 새 메시지(내가 보냈든 상대가 보냈든)가 오면,
+// 화면을 강제로 끌어내리지 않고 입력창 바로 위에 "새 메시지" 알림만 띄운다.
+const [newMsgToast, setNewMsgToast] = useState<{ nickname: string; avatar?: string } | null>(null);
 const chatBottomRef = useRef<HTMLDivElement>(null);
 const chatScrollRef = useRef<HTMLDivElement>(null);
+const chatIsAtBottomRef = useRef(true);
+const prevChatFriendIdRef = useRef<string | null>(null);
 const [selectMode, setSelectMode] = useState(false);
 const [selectedMsgs, setSelectedMsgs] = useState<string[]>([]);
 const hiddenMessageIdsRef = useRef<Set<string>>(new Set());
@@ -2024,12 +2098,40 @@ useEffect(() => {
     };
   }, [activeFriend]);
    const prevMsgCountRef = useRef(0);
+   // 대화 내역이 바뀔 때 스크롤을 어떻게 할지 결정한다:
+   // - 다른 친구와의 대화창을 새로 열었을 때: 항상 맨 아래로 즉시 이동(알림 없음).
+   // - 같은 대화창에서 메시지가 늘었을 때(내가 보냈든 상대가 보냈든): 이미 맨 아래를 보고
+   //   있었다면 그대로 따라 내려가고, 위로 스크롤해서 보던 중이었다면 화면은 그대로 두고
+   //   입력창 바로 위에 "새 메시지" 알림만 띄운다.
    useEffect(() => {
     if (!activeFriend) return;
     const msgs = chatMessages[activeFriend._id] ?? [];
+    const friendChanged = activeFriend._id !== prevChatFriendIdRef.current;
+    prevChatFriendIdRef.current = activeFriend._id;
     if (msgs.length === 0) return;
-    if (chatScrollRef.current) {
-      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+
+    if (friendChanged) {
+      requestAnimationFrame(() => {
+        if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+      });
+      chatIsAtBottomRef.current = true;
+      setNewMsgToast(null);
+      prevMsgCountRef.current = msgs.length;
+      return;
+    }
+
+    if (msgs.length > prevMsgCountRef.current) {
+      if (chatIsAtBottomRef.current) {
+        requestAnimationFrame(() => {
+          chatScrollRef.current?.scrollTo({ top: chatScrollRef.current.scrollHeight, behavior: "smooth" });
+        });
+      } else {
+        const lastMsg = msgs[msgs.length - 1];
+        setNewMsgToast({
+          nickname: lastMsg.mine ? (currentUser?.nickname || "나") : activeFriend.nickname,
+          avatar: lastMsg.mine ? currentUser?.avatar : activeFriend.avatar,
+        });
+      }
     }
     prevMsgCountRef.current = msgs.length;
   }, [activeFriend?._id, chatMessages[activeFriend?._id ?? ""]?.length]);
@@ -2048,10 +2150,11 @@ useEffect(() => {
     }
       const isViewing = activeFriend?._id ===friendId;
       const requestedAt = Date.now();
+      // "새 메시지" 알림 표시 여부는 메시지 개수가 늘어날 때 스크롤 위치를 보고 판단하는
+      // 별도의 useEffect가 처리하므로, 여기서는 대화 내역만 다시 불러온다.
       api.get(`/chat/${friendId}${isViewing ? "" : "?preview=true"}`)
         .then((res) => {
           applyChatMessages(friendId, requestedAt, res.data);
-          if (isViewing) setNewMsgToast(true);
         })
         .catch(() => {});
       // 삭제(숨김)했던 채팅이었다면, 상대가 새 메시지를 보냈으니 목록에 다시 나타나게 한다.
@@ -2789,7 +2892,16 @@ const handleDeleteSelectedChats = () => {
 
 
         {/* 메시지 목록 */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+        <div
+          ref={groupChatScrollRef}
+          className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+            groupChatIsAtBottomRef.current = isAtBottom;
+            if (isAtBottom) setNewGroupMsgToast(null);
+          }}
+        >
           {messages.map((msg) => {
             if (msg.type === "system") {
               return (
@@ -2890,7 +3002,25 @@ const handleDeleteSelectedChats = () => {
               </div>
             );
           })}
+          <div ref={groupChatBottomRef} />
         </div>
+
+        {newGroupMsgToast && (
+          <button
+            onClick={() => {
+              groupChatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+              setNewGroupMsgToast(null);
+            }}
+            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 pl-1.5 pr-3 py-1.5 rounded-full shadow-lg text-xs font-semibold"
+            style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+          >
+            <span className="w-6 h-6 rounded-full overflow-hidden shrink-0">
+              <img src={resolveAssetUrl(newGroupMsgToast.avatar) || defaultAvatar} alt="" className="w-full h-full object-cover" />
+            </span>
+            <span className="truncate max-w-[120px]">{newGroupMsgToast.nickname}</span>
+            <ChevronDown size={14} />
+          </button>
+        )}
 
        {/* 입력창 */}
         {activeGroupChatDeleted ? (
@@ -3039,6 +3169,14 @@ const handleDeleteSelectedChats = () => {
                     </span>
                   </button>
                   <button
+                    onClick={() => { setShowChatSettings(false); setInviteGroupChatMemberIds([]); setShowInviteToGroupChat(true); }}
+                    className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm text-left"
+                    style={{ color: "var(--foreground)" }}
+                  >
+                    <span className="flex items-center gap-2"><UserPlus size={14} /> 친구 초대</span>
+                    <ChevronRight size={14} style={{ color: "var(--muted-foreground)" }} />
+                  </button>
+                  <button
                     onClick={() => { setShowChatSettings(false); openPhotoGallery(); }}
                     className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm text-left"
                     style={{ color: "var(--foreground)" }}
@@ -3083,6 +3221,64 @@ const handleDeleteSelectedChats = () => {
                   </button>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+        {/* 친구 초대 패널 */}
+        {showInviteToGroupChat && (
+          <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+              <button onClick={() => { setShowInviteToGroupChat(false); setInviteGroupChatMemberIds([]); }}>
+                <X size={20} style={{ color: "var(--foreground)" }} />
+              </button>
+              <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>친구 초대</h2>
+              <button
+                onClick={handleInviteToGroupChat}
+                disabled={inviteGroupChatMemberIds.length === 0 || isInvitingToGroupChat}
+                className="text-sm font-semibold px-2"
+                style={{ color: inviteGroupChatMemberIds.length === 0 || isInvitingToGroupChat ? "var(--muted-foreground)" : "var(--primary)" }}
+              >
+                {isInvitingToGroupChat ? "초대 중..." : "초대"}
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar">
+              {(() => {
+                const currentMemberIds = new Set(activeGroupChat.members.map((m) => m._id));
+                const inviteCandidates = friends.filter((f) => !currentMemberIds.has(f._id));
+                if (inviteCandidates.length === 0) {
+                  return (
+                    <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+                      초대할 수 있는 친구가 없습니다.
+                    </p>
+                  );
+                }
+                return inviteCandidates.map((friend) => {
+                  const checked = inviteGroupChatMemberIds.includes(friend._id);
+                  return (
+                    <button
+                      key={friend._id}
+                      onClick={() =>
+                        setInviteGroupChatMemberIds((prev) =>
+                          prev.includes(friend._id) ? prev.filter((id) => id !== friend._id) : [...prev, friend._id]
+                        )
+                      }
+                      className="flex items-center gap-3 p-2.5 rounded-xl text-left"
+                      style={{ background: "var(--card)", outline: checked ? "2px solid var(--primary)" : "none" }}
+                    >
+                      <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+                        <img src={resolveAssetUrl(friend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                      </div>
+                      <p className="flex-1 min-w-0 text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{friend.nickname}</p>
+                      <div
+                        className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                        style={{ background: checked ? "var(--primary)" : "var(--muted)", border: "1.5px solid var(--border)" }}
+                      >
+                        {checked && <span className="text-white text-[10px] font-bold">✓</span>}
+                      </div>
+                    </button>
+                  );
+                });
+              })()}
             </div>
           </div>
         )}
@@ -3306,7 +3502,8 @@ const handleDeleteSelectedChats = () => {
           onScroll={(e) => {
             const el = e.currentTarget;
             const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-            if (isAtBottom) setNewMsgToast(false);
+            chatIsAtBottomRef.current = isAtBottom;
+            if (isAtBottom) setNewMsgToast(null);
           }}
         >
           {(chatMessages[activeFriend._id] || []).map((msg, idx, arr) => {
@@ -3439,12 +3636,16 @@ const handleDeleteSelectedChats = () => {
           <button
             onClick={() => {
               chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
-              setNewMsgToast(false);
+              setNewMsgToast(null);
             }}
-            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full shadow-lg text-xs font-semibold"
-            style={{ background: "var(--primary)", color: "white" }}
+            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 pl-1.5 pr-3 py-1.5 rounded-full shadow-lg text-xs font-semibold"
+            style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--foreground)" }}
           >
-            새 메시지 ↓
+            <span className="w-6 h-6 rounded-full overflow-hidden shrink-0">
+              <img src={resolveAssetUrl(newMsgToast.avatar) || defaultAvatar} alt="" className="w-full h-full object-cover" />
+            </span>
+            <span className="truncate max-w-[120px]">{newMsgToast.nickname}</span>
+            <ChevronDown size={14} />
           </button>
         )}
         {/* 입력창 */}

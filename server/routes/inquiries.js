@@ -40,6 +40,24 @@ router.get("/", auth, isAdmin, async (req, res) => {
   }
 });
 
+// DELETE /api/inquiries/:id - 건의사항 취소 (작성자 본인, 아직 미처리 상태일 때만)
+router.delete("/:id", auth, async (req, res) => {
+  try {
+    const inquiry = await Inquiry.findById(req.params.id);
+    if (!inquiry) return res.status(404).json({ message: "건의사항을 찾을 수 없습니다." });
+    if (inquiry.user.toString() !== req.user.id) {
+      return res.status(403).json({ message: "본인이 접수한 건의사항만 취소할 수 있습니다." });
+    }
+    if (inquiry.status !== "pending") {
+      return res.status(400).json({ message: "이미 처리된 건의사항은 취소할 수 없습니다." });
+    }
+    await inquiry.deleteOne();
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 // PATCH /api/inquiries/:id - 건의사항 처리 상태 변경 (관리자 전용)
 router.patch("/:id", auth, isAdmin, async (req, res) => {
   try {

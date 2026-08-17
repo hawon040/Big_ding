@@ -67,50 +67,15 @@ interface SettingsScreenProps {
   setNickname: (name: string) => void;
 }
 
-const INQUIRY_STORAGE_KEY = "bigding_inquiry_history_v1";
-const INQUIRY_UPDATED_EVENT = "bigding-inquiry-added";
-
-interface InquiryHistoryItem {
-  id: number;
+// 건의사항 내역은 기기별 localStorage가 아니라 서버(GET /inquiries/mine)를 그대로 보여준다.
+// 그래야 유저가 보는 내 건의사항 내역과 관리자가 보는 건의사항 목록이 항상 같은 데이터를 가리킨다.
+interface MyInquiryItem {
+  _id: string;
   title: string;
   content: string;
-  date: string;
+  status: "pending" | "resolved";
+  createdAt: string;
 }
-
-const loadInquiryHistory = (): InquiryHistoryItem[] => {
-  try {
-    const raw = localStorage.getItem(scopedKey(INQUIRY_STORAGE_KEY));
-    return raw ? JSON.parse(raw) : [];
-  } catch (err) {
-    console.error("건의사항 내역을 불러오지 못했습니다.", err);
-    return [];
-  }
-};
-
-const addInquiryToHistory = (inquiry: InquiryHistoryItem) => {
-  try {
-    const updated = [inquiry, ...loadInquiryHistory()];
-    localStorage.setItem(scopedKey(INQUIRY_STORAGE_KEY), JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent(INQUIRY_UPDATED_EVENT, { detail: updated }));
-  } catch (err) {
-    console.error("건의사항을 저장하지 못했습니다.", err);
-  }
-};
-
-const removeInquiryFromHistory = (id: number) => {
-  try {
-    const updated = loadInquiryHistory().filter((i) => i.id !== id);
-    localStorage.setItem(scopedKey(INQUIRY_STORAGE_KEY), JSON.stringify(updated));
-    window.dispatchEvent(new CustomEvent(INQUIRY_UPDATED_EVENT, { detail: updated }));
-  } catch (err) {
-    console.error("건의사항을 삭제하지 못했습니다.", err);
-  }
-};
-
-const formatToday = () => {
-  const now = new Date();
-  return `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
-};
 
 export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, setNickname }: SettingsScreenProps) {
   const [notifications, setNotifications] = useState({
@@ -158,22 +123,23 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [sanctionTab, setSanctionTab] = useState<"warning" | "ban" | "commentRestriction">("warning");
   const [sanctions, setSanctions] = useState<SanctionItem[]>([]);
   const [reportHistory, setReportHistory] = useState<ReportHistoryItem[]>([]);
-  const [inquiryHistory, setInquiryHistory] = useState<InquiryHistoryItem[]>([]);
+  const [inquiryHistory, setInquiryHistory] = useState<MyInquiryItem[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUserItem[]>([]);
   const [historyTab, setHistoryTab] = useState<"reports" | "inquiries">("reports");
 
+  // 내가 접수한 건의사항 목록을 서버에서 그대로 불러온다(로컬 저장 없이 서버가 기준값).
+  const fetchMyInquiries = () => {
+    api.get("/inquiries/mine").then((res) => setInquiryHistory(res.data)).catch(() => {});
+  };
+
   useEffect(() => {
     setReportHistory(loadReportHistory());
-    setInquiryHistory(loadInquiryHistory());
+    fetchMyInquiries();
     setBlockedUsers(loadBlockedUsers());
 
     const handleReportsUpdated = (e: Event) => {
       const detail = (e as CustomEvent<ReportHistoryItem[]>).detail;
       setReportHistory(detail ?? loadReportHistory());
-    };
-    const handleInquiryUpdated = (e: Event) => {
-      const detail = (e as CustomEvent<InquiryHistoryItem[]>).detail;
-      setInquiryHistory(detail ?? loadInquiryHistory());
     };
     const handleBlockedUpdated = (e: Event) => {
       const detail = (e as CustomEvent<BlockedUserItem[]>).detail;
@@ -181,28 +147,25 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
     };
     const handleStorage = (e: StorageEvent) => {
       if (e.key === scopedKey(REPORTS_STORAGE_KEY)) setReportHistory(loadReportHistory());
-      if (e.key === scopedKey(INQUIRY_STORAGE_KEY)) setInquiryHistory(loadInquiryHistory());
       if (e.key === scopedKey(BLOCKED_STORAGE_KEY)) setBlockedUsers(loadBlockedUsers());
     };
 
     window.addEventListener(REPORTS_UPDATED_EVENT, handleReportsUpdated);
-    window.addEventListener(INQUIRY_UPDATED_EVENT, handleInquiryUpdated);
     window.addEventListener(BLOCKED_UPDATED_EVENT, handleBlockedUpdated);
     window.addEventListener("storage", handleStorage);
     return () => {
       window.removeEventListener(REPORTS_UPDATED_EVENT, handleReportsUpdated);
-      window.removeEventListener(INQUIRY_UPDATED_EVENT, handleInquiryUpdated);
       window.removeEventListener(BLOCKED_UPDATED_EVENT, handleBlockedUpdated);
       window.removeEventListener("storage", handleStorage);
     };
   }, []);
 
-  // 신고/건의 내역 화면에 들어갈 때마다 localStorage에서 최신 값을 다시 읽어와
-  // 이벤트를 놓쳤더라도 방금 등록한 내역이 항상 반영되도록 한다.
+  // 신고/건의 내역 화면에 들어갈 때마다 최신 값을 다시 불러와,
+  // 방금 등록하거나 다른 곳(관리자 화면 등)에서 처리된 내용이 항상 반영되도록 한다.
   useEffect(() => {
     if (activeSection === "reports") {
       setReportHistory(loadReportHistory());
-      setInquiryHistory(loadInquiryHistory());
+      fetchMyInquiries();
     }
   }, [activeSection]);
 
@@ -651,18 +614,13 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 return;
               }
               try {
-                // 관리자가 확인할 수 있도록 서버에도 함께 접수한다.
+                // 서버에 접수하고, 성공하면 서버 기준 목록을 다시 불러와 내 내역에 바로 반영한다.
                 await api.post("/inquiries", { title: inquiryTitle, content: inquiryContent });
               } catch {
                 showAlert("건의사항 접수에 실패했습니다. 잠시 후 다시 시도해주세요.");
                 return;
               }
-              addInquiryToHistory({
-                id: Date.now(),
-                title: inquiryTitle,
-                content: inquiryContent,
-                date: formatToday(),
-              });
+              fetchMyInquiries();
               showAlert("건의사항이 접수되었습니다. 빠른 시일 내에 답변드리겠습니다.", () => {
                 setInquiryTitle("");
                 setInquiryContent("");
@@ -819,7 +777,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               </p>
             ) : (
               inquiryHistory.map((item) => (
-                <div key={`inquiry-${item.id}`} className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
+                <div key={`inquiry-${item._id}`} className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
@@ -829,20 +787,36 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                         </span>
                       </div>
                       <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{item.content}</p>
-                      <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>{item.date}</p>
+                      <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
+                        {new Date(item.createdAt).toLocaleString("ko-KR")}
+                      </p>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        showConfirm("건의사항을 취소하시겠습니까?", () => {
-                          removeInquiryFromHistory(item.id);
-                        });
-                      }}
-                      className="text-xs px-2 py-1 rounded-full font-medium shrink-0"
-                      style={{ background: "#3b82f622", color: "var(--primary)" }}
-                    >
-                      처리 중
-                    </button>
+                    {item.status === "resolved" ? (
+                      <span
+                        className="text-xs px-2 py-1 rounded-full font-medium shrink-0"
+                        style={{ background: "#5cb85c22", color: "#5cb85c" }}
+                      >
+                        처리 완료
+                      </span>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          showConfirm("건의사항을 취소하시겠습니까?", async () => {
+                            try {
+                              await api.delete(`/inquiries/${item._id}`);
+                              setInquiryHistory((prev) => prev.filter((i) => i._id !== item._id));
+                            } catch (err: any) {
+                              showAlert(err?.response?.data?.message || "건의사항 취소에 실패했습니다.");
+                            }
+                          });
+                        }}
+                        className="text-xs px-2 py-1 rounded-full font-medium shrink-0"
+                        style={{ background: "#3b82f622", color: "var(--primary)" }}
+                      >
+                        처리 중
+                      </button>
+                    )}
                   </div>
                 </div>
               ))

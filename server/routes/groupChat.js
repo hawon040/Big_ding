@@ -244,6 +244,72 @@ const notifyGroupChatUpdated = (groupChat, exceptUserId) => {
     .forEach((memberId) => emitToUser(memberId, "group_chat_updated", groupChat));
 };
 
+// POST /api/group-chats/:id/invite - 채팅방에 친구 초대 (기존 멤버만 가능)
+router.post("/:id/invite", auth, async (req, res) => {
+  try {
+    const { memberIds } = req.body;
+    if (!Array.isArray(memberIds) || memberIds.length === 0) {
+      return res.status(400).json({ message: "초대할 친구를 선택해주세요." });
+    }
+
+    const groupChat = await GroupChat.findById(req.params.id);
+    if (!groupChat) return res.status(404).json({ message: "채팅방을 찾을 수 없습니다." });
+    if (!isMember(groupChat, req.user.id)) {
+      return res.status(403).json({ message: "채팅방 멤버만 친구를 초대할 수 있습니다." });
+    }
+
+    const existingIds = new Set(groupChat.members.map((id) => id.toString()));
+    const newIds = Array.from(new Set(memberIds.filter((id) => !existingIds.has(id))));
+    if (newIds.length === 0) {
+      return res.status(400).json({ message: "이미 채팅방에 있는 친구입니다." });
+    }
+
+    // 친구 기능은 폐기되고 팔로우/팔로잉으로 대체되었다. 서로 팔로우(맞팔로우)
+    // 관계인 사람만 단체채팅에 초대할 수 있게 한다(채팅방 생성 시와 동일한 규칙).
+    const me = await User.findById(req.user.id).select("following");
+    const myFollowingIds = new Set(me.following.map((id) => id.toString()));
+    const invitedUsers = await User.find({ _id: { $in: newIds } }).select(`following ${USER_FIELDS}`);
+    const invalidInvite = invitedUsers.some((u) => {
+      const theyFollowMe = u.following.some((id) => id.toString() === req.user.id);
+      const iFollowThem = myFollowingIds.has(u._id.toString());
+      return !(theyFollowMe && iFollowThem);
+    });
+    if (invalidInvite || invitedUsers.length !== newIds.length) {
+      return res.status(400).json({ message: "서로 팔로우하는 사이만 초대할 수 있습니다." });
+    }
+
+    groupChat.members.push(...newIds);
+    await groupChat.save();
+    await groupChat.populate([
+      { path: "post", select: "title board" },
+      { path: "host", select: USER_FIELDS },
+      { path: "members", select: USER_FIELDS },
+    ]);
+
+    // "OO님을 초대했습니다" 시스템 메시지를 남기고, 나를 뺀 기존 멤버들에게 실시간으로 보낸다.
+    const inviteeNames = invitedUsers.map((u) => u.nickname).join(", ");
+    const systemMessage = await GroupMessage.create({
+      groupChat: groupChat._id,
+      sender: req.user.id,
+      content: `${inviteeNames}님을 초대했습니다`,
+      type: "system",
+    });
+    await systemMessage.populate("sender", USER_FIELDS);
+    Array.from(existingIds)
+      .filter((id) => id !== req.user.id)
+      .forEach((id) => emitToUser(id, "receive_group_message", systemMessage));
+
+    // 기존 멤버에게는 채팅방 정보 갱신을, 새로 초대된 멤버에게는 새로 생긴 채팅방처럼 알려서
+    // 각자의 채팅 목록에 바로 반영되게 한다.
+    notifyGroupChatUpdated(groupChat, req.user.id);
+    newIds.forEach((id) => emitToUser(id, "group_chat_created", groupChat));
+
+    res.json(groupChat);
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 // PATCH /api/group-chats/:id/name - 채팅방 이름 변경 (멤버만)
 router.patch("/:id/name", auth, async (req, res) => {
   try {
