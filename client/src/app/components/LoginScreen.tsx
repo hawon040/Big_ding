@@ -85,13 +85,20 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
+        // 알림 팝업이 떠 있는 동안 Enter를 누르면(확인 버튼을 누르려는 자연스러운 습관) 그
+        // 팝업을 닫아야 하는데, 이 체크가 없으면 팝업이 뜬 채로 로그인/비밀번호 찾기를
+        // 다시 시도해버려서 팝업이 확인을 누르기도 전에 사라지는 것처럼 보였다.
+        if (alertMessage) {
+          setAlertMessage(null);
+          return;
+        }
         if (showFindPassword) handleFindPassword();
         else handleSubmit();
       }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [studentId, password, autoLogin, showFindPassword, findPwStudentId, findPwProfessor, findPwCode, findPwNewPassword, findPwConfirmPassword]);
+  }, [studentId, password, autoLogin, showFindPassword, findPwStudentId, findPwProfessor, findPwCode, findPwNewPassword, findPwConfirmPassword, alertMessage]);
 
   return (
     <div

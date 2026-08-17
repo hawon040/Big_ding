@@ -4798,7 +4798,7 @@ const handleDeleteSelectedChats = () => {
 </button>
   </div>
 ) : (
-  <div className={`flex items-center gap-2 mb-2 ${post.board === "lecture" && post.rating ? "pr-8" : ""}`}>
+  <div className={`flex items-center gap-2 mb-2 ${post.board === "lecture" && post.rating ? "pr-11" : ""}`}>
     <button
       onClick={(e) => {
         e.stopPropagation();
@@ -6364,13 +6364,19 @@ const handleDeleteSelectedChats = () => {
                 // 알림창 즉시 닫기
                 setShowNotifications(false);
 
-                // 이동 로직 즉시 실행
+                /// 이동 로직 즉시 실행
                 if (n.type === "follow") {
                   openAuthor(n.sender);
                 } else if (n.post) {
                     setSelectedPostId(n.post._id);
                     setViewedAuthor(null);
                     setShowChat(false);
+                } else if (n.type !== "adminWarning" && n.type !== "adminBan" && n.type !== "adminCommentRestriction") {
+                    // 게시물과 연결된 알림인데 원본 게시물이 이미 삭제되어 populate가 null을
+                    // 반환한 경우. 예전에는 여기서 아무 반응도 없어서 어떤 알림은 상세페이지로
+                    // 가고 어떤 알림은 그냥 무시되는 것처럼 보였다. 이제는 안내를 띄워준다.
+                    // (관리자 경고/차단/댓글제한 알림은 특정 게시물 없이 발급될 수도 있어 정상이므로 제외)
+                    showAlert("게시물을 찾을 수 없습니다. 삭제되었을 수 있습니다.");
                 }
               }}
               className="flex items-center gap-3 p-2.5 rounded-xl text-left w-full cursor-pointer"
