@@ -17,21 +17,12 @@ import {
 
 const VISIBILITY_STORAGE_KEY = "bigding_post_visibility_v1";
 
-type Visibility = "all" | "friends" | "private";
+type Visibility = "all" | "followers" | "private";
 
 const VISIBILITY_META: Record<Visibility, { label: string; Icon: React.ComponentType<{ size?: number; style?: React.CSSProperties }> }> = {
   all: { label: "전체 공개", Icon: Globe },
-  friends: { label: "친구만 공개", Icon: Users },
+  followers: { label: "팔로워 공개", Icon: Users },
   private: { label: "나만 보기", Icon: Lock },
-};
-
-const loadPostVisibility = (): Record<string, Visibility> => {
-  try {
-    const raw = localStorage.getItem(scopedKey(VISIBILITY_STORAGE_KEY));
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
 };
 
 // 로그인 시 서버에서 받아 저장해둔 사용자 정보(localStorage "user")에서 학번을 가져온다.
@@ -137,7 +128,8 @@ useEffect(() => {
   };
 }, []);
 
-const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>(loadPostVisibility);
+// 공개범위는 이제 서버(Post.visibility)가 기준이다. posts 배열에서 각 게시물의
+// 실제 visibility 값을 바로 읽어와 보여주고, 변경 시 서버에 저장한다.
 
   // 게시물 목록은 실제 DB(GET /api/posts)에서 불러온다. 좋아요/댓글/투표처럼 다른 사람이
   // 바꾼 내용도 새로고침 없이 보이도록, 이 화면에 머무르는 동안 몇 초마다 다시 불러온다(폴링).
@@ -225,14 +217,6 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
       window.removeEventListener("storage", handleStorage);
     };
   }, []);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(scopedKey(VISIBILITY_STORAGE_KEY), JSON.stringify(postVisibility));
-    } catch {
-      // 저장 공간이 꽉 찼거나 접근 불가한 경우 조용히 무시
-    }
-  }, [postVisibility]);
 
   const myPosts: Post[] = useMemo(
     () => (currentUser ? posts.filter((p) => p.author._id === currentUser._id) : []),
@@ -588,7 +572,7 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
               아직 작성한 글이 없어요.
             </p>
           ) : myPosts.map((post) => {
-            const visibility = postVisibility[post._id] ?? "all";
+            const visibility = ((post as any).visibility as Visibility) ?? "all";
             const VisibilityIcon = VISIBILITY_META[visibility].Icon;
             return (
               <div key={post._id} className="p-3.5 rounded-2xl shadow-sm cursor-pointer" style={{ background: "var(--card)" }} onClick={() => setSelectedPostId(post._id)}>
@@ -1090,13 +1074,17 @@ const [postVisibility, setPostVisibility] = useState<Record<string, Visibility>>
               return (
                 <button
                   key={id}
-                  onClick={() => {
+                  onClick={async () => {
                     const postId = showVisibilityModal;
                     setShowVisibilityModal(null);
-                    if (postId != null) {
-                      setPostVisibility((prev) => ({ ...prev, [postId]: id }));
+                    if (postId == null) return;
+                    try {
+                      const res = await api.patch(`/posts/${postId}`, { visibility: id });
+                      setPosts((prev) => prev.map((p) => (p._id === postId ? res.data : p)));
+                      showAlert(`공개 범위가 '${label}'로 변경되었습니다.`);
+                    } catch {
+                      showAlert("공개 범위 변경에 실패했습니다.");
                     }
-                    showAlert(`공개 범위가 '${label}'로 변경되었습니다.`);
                   }}
                   className="w-full px-4 py-3 rounded-xl flex items-center gap-3 text-left text-sm"
                   style={{ background: "var(--card)", color: "var(--foreground)" }}

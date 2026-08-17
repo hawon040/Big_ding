@@ -47,6 +47,12 @@ const postSchema = new mongoose.Schema({
   scraps: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],       // 스크랩(북마크)한 사용자 목록. 인기순 정렬에 사용
   price: { type: Number },
   isBlocked: { type: Boolean, default: false },
+  // 공개 범위: all(전체공개) / followers(팔로워 공개) / private(나만 보기)
+  visibility: {
+    type: String,
+    enum: ["all", "followers", "private"],
+    default: "all",
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model("Post", postSchema);

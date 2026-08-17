@@ -22,16 +22,31 @@ router.get("/", auth, async (req, res) => {
     ];
 
     // 내가 차단했거나 나를 차단한 사용자의 글은 서로 보이지 않게 제외한다.
-    const me = await User.findById(req.user.id).select("blockedUsers");
+    const me = await User.findById(req.user.id).select("blockedUsers following");
     const blockedMe = await User.find({ blockedUsers: req.user.id }).select("_id");
     const excludedAuthors = [...me.blockedUsers, ...blockedMe.map((u) => u._id)];
     if (excludedAuthors.length > 0) query.author = { $nin: excludedAuthors };
 
     const posts = await Post.find(query)
-      .populate("author", "nickname avatar studentId")
+      .populate("author", "nickname avatar studentId followers")
       .populate("comments.author", "nickname avatar")
       .sort({ createdAt: -1 });
-    res.json(posts);
+
+    // 공개범위 필터링: 전체공개는 누구나, "나만 보기"는 본인만, "팔로워 공개"는
+    // 작성자의 팔로워이거나 본인일 때만 볼 수 있다.
+    const myId = req.user.id;
+    const visiblePosts = posts.filter((p) => {
+      if (p.author._id.toString() === myId) return true; // 내 글은 항상 보임
+      const visibility = p.visibility || "all";
+      if (visibility === "all") return true;
+      if (visibility === "private") return false;
+      if (visibility === "followers") {
+        return p.author.followers?.some((id) => id.toString() === myId);
+      }
+      return true;
+    });
+
+    res.json(visiblePosts);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }
@@ -80,7 +95,9 @@ router.post("/", auth, upload.array("images", 5), profanityFilter, async (req, r
     // 공강모임은 작성자 본인도 참여 인원에 포함되므로, 생성 시점에 참여자 목록에 넣어둔다.
     const participants = restBody.board === "meeting" ? [req.user.id] : undefined;
 
-    const post = await Post.create({ ...restBody, images, poll, tags, participants, author: req.user.id });
+    const allowedVisibility = ["all", "followers", "private"];
+    const visibility = allowedVisibility.includes(restBody.visibility) ? restBody.visibility : "all";
+    const post = await Post.create({ ...restBody, images, poll, tags, participants, visibility, author: req.user.id });
     await post.populate("author", "nickname avatar");
 
     // 공강모임을 만들면 작성자가 방장이 되어 채팅방이 함께 생성된다.
@@ -351,9 +368,10 @@ router.patch("/:id", auth, async (req, res) => {
     if (post.author.toString() !== req.user.id) {
       return res.status(403).json({ message: "권한이 없습니다." });
     }
-    const { title, content } = req.body;
+    const { title, content, visibility } = req.body;
     if (title) post.title = title;
     if (content) post.content = content;
+    if (["all", "followers", "private"].includes(visibility)) post.visibility = visibility;
     await post.save();
     const updated = await Post.findById(post._id).populate("author", "nickname avatar studentId");
     res.json(updated);
