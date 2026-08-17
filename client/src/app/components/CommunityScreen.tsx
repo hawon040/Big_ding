@@ -3980,19 +3980,21 @@ const handleDeleteSelectedChats = () => {
               {selectedPost.likes.length}
             </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <button onClick={() => handleDislike(selectedPost)}>
-              <ThumbsDown size={16} fill={isDisliked(selectedPost) ? "#d4183d" : "none"}
-                color={isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)"} />
-            </button>
-            <span
-              className="text-xs cursor-pointer"
-              style={{ color: isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)" }}
-              onClick={() => openReactionList(selectedPost._id, "dislikes")}
-            >
-              {selectedPost.dislikes.length}
-            </span>
-          </div>
+          {selectedPost.board === "lecture" && (
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => handleDislike(selectedPost)}>
+                <ThumbsDown size={16} fill={isDisliked(selectedPost) ? "#d4183d" : "none"}
+                  color={isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)"} />
+              </button>
+              <span
+                className="text-xs cursor-pointer"
+                style={{ color: isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)" }}
+                onClick={() => openReactionList(selectedPost._id, "dislikes")}
+              >
+                {selectedPost.dislikes.length}
+              </span>
+            </div>
+          )}
           <button className="flex items-center gap-1.5"
             onClick={() => {
               commentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
