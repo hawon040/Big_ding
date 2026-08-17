@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X } from "lucide-react";
+import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X, Heart, ThumbsDown, MessageCircle, Bookmark, Ban } from "lucide-react";
 import api, { resolveAssetUrl } from "@/api";
 import defaultAvatar from "@/assets/default-avatar.svg";
 import {
   REPORTS_STORAGE_KEY, REPORTS_UPDATED_EVENT, loadReportHistory, removeReportFromHistory, type ReportHistoryItem,
   BLOCKED_STORAGE_KEY, BLOCKED_UPDATED_EVENT, loadBlockedUsers, removeBlockedUser, type BlockedUserItem,
-  getDisplayTime, type Post, scopedKey, updateStoredUser, getCurrentUser,
+  getDisplayTime, type Post, scopedKey, updateStoredUser, getCurrentUser, BOARDS,
+  OtherUserProfile, type PostAuthor,
 } from "./CommunityScreen";
 
 const PROFESSORS = ["유진호", "차대현", "홍진근"];
@@ -23,6 +24,24 @@ interface AdminReportItem {
   targetType: "post" | "comment" | "user";
   targetId: string;
   reason: string;
+  status: "pending" | "resolved";
+  createdAt: string;
+}
+
+interface ReportTargetUser {
+  _id: string;
+  nickname: string;
+  studentId?: string;
+  avatar?: string;
+  isAdmin?: boolean;
+  createdAt?: string;
+}
+
+interface AdminInquiryItem {
+  _id: string;
+  user: { _id: string; nickname: string; studentId?: string } | null;
+  title: string;
+  content: string;
   status: "pending" | "resolved";
   createdAt: string;
 }
@@ -119,6 +138,20 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const isAdmin = !!getCurrentUser()?.isAdmin;
   // + 관리자 화면(신고 관리 / 관리자 관리)
   const [adminReports, setAdminReports] = useState<AdminReportItem[]>([]);
+  // + 신고 대상(게시물/댓글) 조회 시, viewingPost 안에서 어떤 댓글이 신고 대상인지 강조하기 위한 id
+  const [viewingCommentId, setViewingCommentId] = useState<string | null>(null);
+  // + 신고 대상이 사용자(user)일 때 보여줄 모달
+  const [viewingUser, setViewingUser] = useState<ReportTargetUser | null>(null);
+  // + 신고된 사용자의 프로필로 바로 들어가기
+  const [showingUserProfile, setShowingUserProfile] = useState(false);
+  const [userProfilePosts, setUserProfilePosts] = useState<Post[]>([]);
+  // + 신고된 사용자에게 이 화면에서 바로 제재(경고/차단/댓글제한)를 부여하기
+  const [sanctionAction, setSanctionAction] = useState<{ type: "warn" | "ban" | "restrictComments" } | null>(null);
+  const [sanctionReason, setSanctionReason] = useState("");
+  const [sanctionBanType, setSanctionBanType] = useState<"temporary" | "permanent">("temporary");
+  const [sanctionDays, setSanctionDays] = useState(7);
+  const [sanctionSubmitting, setSanctionSubmitting] = useState(false);
+  const [adminInquiries, setAdminInquiries] = useState<AdminInquiryItem[]>([]);
   const [adminList, setAdminList] = useState<AdminUserItem[]>([]);
   const [adminSearchQuery, setAdminSearchQuery] = useState("");
   const [adminSearchResults, setAdminSearchResults] = useState<AdminUserItem[]>([]);
@@ -177,6 +210,8 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   useEffect(() => {
     if (activeSection === "adminReports") {
       api.get("/reports").then((res) => setAdminReports(res.data)).catch(() => {});
+    } else if (activeSection === "adminInquiries") {
+      api.get("/inquiries").then((res) => setAdminInquiries(res.data)).catch(() => {});
     } else if (activeSection === "adminUsers") {
       api.get("/admin/event-admins").then((res) => setAdminList(res.data)).catch(() => {});
       setAdminSearchQuery("");
@@ -222,6 +257,76 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
         showAlert("게시물 삭제에 실패했습니다.");
       }
     });
+  };
+
+  // 신고 건의 대상(게시물/댓글/유저)을 ID 수기 조회 없이 바로 확인한다.
+  const viewReportTarget = async (report: AdminReportItem) => {
+    try {
+      const res = await api.get(`/reports/${report._id}/target`);
+      const data = res.data as { targetType: string; post?: Post; targetCommentId?: string; user?: ReportTargetUser };
+      if (data.targetType === "user") {
+        setViewingUser(data.user ?? null);
+      } else {
+        setViewingPost(data.post ?? null);
+        setViewingCommentId(data.targetCommentId ?? null);
+      }
+    } catch (err: any) {
+      console.error("신고 대상 조회 실패:", err?.response?.status, err?.response?.data, err);
+      showAlert(err?.response?.data?.message || "대상을 불러오지 못했습니다.");
+    }
+  };
+
+  const toggleInquiryStatus = async (inquiry: AdminInquiryItem) => {
+    const nextStatus = inquiry.status === "pending" ? "resolved" : "pending";
+    try {
+      await api.patch(`/inquiries/${inquiry._id}`, { status: nextStatus });
+      setAdminInquiries((prev) => prev.map((i) => (i._id === inquiry._id ? { ...i, status: nextStatus } : i)));
+    } catch {
+      showAlert("건의사항 처리에 실패했습니다.");
+    }
+  };
+
+  // 신고된 사용자의 프로필로 바로 들어간다. OtherUserProfile은 전체 게시물 목록에서
+  // 해당 작성자 글만 걸러 쓰므로, 지금 볼 수 있는 게시물 전체를 한 번 받아둔다.
+  const openUserProfile = async () => {
+    if (!viewingUser) return;
+    try {
+      const res = await api.get("/posts");
+      setUserProfilePosts(res.data);
+    } catch {
+      setUserProfilePosts([]);
+    }
+    setShowingUserProfile(true);
+  };
+
+  const submitSanctionAction = async () => {
+    if (!viewingUser || !sanctionAction || !sanctionReason.trim()) return;
+    setSanctionSubmitting(true);
+    try {
+      if (sanctionAction.type === "warn") {
+        await api.post(`/admin/users/${viewingUser._id}/warn`, { reason: sanctionReason.trim() });
+      } else if (sanctionAction.type === "ban") {
+        await api.post(`/admin/users/${viewingUser._id}/ban`, {
+          reason: sanctionReason.trim(),
+          banType: sanctionBanType,
+          days: sanctionBanType === "temporary" ? sanctionDays : undefined,
+        });
+      } else {
+        await api.post(`/admin/users/${viewingUser._id}/restrict-comments`, {
+          reason: sanctionReason.trim(),
+          days: sanctionDays,
+        });
+      }
+      setSanctionAction(null);
+      setSanctionReason("");
+      setSanctionBanType("temporary");
+      setSanctionDays(7);
+      showAlert("제재가 적용되었습니다.");
+    } catch (err: any) {
+      showAlert(err?.response?.data?.message || "처리에 실패했습니다.");
+    } finally {
+      setSanctionSubmitting(false);
+    }
   };
 
   const searchAdminCandidates = async (q: string) => {
@@ -540,9 +645,16 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           </div>
 
           <button
-            onClick={() => {
+            onClick={async () => {
               if (!inquiryTitle.trim() || !inquiryContent.trim()) {
                 showAlert("제목과 내용을 입력해주세요.");
+                return;
+              }
+              try {
+                // 관리자가 확인할 수 있도록 서버에도 함께 접수한다.
+                await api.post("/inquiries", { title: inquiryTitle, content: inquiryContent });
+              } catch {
+                showAlert("건의사항 접수에 실패했습니다. 잠시 후 다시 시도해주세요.");
                 return;
               }
               addInquiryToHistory({
@@ -826,7 +938,14 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 </p>
                 <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>사유: {report.reason}</p>
                 <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>대상 ID: {report.targetId}</p>
-                <div className="flex gap-2 mt-1">
+                <div className="flex gap-2 mt-1 flex-wrap">
+                  <button
+                    onClick={() => viewReportTarget(report)}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+                    style={{ background: "var(--primary)", color: "white" }}
+                  >
+                    {report.targetType === "post" ? "게시물 조회" : report.targetType === "comment" ? "댓글 조회" : "유저 조회"}
+                  </button>
                   {report.targetType === "post" && (
                     <button
                       onClick={() => deleteReportedPost(report)}
@@ -842,6 +961,310 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                     style={{ background: "var(--muted)", color: "var(--foreground)" }}
                   >
                     {report.status === "pending" ? "처리완료로 표시" : "미처리로 되돌리기"}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* 신고 대상 게시물/댓글 바로 조회 */}
+        {viewingPost && (
+          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--background)" }}>
+            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+              <button onClick={() => { setViewingPost(null); setViewingCommentId(null); }} className="text-lg" style={{ color: "var(--foreground)" }}>←</button>
+              <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>
+                {viewingCommentId ? "신고된 댓글" : "신고된 게시물"}
+              </h2>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+              <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <img src={resolveAssetUrl(viewingPost.author?.avatar) || defaultAvatar} alt="프로필 사진" className="w-7 h-7 rounded-full object-cover" />
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{viewingPost.author?.nickname ?? "알 수 없음"}</p>
+                      <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(viewingPost)}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs px-2 py-0.5 rounded-full shrink-0" style={{ background: "var(--secondary)", color: "var(--primary)" }}>
+                    {BOARDS.find((b) => b.id === viewingPost.board)?.label ?? viewingPost.board}
+                  </span>
+                </div>
+                <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{viewingPost.title}</h3>
+                <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
+                  {viewingPost.content}
+                </p>
+                {viewingPost.images?.[0] && (
+                  <img src={resolveAssetUrl(viewingPost.images[0])} alt="첨부 이미지" className="mt-2 w-full max-h-72 object-cover rounded-xl" />
+                )}
+                {!!viewingPost.tags?.length && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {viewingPost.tags.map((tag, i) => (
+                      <span key={i} className="text-xs px-2 py-0.5 rounded-full" style={{ background: "var(--secondary)", color: "var(--primary)" }}>
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {/* 신고 검토용 참고 지표 — 관리자가 직접 좋아요/싫어요를 누르는 기능은 아니라서 읽기 전용으로만 보여준다 */}
+                <div className="flex items-center gap-4 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+                  <div className="flex items-center gap-1.5">
+                    <Heart size={14} style={{ color: "var(--muted-foreground)" }} />
+                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.likes?.length ?? 0}</span>
+                  </div>
+                  {viewingPost.board === "lecture" && (
+                    <div className="flex items-center gap-1.5">
+                      <ThumbsDown size={14} style={{ color: "var(--muted-foreground)" }} />
+                      <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.dislikes?.length ?? 0}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-1.5">
+                    <MessageCircle size={14} style={{ color: "var(--muted-foreground)" }} />
+                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.comments?.length ?? 0}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Bookmark size={14} style={{ color: "var(--muted-foreground)" }} />
+                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.scraps?.length ?? 0}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3" style={{ background: "var(--card)" }}>
+                <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                  댓글 {viewingPost.comments?.length ?? 0}개{viewingCommentId ? " (신고된 댓글은 빨간 테두리로 표시됩니다)" : ""}
+                </p>
+                {(viewingPost.comments ?? []).map((c) => (
+                  <div
+                    key={c._id}
+                    className="flex gap-2 items-start rounded-xl"
+                    style={c._id === viewingCommentId ? { border: "1.5px solid #d4183d", padding: "6px" } : undefined}
+                  >
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm overflow-hidden shrink-0" style={{ background: "var(--muted)" }}>
+                      <img src={resolveAssetUrl(c.author?.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 px-3 py-2 rounded-xl text-xs" style={{ color: "var(--foreground)" }}>
+                      <span className="font-semibold">{c.author?.nickname ?? "알 수 없음"} </span>{c.content}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 신고 대상이 유저일 때 바로 조회 */}
+        {viewingUser && (
+          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--background)" }}>
+            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+              <button onClick={() => setViewingUser(null)} className="text-lg" style={{ color: "var(--foreground)" }}>←</button>
+              <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>신고된 사용자</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+              <div className="rounded-2xl p-4 shadow-sm flex items-center gap-3" style={{ background: "var(--card)" }}>
+                <img src={resolveAssetUrl(viewingUser.avatar) || defaultAvatar} alt="프로필 사진" className="w-12 h-12 rounded-full object-cover shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{viewingUser.nickname}</p>
+                  {viewingUser.studentId && (
+                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>학번: {viewingUser.studentId}</p>
+                  )}
+                  {viewingUser.isAdmin && (
+                    <p className="text-xs" style={{ color: "var(--primary)" }}>관리자 계정</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={openUserProfile}
+                  className="w-full py-3 rounded-xl text-sm font-semibold"
+                  style={{ background: "var(--primary)", color: "white" }}
+                >
+                  프로필 보기
+                </button>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => setSanctionAction({ type: "warn" })}
+                    className="py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center gap-1"
+                    style={{ background: "var(--muted)", color: "var(--foreground)" }}
+                  >
+                    <AlertTriangle size={16} /> 경고
+                  </button>
+                  <button
+                    onClick={() => setSanctionAction({ type: "ban" })}
+                    className="py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center gap-1"
+                    style={{ background: "#d4183d22", color: "#d4183d" }}
+                  >
+                    <Ban size={16} /> 차단
+                  </button>
+                  <button
+                    onClick={() => setSanctionAction({ type: "restrictComments" })}
+                    className="py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center gap-1"
+                    style={{ background: "var(--muted)", color: "var(--foreground)" }}
+                  >
+                    <MessageSquare size={16} /> 댓글 제한
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 신고된 사용자의 프로필 화면 (인스타 스타일 OtherUserProfile 재사용) */}
+        {showingUserProfile && viewingUser && (
+          <div className="absolute inset-0 z-20 flex flex-col" style={{ background: "var(--background)" }}>
+            <OtherUserProfile
+              author={viewingUser as PostAuthor}
+              posts={userProfilePosts}
+              currentUserId={getCurrentUser()?._id}
+              onBack={() => setShowingUserProfile(false)}
+              onOpenPost={(postId) => {
+                const post = userProfilePosts.find((p) => p._id === postId);
+                if (post) {
+                  setViewingPost(post);
+                  setViewingCommentId(null);
+                }
+              }}
+            />
+          </div>
+        )}
+
+        {/* 신고된 사용자에게 이 화면에서 바로 제재 부여 */}
+        {sanctionAction && viewingUser && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
+            <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>
+                  {sanctionAction.type === "warn" ? "유저 경고" : sanctionAction.type === "ban" ? "앱 차단" : "댓글 제한"}
+                </h3>
+                <button onClick={() => setSanctionAction(null)}>
+                  <X size={20} style={{ color: "var(--foreground)" }} />
+                </button>
+              </div>
+              <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>대상: {viewingUser.nickname}</p>
+
+              {sanctionAction.type === "ban" && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setSanctionBanType("temporary")}
+                    className="py-2.5 rounded-xl text-xs font-semibold"
+                    style={{
+                      background: sanctionBanType === "temporary" ? "var(--primary)" : "var(--muted)",
+                      color: sanctionBanType === "temporary" ? "white" : "var(--muted-foreground)",
+                    }}
+                  >
+                    기간 지정
+                  </button>
+                  <button
+                    onClick={() => setSanctionBanType("permanent")}
+                    className="py-2.5 rounded-xl text-xs font-semibold"
+                    style={{
+                      background: sanctionBanType === "permanent" ? "var(--primary)" : "var(--muted)",
+                      color: sanctionBanType === "permanent" ? "white" : "var(--muted-foreground)",
+                    }}
+                  >
+                    영구 정지
+                  </button>
+                </div>
+              )}
+
+              {(sanctionAction.type === "restrictComments" || (sanctionAction.type === "ban" && sanctionBanType === "temporary")) && (
+                <div className="flex gap-2 items-center">
+                  {[3, 7, 30].map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setSanctionDays(d)}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold"
+                      style={{
+                        background: sanctionDays === d ? "var(--primary)" : "var(--muted)",
+                        color: sanctionDays === d ? "white" : "var(--muted-foreground)",
+                      }}
+                    >
+                      {d}일
+                    </button>
+                  ))}
+                  <input
+                    type="number"
+                    min={1}
+                    value={sanctionDays}
+                    onChange={(e) => setSanctionDays(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-16 px-2 py-2 rounded-lg text-sm outline-none"
+                    style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                  />
+                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>일</span>
+                </div>
+              )}
+
+              <textarea
+                value={sanctionReason}
+                onChange={(e) => setSanctionReason(e.target.value)}
+                placeholder="사유를 입력하세요"
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
+                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+              />
+
+              <button
+                onClick={submitSanctionAction}
+                disabled={!sanctionReason.trim() || sanctionSubmitting}
+                className="w-full px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-50"
+                style={{ background: "#d4183d", color: "white" }}
+              >
+                {sanctionSubmitting ? "처리 중..." : "확인"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {AlertModal}
+        {ConfirmModal}
+      </div>
+    );
+  }
+
+  if (activeSection === "adminInquiries") {
+    return (
+      <div className="relative flex flex-col flex-1 overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
+          <button onClick={() => setActiveSection(null)}>
+            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
+          </button>
+          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>건의사항 내역</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+          {adminInquiries.length === 0 ? (
+            <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+              접수된 건의사항이 없습니다.
+            </p>
+          ) : (
+            adminInquiries.map((inquiry) => (
+              <div key={inquiry._id} className="rounded-2xl p-4 shadow-sm flex flex-col gap-2" style={{ background: "var(--card)" }}>
+                <div className="flex items-center justify-between">
+                  <span
+                    className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{
+                      background: inquiry.status === "pending" ? "#d4183d22" : "var(--muted)",
+                      color: inquiry.status === "pending" ? "#d4183d" : "var(--muted-foreground)",
+                    }}
+                  >
+                    {inquiry.status === "pending" ? "미처리" : "처리완료"}
+                  </span>
+                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    {new Date(inquiry.createdAt).toLocaleString("ko-KR")}
+                  </span>
+                </div>
+                <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{inquiry.title}</p>
+                <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>{inquiry.content}</p>
+                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  작성자: {inquiry.user?.nickname ?? "알 수 없음"}{inquiry.user?.studentId ? ` (${inquiry.user.studentId})` : ""}
+                </p>
+                <div className="flex gap-2 mt-1">
+                  <button
+                    onClick={() => toggleInquiryStatus(inquiry)}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+                    style={{ background: "var(--muted)", color: "var(--foreground)" }}
+                  >
+                    {inquiry.status === "pending" ? "처리완료로 표시" : "미처리로 되돌리기"}
                   </button>
                 </div>
               </div>
@@ -1258,6 +1681,11 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               icon={<AlertTriangle size={18} style={{ color: "#d4183d" }} />}
               label="신고 관리"
               onPress={() => setActiveSection("adminReports")}
+            />
+            <SettingRow
+              icon={<MessageSquare size={18} style={{ color: "#5bc0de" }} />}
+              label="건의사항 내역"
+              onPress={() => setActiveSection("adminInquiries")}
             />
             <SettingRow
               icon={<Shield size={18} style={{ color: "var(--primary)" }} />}
