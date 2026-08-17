@@ -7,7 +7,7 @@ import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
   Search, Star, Send, UserPlus, ChevronDown, ChevronUp, FileText,
   Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, MoreHorizontal, Repeat2, Edit2, Trash2, AlertTriangle, Bell, Lock,
-  Settings, Camera, LogOut, ChevronRight, Images
+  Settings, Camera, LogOut, ChevronRight, Images, Ban, MessageSquareOff
 } from "lucide-react";
 
 export type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting" | "alumni";
@@ -213,8 +213,11 @@ export interface ChatPhoto {
 export interface NotificationItem {
   _id: string;
   sender: Friend;
-  type: "follow" | "join" | "leave" | "comment" | "like" | "dislike" | "scrap";
+  type: "follow" | "join" | "leave" | "comment" | "like" | "dislike" | "scrap"
+      | "adminWarning" | "adminBan" | "adminCommentRestriction";
   post?: { _id: string; title: string; board: string } | null;
+  message?: string;
+  until?: string;
   read: boolean;
   createdAt: string;
 }
@@ -1201,6 +1204,143 @@ useEffect(() => {
   }, [navSignal]);
   const [showReport, setShowReport] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState<string | null>(null);
+  // 관리자 제재(경고/차단/댓글제한) 액션 모달
+  const [showAdminAction, setShowAdminAction] = useState<{
+    type: "warn" | "ban" | "restrictComments";
+    postId: string;
+    authorId: string;
+    authorName: string;
+  } | null>(null);
+  const [adminReasonInput, setAdminReasonInput] = useState("");
+  const [adminBanType, setAdminBanType] = useState<"temporary" | "permanent">("temporary");
+  const [adminDurationDays, setAdminDurationDays] = useState(7);
+  const [adminActionSubmitting, setAdminActionSubmitting] = useState(false);
+
+  const submitAdminAction = async () => {
+    if (!showAdminAction || !adminReasonInput.trim()) return;
+    setAdminActionSubmitting(true);
+    try {
+      const { type, authorId, postId } = showAdminAction;
+      if (type === "warn") {
+        await api.post(`/admin/users/${authorId}/warn`, { reason: adminReasonInput.trim(), postId });
+      } else if (type === "ban") {
+        await api.post(`/admin/users/${authorId}/ban`, {
+          reason: adminReasonInput.trim(),
+          banType: adminBanType,
+          days: adminBanType === "temporary" ? adminDurationDays : undefined,
+          postId,
+        });
+      } else {
+        await api.post(`/admin/users/${authorId}/restrict-comments`, {
+          reason: adminReasonInput.trim(),
+          days: adminDurationDays,
+          postId,
+        });
+      }
+      setShowAdminAction(null);
+      setAdminReasonInput("");
+      setAdminBanType("temporary");
+      setAdminDurationDays(7);
+      showAlert("처리되었습니다.");
+    } catch (err: any) {
+      showAlert(err?.response?.data?.message || "처리에 실패했습니다.");
+    } finally {
+      setAdminActionSubmitting(false);
+    }
+  };
+
+  // 게시물 "..." 더보기 메뉴 (본인글 수정/삭제, 관리자 제재, 타인글 신고) 공용 렌더 헬퍼.
+  // 카드 목록과 상세화면 두 곳에서 동일한 분기 로직을 공유하기 위해 뽑아냈다.
+  const renderPostMoreMenu = (targetPost: Post, onEditStart: () => void, onDeleted: () => void) => (
+    currentUser && targetPost.author._id === currentUser._id ? (
+      <>
+        <button
+          onClick={onEditStart}
+          className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+          style={{ color: "var(--foreground)" }}
+        >
+          <Edit2 size={14} /> 수정
+        </button>
+        <button
+          onClick={() => {
+            showConfirm("이 게시물을 삭제하시겠습니까?", async () => {
+              try {
+                await api.delete(`/posts/${targetPost._id}`);
+                onDeleted();
+              } catch {
+                showAlert("게시물 삭제에 실패했습니다.");
+              }
+            });
+          }}
+          className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+          style={{ color: "#d4183d" }}
+        >
+          <Trash2 size={14} /> 삭제
+        </button>
+      </>
+    ) : isAdmin ? (
+      <>
+        <button
+          onClick={() => {
+            showConfirm("관리자 권한으로 이 게시물을 삭제하시겠습니까?", async () => {
+              try {
+                await api.delete(`/posts/${targetPost._id}`);
+                onDeleted();
+              } catch {
+                showAlert("게시물 삭제에 실패했습니다.");
+              }
+            });
+          }}
+          className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+          style={{ color: "#d4183d" }}
+        >
+          <Trash2 size={14} /> 삭제 (관리자)
+        </button>
+        <button
+          onClick={() => {
+            setShowMoreMenu(null);
+            setShowAdminAction({ type: "warn", postId: targetPost._id, authorId: targetPost.author._id, authorName: targetPost.author.nickname });
+          }}
+          className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+          style={{ color: "var(--foreground)" }}
+        >
+          <AlertTriangle size={14} /> 유저 경고
+        </button>
+        <button
+          onClick={() => {
+            setShowMoreMenu(null);
+            setShowAdminAction({ type: "ban", postId: targetPost._id, authorId: targetPost.author._id, authorName: targetPost.author.nickname });
+          }}
+          className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+          style={{ color: "var(--foreground)" }}
+        >
+          <Ban size={14} /> 앱 차단
+        </button>
+        <button
+          onClick={() => {
+            setShowMoreMenu(null);
+            setShowAdminAction({ type: "restrictComments", postId: targetPost._id, authorId: targetPost.author._id, authorName: targetPost.author.nickname });
+          }}
+          className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+          style={{ color: "var(--foreground)" }}
+        >
+          <MessageSquareOff size={14} /> 댓글 제한
+        </button>
+      </>
+    ) : (
+      <button
+        onClick={() => {
+          setShowReport(targetPost._id);
+          setShowMoreMenu(null);
+        }}
+        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
+        style={{ color: "#d4183d" }}
+      >
+        <AlertTriangle size={14} /> 신고
+      </button>
+    )
+  );
+
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editContent, setEditContent] = useState("");
@@ -2560,7 +2700,7 @@ const handleDeleteSelectedChats = () => {
     }
 
     return (
-      <div className="flex flex-col flex-1 overflow-hidden relative">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
         {/* 헤더 */}
         <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
           <button onClick={() => { setActiveGroupChat(null); setShowGroupChatMembers(false); setActiveGroupChatDeleted(false); }} className="text-lg">←</button>
@@ -2622,7 +2762,7 @@ const handleDeleteSelectedChats = () => {
 
 
         {/* 메시지 목록 */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
           {messages.map((msg) => {
             if (msg.type === "system") {
               return (
@@ -2944,7 +3084,7 @@ const handleDeleteSelectedChats = () => {
 
   if (activeFriend) {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden relative">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
 
         {/* 헤더 */}
         <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
@@ -3112,7 +3252,7 @@ const handleDeleteSelectedChats = () => {
         )}
 
         {/* 메시지 목록 */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-0.5 no-scrollbar">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-0.5 no-scrollbar">
           {(chatMessages[activeFriend._id] || []).map((msg, idx, arr) => {
             const prev = arr[idx - 1];
             const next = arr[idx + 1];
@@ -3489,17 +3629,48 @@ const handleDeleteSelectedChats = () => {
                 {eventFollowingIds.includes(selectedPost.author._id) ? "팔로잉" : "팔로우"}
               </button>
             )}
-            <button style={{ color: "var(--foreground)" }} className="shrink-0" aria-label="더보기">
-              <MoreHorizontal size={20} />
-            </button>
+            <div className="relative shrink-0">
+              <button
+                onClick={() => setShowMoreMenu(showMoreMenu === selectedPost._id ? null : selectedPost._id)}
+                style={{ color: "var(--foreground)" }}
+                aria-label="더보기"
+              >
+                <MoreHorizontal size={20} />
+              </button>
+              {showMoreMenu === selectedPost._id && (
+                <div
+                  className="absolute right-0 top-7 z-50 rounded-xl shadow-lg overflow-hidden min-w-[130px]"
+                  style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                >
+                  {renderPostMoreMenu(
+                    selectedPost,
+                    () => {
+                      setShowMoreMenu(null);
+                      setEditTitle(selectedPost.title);
+                      setEditContent(selectedPost.content);
+                      setEditPollQuestion(selectedPost.poll?.question ?? "");
+                      setEditPollOptions(selectedPost.poll ? selectedPost.poll.options.map((o) => o.text) : []);
+                      setEditPollDeleteMode(false);
+                      setEditPollDeleted(false);
+                      setShowPollDeleteConfirm(false);
+                      setEditingPost(selectedPost);
+                    },
+                    () => {
+                      setShowMoreMenu(null);
+                      setPosts((prev) => prev.filter((p) => p._id !== selectedPost._id));
+                      setSelectedPostId(null);
+                    }
+                  )}
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <>
           <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
-          {currentUser && selectedPost.author._id === currentUser._id && (
           <div className="relative">
             <button
-              onClick={() => setShowMoreMenu(showMoreMenu ? null : selectedPost._id)}
+              onClick={() => setShowMoreMenu(showMoreMenu === selectedPost._id ? null : selectedPost._id)}
               style={{ color: "var(--foreground)" }}
             >
               <MoreVertical size={20} />
@@ -3507,42 +3678,30 @@ const handleDeleteSelectedChats = () => {
             {showMoreMenu === selectedPost._id && (
               <div
                 className="absolute right-0 top-7 z-50 rounded-xl shadow-lg overflow-hidden"
-                style={{ background: "var(--card)", border: "1px solid var(--border)", minWidth: "120px" }}
+                style={{ background: "var(--card)", border: "1px solid var(--border)", minWidth: "130px" }}
               >
-                <button
-                  onClick={() => {
+                {renderPostMoreMenu(
+                  selectedPost,
+                  () => {
                     setShowMoreMenu(null);
                     setEditTitle(selectedPost.title);
                     setEditContent(selectedPost.content);
+                    setEditPollQuestion(selectedPost.poll?.question ?? "");
+                    setEditPollOptions(selectedPost.poll ? selectedPost.poll.options.map((o) => o.text) : []);
+                    setEditPollDeleteMode(false);
+                    setEditPollDeleted(false);
+                    setShowPollDeleteConfirm(false);
                     setEditingPost(selectedPost);
-                  }}
-                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left"
-                  style={{ color: "var(--foreground)" }}
-                >
-                  <Edit2 size={14} /> 수정
-                </button>
-                <button
-                  onClick={() => {
+                  },
+                  () => {
                     setShowMoreMenu(null);
-                   showConfirm("이 게시물을 삭제하시겠습니까?", async () => {
-                    try {
-                         await api.delete(`/posts/${selectedPost._id}`);
-                         setPosts((prev) => prev.filter((p) => p._id !== selectedPost._id));
-                         setSelectedPostId(null);
-                    } catch {
-                      showAlert("게시물 삭제에 실패했습니다.");
-                    }
-                 });
-                  }}
-                  className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left border-t"
-                  style={{ color: "#d4183d", borderColor: "var(--border)" }}
-                >
-                  <Trash2 size={14} /> 삭제
-                </button>
+                    setPosts((prev) => prev.filter((p) => p._id !== selectedPost._id));
+                    setSelectedPostId(null);
+                  }
+                )}
               </div>
             )}
           </div>
-          )}
           </>
         )}
         
@@ -4411,72 +4570,23 @@ const handleDeleteSelectedChats = () => {
                   className="absolute right-0 top-9 z-20 rounded-xl shadow-lg py-1 min-w-[110px]"
                   style={{ background: "var(--card)", border: "1px solid var(--border)" }}
                 >
-                  {currentUser && post.author._id === currentUser._id ? (
-                    <>
-                      <button
-                        onClick={() => {
-                          setEditingPost(post);
-                          setEditTitle(post.title);
-                          setEditContent(post.content);
-                          setEditPollQuestion(post.poll?.question ?? "");
-                          setEditPollOptions(post.poll ? post.poll.options.map((o) => o.text) : []);
-                          setEditPollDeleteMode(false);
-                          setEditPollDeleted(false);
-                          setShowPollDeleteConfirm(false);
-                          setShowMoreMenu(null);
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-                        style={{ color: "var(--foreground)" }}
-                      >
-                        <Edit2 size={14} /> 수정
-                      </button>
-                      <button
-                        onClick={() => {
-                          showConfirm("이 게시물을 삭제하시겠습니까?", async () => {
-                            setShowMoreMenu(null);
-                            try {
-                              await api.delete(`/posts/${post._id}`);
-                              setPosts((prev) => prev.filter((p) => p._id !== post._id));
-                            } catch {
-                              showAlert("게시물 삭제에 실패했습니다.");
-                            }
-                          });
-                        }}
-                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-                        style={{ color: "#d4183d" }}
-                      >
-                        <Trash2 size={14} /> 삭제
-                      </button>
-                    </>
-                  ) : isAdmin ? (
-                    <button
-                      onClick={() => {
-                        showConfirm("관리자 권한으로 이 게시물을 삭제하시겠습니까?", async () => {
-                          setShowMoreMenu(null);
-                          try {
-                            await api.delete(`/posts/${post._id}`);
-                            setPosts((prev) => prev.filter((p) => p._id !== post._id));
-                          } catch {
-                            showAlert("게시물 삭제에 실패했습니다.");
-                          }
-                        });
-                      }}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-                      style={{ color: "#d4183d" }}
-                    >
-                      <Trash2 size={14} /> 삭제 (관리자)
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setShowReport(post._id);
-                        setShowMoreMenu(null);
-                      }}
-                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-                      style={{ color: "#d4183d" }}
-                    >
-                      <AlertTriangle size={14} /> 신고
-                    </button>
+                  {renderPostMoreMenu(
+                    post,
+                    () => {
+                      setEditingPost(post);
+                      setEditTitle(post.title);
+                      setEditContent(post.content);
+                      setEditPollQuestion(post.poll?.question ?? "");
+                      setEditPollOptions(post.poll ? post.poll.options.map((o) => o.text) : []);
+                      setEditPollDeleteMode(false);
+                      setEditPollDeleted(false);
+                      setShowPollDeleteConfirm(false);
+                      setShowMoreMenu(null);
+                    },
+                    () => {
+                      setShowMoreMenu(null);
+                      setPosts((prev) => prev.filter((p) => p._id !== post._id));
+                    }
                   )}
                 </div>
               )}
@@ -5805,6 +5915,93 @@ const handleDeleteSelectedChats = () => {
         </div>
       )}
 
+      {/* 관리자 제재(경고/차단/댓글제한) 모달 */}
+      {showAdminAction && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>
+                {showAdminAction.type === "warn" ? "유저 경고" : showAdminAction.type === "ban" ? "앱 차단" : "댓글 제한"}
+              </h3>
+              <button onClick={() => setShowAdminAction(null)}>
+                <X size={20} style={{ color: "var(--foreground)" }} />
+              </button>
+            </div>
+            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>대상: {showAdminAction.authorName}</p>
+
+            {showAdminAction.type === "ban" && (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setAdminBanType("temporary")}
+                  className="py-2.5 rounded-xl text-xs font-semibold"
+                  style={{
+                    background: adminBanType === "temporary" ? "var(--primary)" : "var(--muted)",
+                    color: adminBanType === "temporary" ? "white" : "var(--muted-foreground)",
+                  }}
+                >
+                  기간 지정
+                </button>
+                <button
+                  onClick={() => setAdminBanType("permanent")}
+                  className="py-2.5 rounded-xl text-xs font-semibold"
+                  style={{
+                    background: adminBanType === "permanent" ? "var(--primary)" : "var(--muted)",
+                    color: adminBanType === "permanent" ? "white" : "var(--muted-foreground)",
+                  }}
+                >
+                  영구 정지
+                </button>
+              </div>
+            )}
+
+            {(showAdminAction.type === "restrictComments" || (showAdminAction.type === "ban" && adminBanType === "temporary")) && (
+              <div className="flex gap-2 items-center">
+                {[3, 7, 30].map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setAdminDurationDays(d)}
+                    className="px-3 py-2 rounded-lg text-xs font-semibold"
+                    style={{
+                      background: adminDurationDays === d ? "var(--primary)" : "var(--muted)",
+                      color: adminDurationDays === d ? "white" : "var(--muted-foreground)",
+                    }}
+                  >
+                    {d}일
+                  </button>
+                ))}
+                <input
+                  type="number"
+                  min={1}
+                  value={adminDurationDays}
+                  onChange={(e) => setAdminDurationDays(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-16 px-2 py-2 rounded-lg text-sm outline-none"
+                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                />
+                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>일</span>
+              </div>
+            )}
+
+            <textarea
+              value={adminReasonInput}
+              onChange={(e) => setAdminReasonInput(e.target.value)}
+              placeholder="사유를 입력하세요"
+              rows={3}
+              className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
+              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+            />
+
+            <button
+              onClick={submitAdminAction}
+              disabled={!adminReasonInput.trim() || adminActionSubmitting}
+              className="w-full px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-50"
+              style={{ background: "#d4183d", color: "white" }}
+            >
+              {adminActionSubmitting ? "처리 중..." : "확인"}
+            </button>
+          </div>
+        </div>
+      )}
+
     {/* 커스텀 알림 팝업 (확인 1개) */}
 {alertMessage && (
   <div
@@ -5920,6 +6117,7 @@ const handleDeleteSelectedChats = () => {
           const senderId = String(n.sender._id);
           const isFollowingBack = followingIds.some((id) => String(id) === senderId);
           const isFollowBackPending = followBackPendingId === senderId;
+          const isAdminNotif = n.type === "adminWarning" || n.type === "adminBan" || n.type === "adminCommentRestriction";
           const notifMessage =
             n.type === "join" ? "님이 회원님의 모임에 참여했습니다."
             : n.type === "leave" ? "님이 회원님의 모임 참여를 취소했습니다."
@@ -5927,6 +6125,9 @@ const handleDeleteSelectedChats = () => {
             : n.type === "like" ? "님이 회원님의 게시물을 좋아합니다."
             : n.type === "dislike" ? "님이 회원님의 게시물을 싫어합니다."
             : n.type === "scrap" ? "님이 회원님의 게시물을 스크랩했습니다."
+            : n.type === "adminWarning" ? `로부터 경고를 받았습니다. 사유: ${n.message ?? "-"}`
+            : n.type === "adminBan" ? `로 인해 계정이 ${n.until ? `${new Date(n.until).toLocaleDateString("ko-KR")}까지` : "영구"} 정지되었습니다. 사유: ${n.message ?? "-"}`
+            : n.type === "adminCommentRestriction" ? `로 인해 ${n.until ? new Date(n.until).toLocaleDateString("ko-KR") : ""}까지 댓글 작성이 제한되었습니다. 사유: ${n.message ?? "-"}`
             : "님이 회원님을 팔로우하기 시작했습니다.";
 
           return (
@@ -5950,14 +6151,14 @@ const handleDeleteSelectedChats = () => {
             >
               <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
                 <img
-                  src={resolveAssetUrl(n.sender.avatar) || defaultAvatar}
+                  src={isAdminNotif ? defaultAvatar : (resolveAssetUrl(n.sender.avatar) || defaultAvatar)}
                   alt="프로필 사진"
                   className="w-full h-full object-cover"
                 />
               </div>
 
               <p className="flex-1 min-w-0 text-sm" style={{ color: "var(--foreground)" }}>
-                <span className="font-semibold">{n.sender.nickname}</span>
+                <span className="font-semibold">{isAdminNotif ? "관리자" : n.sender.nickname}</span>
                 {notifMessage}
                 <span className="block text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
                   {getDisplayTime(n, nowTick)}

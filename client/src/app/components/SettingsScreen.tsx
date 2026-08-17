@@ -27,6 +27,18 @@ interface AdminReportItem {
   createdAt: string;
 }
 
+interface SanctionItem {
+  _id: string;
+  user: { _id: string; nickname: string; studentId?: string; avatar?: string } | null;
+  type: "warning" | "ban" | "commentRestriction";
+  reason: string;
+  admin: { _id: string; nickname: string } | null;
+  banType?: "permanent" | "temporary";
+  expiresAt?: string;
+  active: boolean;
+  createdAt: string;
+}
+
 
 interface SettingsScreenProps {
   darkMode: boolean;
@@ -110,6 +122,8 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [adminList, setAdminList] = useState<AdminUserItem[]>([]);
   const [adminSearchQuery, setAdminSearchQuery] = useState("");
   const [adminSearchResults, setAdminSearchResults] = useState<AdminUserItem[]>([]);
+  const [sanctionTab, setSanctionTab] = useState<"warning" | "ban" | "commentRestriction">("warning");
+  const [sanctions, setSanctions] = useState<SanctionItem[]>([]);
   const [reportHistory, setReportHistory] = useState<ReportHistoryItem[]>([]);
   const [inquiryHistory, setInquiryHistory] = useState<InquiryHistoryItem[]>([]);
   const [blockedUsers, setBlockedUsers] = useState<BlockedUserItem[]>([]);
@@ -169,6 +183,23 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       setAdminSearchResults([]);
     }
   }, [activeSection]);
+
+  useEffect(() => {
+    if (activeSection === "sanctions") {
+      api.get(`/admin/sanctions?type=${sanctionTab}`).then((res) => setSanctions(res.data)).catch(() => {});
+    }
+  }, [activeSection, sanctionTab]);
+
+  const liftSanction = (s: SanctionItem) => {
+    showConfirm("이 제재를 해제하시겠습니까?", async () => {
+      try {
+        await api.patch(`/admin/sanctions/${s._id}/lift`);
+        setSanctions((prev) => prev.map((x) => (x._id === s._id ? { ...x, active: false } : x)));
+      } catch {
+        showAlert("해제에 실패했습니다.");
+      }
+    });
+  };
 
   const toggleReportStatus = async (report: AdminReportItem) => {
     const nextStatus = report.status === "pending" ? "resolved" : "pending";
@@ -764,7 +795,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           </button>
           <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>신고 관리</h2>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
           {adminReports.length === 0 ? (
             <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
               접수된 신고가 없습니다.
@@ -830,7 +861,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           </button>
           <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>관리자 관리</h2>
         </div>
-        <div className="px-4 py-4 flex flex-col gap-4 overflow-y-auto">
+        <div className="px-4 py-4 flex flex-col gap-4 overflow-y-auto no-scrollbar">
           <div>
             <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
               학번/닉네임으로 검색해서 관리자로 추가
@@ -896,6 +927,86 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               )}
             </div>
           </div>
+        </div>
+        {AlertModal}
+        {ConfirmModal}
+      </div>
+    );
+  }
+
+  if (activeSection === "sanctions") {
+    const SANCTION_TABS: { key: typeof sanctionTab; label: string }[] = [
+      { key: "warning", label: "경고" },
+      { key: "ban", label: "차단" },
+      { key: "commentRestriction", label: "댓글제한" },
+    ];
+    return (
+      <div className="relative flex flex-col flex-1 overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
+          <button onClick={() => setActiveSection(null)}>
+            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
+          </button>
+          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>제재 관리</h2>
+        </div>
+        <div className="grid grid-cols-3 px-4 gap-2 mt-4 mb-1">
+          {SANCTION_TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setSanctionTab(t.key)}
+              className="py-2.5 rounded-xl text-xs font-semibold"
+              style={{
+                background: sanctionTab === t.key ? "var(--primary)" : "var(--muted)",
+                color: sanctionTab === t.key ? "white" : "var(--muted-foreground)",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+          {sanctions.length === 0 ? (
+            <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+              내역이 없습니다.
+            </p>
+          ) : (
+            sanctions.map((s) => (
+              <div key={s._id} className="rounded-2xl p-4 shadow-sm flex flex-col gap-2" style={{ background: "var(--card)" }}>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                    {s.user?.nickname ?? "탈퇴한 사용자"}
+                  </span>
+                  <span
+                    className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{
+                      background: s.active ? "#d4183d22" : "var(--muted)",
+                      color: s.active ? "#d4183d" : "var(--muted-foreground)",
+                    }}
+                  >
+                    {s.active
+                      ? s.type === "ban" && s.banType === "permanent"
+                        ? "영구"
+                        : s.expiresAt
+                        ? `~${new Date(s.expiresAt).toLocaleDateString("ko-KR")}`
+                        : "진행중"
+                      : "해제됨"}
+                  </span>
+                </div>
+                <p className="text-sm" style={{ color: "var(--foreground)" }}>사유: {s.reason}</p>
+                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  {new Date(s.createdAt).toLocaleString("ko-KR")} · 처리: {s.admin?.nickname ?? "-"}
+                </p>
+                {s.active && (
+                  <button
+                    onClick={() => liftSanction(s)}
+                    className="self-start text-xs font-semibold px-3 py-1.5 rounded-lg"
+                    style={{ background: "var(--muted)", color: "var(--foreground)" }}
+                  >
+                    해제
+                  </button>
+                )}
+              </div>
+            ))
+          )}
         </div>
         {AlertModal}
         {ConfirmModal}
@@ -1130,12 +1241,12 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   }
 
   return (
-    <div className="flex flex-col flex-1">
-      <div className="px-4 pt-3 pb-2">
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="px-4 pt-3 pb-2 shrink-0">
         <h1 className="font-bold text-xl text-white">설정</h1>
       </div>
 
-      <div className="px-4 flex flex-col gap-2.5 pb-3">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 flex flex-col gap-2.5 pb-3 no-scrollbar">
         {isAdmin && (
           <Section title="관리자">
             <SettingRow
@@ -1147,6 +1258,12 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               icon={<Shield size={18} style={{ color: "var(--primary)" }} />}
               label="관리자 관리"
               onPress={() => setActiveSection("adminUsers")}
+            />
+            <SettingRow
+              icon={<UserX size={18} style={{ color: "#d4183d" }} />}
+              label="제재 관리"
+              onPress={() => setActiveSection("sanctions")}
+              last
             />
           </Section>
         )}
@@ -1185,33 +1302,39 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           />
         </Section>
 
-        <Section title="고객 지원">
-          <SettingRow
-            icon={<MessageSquare size={18} style={{ color: "#5bc0de" }} />}
-            label="건의사항"
-            onPress={() => setActiveSection("inquiry")}
-          />
-          <SettingRow
-            icon={<BookOpen size={18} style={{ color: "#5cb85c" }} />}
-            label="커뮤니티 이용 규칙"
-            onPress={() => setActiveSection("guidelines")}
-            last
-          />
-        </Section>
+        {!isAdmin && (
+          <>
+            <Section title="고객 지원">
+              <SettingRow
+                icon={<MessageSquare size={18} style={{ color: "#5bc0de" }} />}
+                label="건의사항"
+                onPress={() => setActiveSection("inquiry")}
+              />
+              <SettingRow
+                icon={<BookOpen size={18} style={{ color: "#5cb85c" }} />}
+                label="커뮤니티 이용 규칙"
+                onPress={() => setActiveSection("guidelines")}
+                last
+              />
+            </Section>
 
-        <Section title="안전">
-          <SettingRow
-            icon={<AlertTriangle size={18} style={{ color: "#d4183d" }} />}
-            label="신고/건의 내역"
-            onPress={() => setActiveSection("reports")}
-          />
-          <SettingRow
-            icon={<UserX size={18} style={{ color: "#d4183d" }} />}
-            label="차단 내역"
-            onPress={() => setActiveSection("blocked")}
-          />
-        </Section>
+            <Section title="안전">
+              <SettingRow
+                icon={<AlertTriangle size={18} style={{ color: "#d4183d" }} />}
+                label="신고/건의 내역"
+                onPress={() => setActiveSection("reports")}
+              />
+              <SettingRow
+                icon={<UserX size={18} style={{ color: "#d4183d" }} />}
+                label="차단 내역"
+                onPress={() => setActiveSection("blocked")}
+              />
+            </Section>
+          </>
+        )}
+      </div>
 
+      <div className="px-4 pb-4 pt-2 shrink-0">
         <button
           onClick={onLogout}
           className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm shadow-sm transition-all active:scale-98"

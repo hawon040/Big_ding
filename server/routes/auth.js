@@ -130,6 +130,22 @@ router.post("/login", async (req, res) => {
       return res.status(401).json({ message: "탈퇴한 계정입니다." });
     }
 
+    // 1-2. 앱 차단(ban)된 계정은 로그인 자체를 막는다.
+    if (user.banned) {
+      const stillBanned = user.banType === "permanent" || (user.banUntil && user.banUntil > new Date());
+      if (stillBanned) {
+        const until = user.banType === "temporary" ? new Date(user.banUntil).toLocaleDateString("ko-KR") : null;
+        const message = user.banType === "permanent"
+          ? `이용이 영구 정지된 계정입니다. 사유: ${user.banReason || "-"}`
+          : `이용이 정지된 계정입니다. (${until}까지) 사유: ${user.banReason || "-"}`;
+        return res.status(403).json({ message, banned: true });
+      }
+      // 기간 만료 → 로그인 허용 + 필드 정리 (lazy expiry)
+      user.banned = false; user.banType = undefined; user.banUntil = undefined;
+      user.banReason = undefined; user.banSanctionId = undefined;
+      await user.save();
+    }
+
     // 2. 비밀번호 검증
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(401).json({ message: "비밀번호가 올바르지 않습니다." });

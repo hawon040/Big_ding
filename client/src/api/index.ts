@@ -60,12 +60,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// 401 응답 시 자동 로그아웃
+// 401 응답 시 자동 로그아웃 / 관리자가 계정을 차단(ban)한 경우도 즉시 로그아웃
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem("token");
+      window.location.reload();
+    }
+    if (err.response?.status === 403 && err.response?.data?.banned) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      alert(err.response.data.message);
       window.location.reload();
     }
     return Promise.reject(err);

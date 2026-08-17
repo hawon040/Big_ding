@@ -250,6 +250,21 @@ router.get("/:id/dislikes", auth, async (req, res) => {
 // POST /api/posts/:id/comments
 router.post("/:id/comments", auth, profanityFilter, async (req, res) => {
   try {
+    // 관리자에 의해 댓글 작성이 제한된 계정인지 확인한다.
+    const meRestriction = await User.findById(req.user.id).select("commentRestrictedUntil commentRestrictionReason");
+    if (meRestriction?.commentRestrictedUntil) {
+      if (meRestriction.commentRestrictedUntil > new Date()) {
+        const until = new Date(meRestriction.commentRestrictedUntil).toLocaleDateString("ko-KR");
+        return res.status(403).json({
+          message: `댓글 작성이 제한되었습니다. (${until}까지) 사유: ${meRestriction.commentRestrictionReason || "-"}`,
+        });
+      }
+      // 기간 만료 → 조용히 정리 (lazy expiry)
+      await User.findByIdAndUpdate(req.user.id, {
+        $unset: { commentRestrictedUntil: "", commentRestrictionReason: "", commentRestrictionSanctionId: "" },
+      });
+    }
+
     const post = await Post.findById(req.params.id);
     const { parentComment } = req.body;
     // 답글이 실제로 이 게시물에 존재하는 최상위 댓글을 가리키는지 확인한다.

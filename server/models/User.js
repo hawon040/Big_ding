@@ -51,6 +51,19 @@ const userSchema = new mongoose.Schema({
   // 탈퇴 처리된 시각
   withdrawnAt: { type: Date },
 
+  // 관리자 제재: 앱 차단 (영구 또는 기간제). 이력은 Sanction 컬렉션에 남고,
+  // 여기는 매 요청마다 Sanction을 다시 조회하지 않도록 "현재 상태"만 캐싱한 것이다.
+  banned: { type: Boolean, default: false },
+  banType: { type: String, enum: ["permanent", "temporary"] },
+  banReason: { type: String },
+  banUntil: { type: Date }, // banType이 temporary일 때만 사용
+  banSanctionId: { type: mongoose.Schema.Types.ObjectId, ref: "Sanction" },
+
+  // 관리자 제재: 댓글 작성 제한 (기간제만 지원)
+  commentRestrictedUntil: { type: Date },
+  commentRestrictionReason: { type: String },
+  commentRestrictionSanctionId: { type: mongoose.Schema.Types.ObjectId, ref: "Sanction" },
+
 }, { timestamps: true }); // createdAt, updatedAt 자동 생성
 
 // 저장 전 비밀번호 자동 해시 암호화

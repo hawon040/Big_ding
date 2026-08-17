@@ -25,6 +25,7 @@ app.use("/api/chat", require("./routes/chat"));
 app.use("/api/users", require("./routes/users"));
 app.use("/api/friends", require("./routes/friends"));
 app.use("/api/reports", require("./routes/reports"));
+app.use("/api/admin", require("./routes/admin"));
 app.use("/api/notifications", require("./routes/notifications"));
 app.use("/api/group-chats", require("./routes/groupChat"));
 // 새 이미지는 전부 Cloudinary로 올라간다. 이 라우트는 마이그레이션 전 로컬 디스크에
