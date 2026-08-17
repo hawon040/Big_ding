@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const GroupChat = require("../models/GroupChat");
 const GroupMessage = require("../models/GroupMessage");
+const Message = require("../models/Message");
 const Post = require("../models/Post");
 const User = require("../models/User");
 const auth = require("../middleware/authMiddleware");
@@ -45,15 +46,32 @@ router.post("/", auth, async (req, res) => {
       return res.status(400).json({ message: "함께할 친구를 선택해주세요." });
     }
 
-    // 실제로 내 친구인 사람만 초대할 수 있게 한다.
-    const me = await User.findById(req.user.id).select("friends nickname");
-    const myFriendIds = new Set(me.friends.map((id) => id.toString()));
-    const invalidInvite = memberIds.some((id) => !myFriendIds.has(id));
-    if (invalidInvite) {
-      return res.status(400).json({ message: "친구만 초대할 수 있습니다." });
+    // 친구 기능은 폐기되고 팔로우/팔로잉으로 대체되었다. 서로 팔로우(맞팔로우)
+    // 관계인 사람만 단체채팅에 초대할 수 있게 한다.
+    const me = await User.findById(req.user.id).select("following");
+    const myFollowingIds = new Set(me.following.map((id) => id.toString()));
+    const invitedUsers = await User.find({ _id: { $in: memberIds } }).select("following");
+    const invalidInvite = invitedUsers.some((u) => {
+      const theyFollowMe = u.following.some((id) => id.toString() === req.user.id);
+      const iFollowThem = myFollowingIds.has(u._id.toString());
+      return !(theyFollowMe && iFollowThem);
+    });
+    if (invalidInvite || invitedUsers.length !== memberIds.length) {
+      return res.status(400).json({ message: "서로 팔로우하는 사이만 초대할 수 있습니다." });
     }
 
     const members = Array.from(new Set([req.user.id, ...memberIds]));
+
+    // 나를 포함해서 최종 인원이 2명이면 사실상 1:1 채팅이다. 1:1 채팅은 별도의
+    // 방 문서 없이 Message 컬렉션의 from/to만으로 존재하므로, 그룹채팅방을 새로
+    // 만들지 않고 상대방 정보만 돌려준다. 프론트에서는 이 응답을 보고 그 친구와의
+    // 기존 1:1 채팅 화면으로 바로 연결해주면 된다.
+    if (members.length === 2) {
+      const friendId = members.find((id) => id !== req.user.id);
+      const friend = await User.findById(friendId).select(USER_FIELDS);
+      return res.status(200).json({ isDirect: true, friend });
+    }
+
     const groupChat = await GroupChat.create({
       host: req.user.id,
       members,

@@ -1701,10 +1701,18 @@ useEffect(() => {
         memberIds: newGroupChatMemberIds,
         name: newGroupChatName.trim() || undefined,
       });
-      setGroupChatList((prev) => [res.data, ...prev]);
       setShowCreateGroupChat(false);
       setNewGroupChatMemberIds([]);
       setNewGroupChatName("");
+
+      // 최종 인원이 2명(나 포함)이면 서버가 그룹채팅방을 만들지 않고 상대방 정보만
+      // 돌려준다. 이 경우 기존 1:1 채팅으로 바로 연결한다(항상 같은 대화를 재사용).
+      if (res.data.isDirect) {
+        openFriendChat(res.data.friend);
+        return;
+      }
+
+      setGroupChatList((prev) => [res.data, ...prev]);
       await openGroupChat(res.data);
     } catch (err: any) {
       showAlert(err.response?.data?.message || "채팅방 생성에 실패했습니다.");

@@ -61,10 +61,19 @@ api.interceptors.request.use((config) => {
 });
 
 // 401 응답 시 자동 로그아웃 / 관리자가 계정을 차단(ban)한 경우도 즉시 로그아웃
+// 단, 로그인/회원가입 요청 자체가 실패한 경우(아이디·비번 오류 등)는 제외한다.
+// 이 요청들은 애초에 로그인이 안 된 상태에서 보내는 거라 "로그아웃 처리"가 의미 없고,
+// reload()가 걸리면 LoginScreen에 떠야 할 실패 alert가 화면과 함께 사라져버린다.
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    const requestUrl: string = err.config?.url || "";
+    const isAuthRequest =
+      requestUrl.includes("/auth/login") ||
+      requestUrl.includes("/auth/register") ||
+      requestUrl.includes("/auth/find-password");
+
+    if (err.response?.status === 401 && !isAuthRequest) {
       localStorage.removeItem("token");
       window.location.reload();
     }
