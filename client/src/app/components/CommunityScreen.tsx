@@ -413,7 +413,7 @@ export const loadStoredInteractions = (): StoredInteractions => {
 
 export const BOARDS = [
   { id: "free" as BoardType, label: "게시판", emoji: "💬", icon: MessageCircle },
-  { id: "event" as BoardType, label: "행사공지", emoji: "📢", icon: Megaphone },
+  { id: "event" as BoardType, label: "공지사항", emoji: "📢", icon: Megaphone },
   { id: "qna" as BoardType, label: "선배들 작품 전시 공간", emoji: "🏆", icon: Users },
   { id: "contest" as BoardType, label: "꿀팁 게시판", emoji: "💡", icon: Trophy },
   { id: "lecture" as BoardType, label: "전공 강의평가", emoji: "⭐", icon: BookOpen },
@@ -4529,7 +4529,7 @@ const handleDeleteSelectedChats = () => {
 </button>
   </div>
 ) : (
-  <div className="flex items-center gap-2 mb-2">
+  <div className={`flex items-center gap-2 mb-2 ${post.board === "lecture" && post.rating ? "pr-8" : ""}`}>
     <button
       onClick={(e) => {
         e.stopPropagation();
@@ -5071,7 +5071,7 @@ const handleDeleteSelectedChats = () => {
               style={{ background: "var(--primary)", color: "white", opacity: isSubmittingPost ? 0.6 : 1 }}
              onClick={async () => {
                 if (newBoard === "event" && !canPostEvents) {
-                  showAlert("행사공지 게시판은 관리자만 작성할 수 있습니다.");
+                  showAlert("공지사항 게시판은 관리자만 작성할 수 있습니다.");
                   return;
                 }
 
