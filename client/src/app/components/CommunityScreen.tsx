@@ -1508,6 +1508,7 @@ useEffect(() => {
   }, []);
 
   const [activeFriend, setActiveFriend] = useState<Friend | null>(null);
+  const [chatLoading, setChatLoading] = useState(false);
   const [returnToChatFriend, setReturnToChatFriend] = useState<Friend | null>(null);
   const [chatMessages, setChatMessages] = useState<Record<string, Message[]>>({});
   // 인스타처럼 상대가 지금 접속 중이면 아바타에 초록 점과 "활동 중"을 표시한다.
@@ -1812,6 +1813,11 @@ useEffect(() => {
   // 알림 패널에서 맞팔로우/팔로우 취소 요청이 진행 중인 대상 id (중복 클릭 방지용)
   const [followBackPendingId, setFollowBackPendingId] = useState<string | null>(null);
 const [showChatMenu, setShowChatMenu] = useState(false);
+const [chatToast, setChatToast] = useState<{ nickname: string; content: string } | null>(null);
+const chatToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+const [newMsgToast, setNewMsgToast] = useState(false);
+const chatBottomRef = useRef<HTMLDivElement>(null);
+const chatScrollRef = useRef<HTMLDivElement>(null);
 const [selectMode, setSelectMode] = useState(false);
 const [selectedMsgs, setSelectedMsgs] = useState<string[]>([]);
 const hiddenMessageIdsRef = useRef<Set<string>>(new Set());
@@ -1974,6 +1980,7 @@ useEffect(() => {
     if ((chatFetchTimestampsRef.current[friendId] ?? 0) > requestedAt) return;
     chatFetchTimestampsRef.current[friendId] = requestedAt;
     setChatMessages((prev) => ({ ...prev, [friendId]: mapMessages(raw) }));
+    
   };
 
   // 채팅 탭이 열려 있는 동안, 친구 목록 미리보기를 위해 친구별 대화 내역을 불러온다.
@@ -2006,6 +2013,7 @@ useEffect(() => {
       .then((res) => {
         if (cancelled) return;
         applyChatMessages(activeFriend._id, requestedAt, res.data);
+        
       })
       .catch(() => {});
     api.get(`/chat/${activeFriend._id}/state`)
@@ -2015,7 +2023,16 @@ useEffect(() => {
       cancelled = true;
     };
   }, [activeFriend]);
-
+   const prevMsgCountRef = useRef(0);
+   useEffect(() => {
+    if (!activeFriend) return;
+    const msgs = chatMessages[activeFriend._id] ?? [];
+    if (msgs.length === 0) return;
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+    prevMsgCountRef.current = msgs.length;
+  }, [activeFriend?._id, chatMessages[activeFriend?._id ?? ""]?.length]);
   // 소켓으로 새 메시지가 도착하면(내가 보낸 메시지는 REST 응답으로 이미 반영되므로 해당 없음)
   // 해당 친구의 대화 내역을 다시 불러와 실시간으로 반영한다. 활성 대화창이라면 읽음 처리도 함께 된다.
   useEffect(() => {
@@ -2023,11 +2040,18 @@ useEffect(() => {
     const handleReceiveMessage = (msg: { from?: { _id?: string } }) => {
       const friendId = msg?.from?._id;
       if (!friendId) return;
+      const friend = friends.find((f) => f._id === friendId);
+      if (friend && activeFriend?._id === friendId) {
+      setChatToast({ nickname: friend.nickname, content: (msg as any).content ?? "" });
+      if (chatToastTimerRef.current) clearTimeout(chatToastTimerRef.current);
+      chatToastTimerRef.current = setTimeout(() => setChatToast(null), 3000);
+    }
       const isViewing = activeFriend?._id ===friendId;
       const requestedAt = Date.now();
       api.get(`/chat/${friendId}${isViewing ? "" : "?preview=true"}`)
         .then((res) => {
           applyChatMessages(friendId, requestedAt, res.data);
+          if (isViewing) setNewMsgToast(true);
         })
         .catch(() => {});
       // 삭제(숨김)했던 채팅이었다면, 상대가 새 메시지를 보냈으니 목록에 다시 나타나게 한다.
@@ -3219,6 +3243,21 @@ const handleDeleteSelectedChats = () => {
           </div>
         )}
 
+    {chatToast && (
+          <div
+            className="absolute top-4 left-4 right-4 z-[70] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-lg"
+            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+            onClick={() => setChatToast(null)}
+          >
+            <div className="w-8 h-8 rounded-full shrink-0" style={{ background: "var(--muted)" }}>
+              <img src={defaultAvatar} alt="프로필" className="w-full h-full object-cover rounded-full" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>{chatToast.nickname}</p>
+              <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{chatToast.content}</p>
+            </div>
+          </div>
+        )}
         {/* 신고 팝업 */}
         {showReportConfirm && (
           <div className="absolute inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.4)" }}>
@@ -3261,7 +3300,15 @@ const handleDeleteSelectedChats = () => {
         )}
 
         {/* 메시지 목록 */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-0.5 no-scrollbar">
+        <div
+          ref={chatScrollRef}
+          className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-0.5 no-scrollbar"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+            if (isAtBottom) setNewMsgToast(false);
+          }}
+        >
           {(chatMessages[activeFriend._id] || []).map((msg, idx, arr) => {
             const prev = arr[idx - 1];
             const next = arr[idx + 1];
@@ -3385,8 +3432,21 @@ const handleDeleteSelectedChats = () => {
             </div>
             );
           })}
+          <div ref={chatBottomRef} />
         </div>
 
+        {newMsgToast && (
+          <button
+            onClick={() => {
+              chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+              setNewMsgToast(false);
+            }}
+            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full shadow-lg text-xs font-semibold"
+            style={{ background: "var(--primary)", color: "white" }}
+          >
+            새 메시지 ↓
+          </button>
+        )}
         {/* 입력창 */}
         {activeFriendTheyLeft ? (
           <div className="flex items-center justify-center px-3 py-4 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
@@ -6107,7 +6167,9 @@ const handleDeleteSelectedChats = () => {
                 if (n.type === "follow") {
                   openAuthor(n.sender);
                 } else if (n.post) {
-                  setSelectedPostId(n.post._id);
+                    setSelectedPostId(n.post._id);
+                    setViewedAuthor(null);
+                    setShowChat(false);
                 }
               }}
               className="flex items-center gap-3 p-2.5 rounded-xl text-left w-full cursor-pointer"
