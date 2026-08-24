@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, Moon, User, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X, Heart, ThumbsDown, MessageCircle, Bookmark, Ban } from "lucide-react";
+import { Bell, Moon, User, Users, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X, Heart, ThumbsDown, MessageCircle, Bookmark, Ban } from "lucide-react";
 import api, { resolveAssetUrl } from "@/api";
 import defaultAvatar from "@/assets/default-avatar.svg";
 import {
@@ -44,6 +44,21 @@ interface AdminInquiryItem {
   content: string;
   status: "pending" | "resolved";
   createdAt: string;
+}
+
+interface AdminMemberItem {
+  _id: string;
+  nickname: string;
+  studentId?: string;
+  avatar?: string;
+  isAdmin?: boolean;
+  canPostEvents?: boolean;
+  banned?: boolean;
+  banType?: "permanent" | "temporary";
+  banUntil?: string;
+  commentRestrictedUntil?: string;
+  isWithdrawn?: boolean;
+  createdAt?: string;
 }
 
 interface SanctionItem {
@@ -111,11 +126,18 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [showingUserProfile, setShowingUserProfile] = useState(false);
   const [userProfilePosts, setUserProfilePosts] = useState<Post[]>([]);
   // + 신고된 사용자에게 이 화면에서 바로 제재(경고/차단/댓글제한)를 부여하기
-  const [sanctionAction, setSanctionAction] = useState<{ type: "warn" | "ban" | "restrictComments" } | null>(null);
+    const [sanctionAction, setSanctionAction] = useState<{ type: "warn" | "ban" | "restrictComments" | "withdraw" } | null>(null);
   const [sanctionReason, setSanctionReason] = useState("");
   const [sanctionBanType, setSanctionBanType] = useState<"temporary" | "permanent">("temporary");
   const [sanctionDays, setSanctionDays] = useState(7);
   const [sanctionSubmitting, setSanctionSubmitting] = useState(false);
+  // + 회원 관리 화면(전체 회원 검색/목록, 상태 배지, 그 자리에서 제재·강제탈퇴·관리자 임명)
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [memberList, setMemberList] = useState<AdminMemberItem[]>([]);
+  const [memberPage, setMemberPage] = useState(1);
+  const [memberHasMore, setMemberHasMore] = useState(false);
+  const [memberLoading, setMemberLoading] = useState(false);
+  const [viewingMember, setViewingMember] = useState<AdminMemberItem | null>(null);
   const [adminInquiries, setAdminInquiries] = useState<AdminInquiryItem[]>([]);
   const [adminList, setAdminList] = useState<AdminUserItem[]>([]);
   const [adminSearchQuery, setAdminSearchQuery] = useState("");
@@ -170,6 +192,30 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   }, [activeSection]);
 
   // 관리자 화면에 들어갈 때마다 최신 신고/관리자 목록을 서버에서 다시 불러온다.
+    // 회원 관리 화면의 회원 목록을 (검색어 + 페이지 기준으로) 서버에서 불러온다.
+  // append가 true면 "더 보기"로 이어붙이고, 아니면 새 검색/최초 진입이므로 목록을 새로 교체한다.
+  const loadMembers = async (page: number, q: string, append = false) => {
+    setMemberLoading(true);
+    try {
+      const res = await api.get("/admin/users", { params: { q, page, limit: 30 } });
+      const { users, hasMore } = res.data as { users: AdminMemberItem[]; total: number; page: number; hasMore: boolean };
+      setMemberList((prev) => (append ? [...prev, ...users] : users));
+      setMemberPage(page);
+      setMemberHasMore(hasMore);
+    } catch {
+      if (!append) setMemberList([]);
+    } finally {
+      setMemberLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === "adminMembers") {
+      setMemberSearchQuery("");
+      loadMembers(1, "");
+    }
+  }, [activeSection]);
+
   useEffect(() => {
     if (activeSection === "adminReports") {
       api.get("/reports").then((res) => setAdminReports(res.data)).catch(() => {});
@@ -274,22 +320,47 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           banType: sanctionBanType,
           days: sanctionBanType === "temporary" ? sanctionDays : undefined,
         });
-      } else {
+            } else if (sanctionAction.type === "restrictComments") {
         await api.post(`/admin/users/${viewingUser._id}/restrict-comments`, {
           reason: sanctionReason.trim(),
           days: sanctionDays,
         });
+      } else {
+        await api.post(`/admin/users/${viewingUser._id}/withdraw`, { reason: sanctionReason.trim() });
       }
+      const wasWithdraw = sanctionAction.type === "withdraw";
       setSanctionAction(null);
       setSanctionReason("");
       setSanctionBanType("temporary");
       setSanctionDays(7);
-      showAlert("제재가 적용되었습니다.");
+      // 회원 관리 화면에서 실행한 경우, 배지가 최신 상태를 반영하도록 목록을 새로고침한다.
+      if (viewingMember) {
+        if (wasWithdraw) setViewingMember(null);
+        loadMembers(1, memberSearchQuery);
+      }
+      showAlert(wasWithdraw ? "강제 탈퇴 처리되었습니다." : "제재가 적용되었습니다.");
     } catch (err: any) {
       showAlert(err?.response?.data?.message || "처리에 실패했습니다.");
     } finally {
       setSanctionSubmitting(false);
     }
+  };
+
+  // 회원 관리 화면에서 관리자 권한(isAdmin, 전체 운영 권한)을 그 자리에서 부여/해제한다.
+  // "행사공지 관리자"(canPostEvents)와는 별개의, 진짜 관리자 권한이다.
+  const toggleFullAdmin = async (member: AdminMemberItem) => {
+    showConfirm(
+      member.isAdmin ? `${member.nickname}님의 관리자 권한을 해제할까요?` : `${member.nickname}님에게 관리자 권한을 부여할까요?`,
+      async () => {
+        try {
+          await api.patch(`/users/${member._id}/admin`, { isAdmin: !member.isAdmin });
+          setMemberList((prev) => prev.map((u) => (u._id === member._id ? { ...u, isAdmin: !member.isAdmin } : u)));
+          setViewingMember((prev) => (prev && prev._id === member._id ? { ...prev, isAdmin: !member.isAdmin } : prev));
+        } catch (err: any) {
+          showAlert(err?.response?.data?.message || "관리자 권한 변경에 실패했습니다.");
+        }
+      }
+    );
   };
 
   const searchAdminCandidates = async (q: string) => {
@@ -873,7 +944,248 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       </div>
     );
   }
+  if (activeSection === "adminMembers") {
+    const memberBadges = (m: AdminMemberItem) => {
+      const badges: { label: string; color: string }[] = [];
+      if (m.isAdmin) badges.push({ label: "관리자", color: "var(--primary)" });
+      if (m.isWithdrawn) badges.push({ label: "탈퇴", color: "var(--muted-foreground)" });
+      if (m.banned) badges.push({ label: m.banType === "permanent" ? "영구차단" : "기간차단", color: "#d4183d" });
+      if (m.commentRestrictedUntil && new Date(m.commentRestrictedUntil) > new Date()) badges.push({ label: "댓글제한", color: "#d4183d" });
+      return badges;
+    };
 
+    return (
+      <div className="relative flex flex-col flex-1 overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
+          <button onClick={() => setActiveSection(null)}>
+            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
+          </button>
+          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>회원 관리</h2>
+        </div>
+        <div className="px-4 pt-4">
+          <input
+            value={memberSearchQuery}
+            onChange={(e) => { setMemberSearchQuery(e.target.value); loadMembers(1, e.target.value); }}
+            placeholder="학번 또는 닉네임 검색"
+            className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+            style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-2 no-scrollbar">
+          {memberList.length === 0 && !memberLoading ? (
+            <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+              회원이 없습니다.
+            </p>
+          ) : (
+            memberList.map((m) => (
+              <button
+                key={m._id}
+                onClick={() => setViewingMember(m)}
+                className="flex items-center gap-3 p-3 rounded-xl text-left"
+                style={{ background: "var(--card)" }}
+              >
+                <img src={resolveAssetUrl(m.avatar) || defaultAvatar} alt="프로필 사진" className="w-9 h-9 rounded-full object-cover shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{m.nickname}</p>
+                  {m.studentId && <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{m.studentId}</p>}
+                </div>
+                <div className="flex flex-wrap gap-1 justify-end shrink-0 max-w-[40%]">
+                  {memberBadges(m).map((b, i) => (
+                    <span key={i} className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: `${b.color}22`, color: b.color }}>
+                      {b.label}
+                    </span>
+                  ))}
+                </div>
+              </button>
+            ))
+          )}
+          {memberHasMore && (
+            <button
+              onClick={() => loadMembers(memberPage + 1, memberSearchQuery, true)}
+              disabled={memberLoading}
+              className="w-full py-2.5 rounded-xl text-xs font-semibold disabled:opacity-50"
+              style={{ background: "var(--muted)", color: "var(--foreground)" }}
+            >
+              {memberLoading ? "불러오는 중..." : "더 보기"}
+            </button>
+          )}
+        </div>
+
+        {/* 회원 상세: 상태 확인 + 그 자리에서 관리자 임명/해제, 제재, 강제 탈퇴 */}
+        {viewingMember && (
+          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--background)" }}>
+            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+              <button onClick={() => setViewingMember(null)} className="text-lg" style={{ color: "var(--foreground)" }}>←</button>
+              <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>회원 상세</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+              <div className="rounded-2xl p-4 shadow-sm flex items-center gap-3" style={{ background: "var(--card)" }}>
+                <img src={resolveAssetUrl(viewingMember.avatar) || defaultAvatar} alt="프로필 사진" className="w-12 h-12 rounded-full object-cover shrink-0" />
+                <div>
+                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{viewingMember.nickname}</p>
+                  {viewingMember.studentId && (
+                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>학번: {viewingMember.studentId}</p>
+                  )}
+                  {viewingMember.createdAt && (
+                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                      가입일: {new Date(viewingMember.createdAt).toLocaleDateString("ko-KR")}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {memberBadges(viewingMember).length === 0 ? (
+                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>특이사항 없음</span>
+                ) : (
+                  memberBadges(viewingMember).map((b, i) => (
+                    <span key={i} className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: `${b.color}22`, color: b.color }}>
+                      {b.label}
+                    </span>
+                  ))
+                )}
+              </div>
+
+              {viewingMember.isWithdrawn ? (
+                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>탈퇴한 회원에게는 추가 조치를 할 수 없습니다.</p>
+              ) : (
+                <>
+                  <button
+                    onClick={() => toggleFullAdmin(viewingMember)}
+                    className="w-full py-3 rounded-xl text-sm font-semibold"
+                    style={{ background: viewingMember.isAdmin ? "var(--muted)" : "var(--primary)", color: viewingMember.isAdmin ? "var(--foreground)" : "white" }}
+                  >
+                    {viewingMember.isAdmin ? "관리자 권한 해제" : "관리자 권한 부여"}
+                  </button>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={() => { setViewingUser(viewingMember); setSanctionAction({ type: "warn" }); }}
+                      className="py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center gap-1"
+                      style={{ background: "var(--muted)", color: "var(--foreground)" }}
+                    >
+                      <AlertTriangle size={16} /> 경고
+                    </button>
+                    <button
+                      onClick={() => { setViewingUser(viewingMember); setSanctionAction({ type: "ban" }); }}
+                      className="py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center gap-1"
+                      style={{ background: "#d4183d22", color: "#d4183d" }}
+                    >
+                      <Ban size={16} /> 차단
+                    </button>
+                    <button
+                      onClick={() => { setViewingUser(viewingMember); setSanctionAction({ type: "restrictComments" }); }}
+                      className="py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center gap-1"
+                      style={{ background: "var(--muted)", color: "var(--foreground)" }}
+                    >
+                      <MessageSquare size={16} /> 댓글 제한
+                    </button>
+                    <button
+                      onClick={() => { setViewingUser(viewingMember); setSanctionAction({ type: "withdraw" }); }}
+                      className="py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center gap-1"
+                      style={{ background: "#d4183d22", color: "#d4183d" }}
+                    >
+                      <UserX size={16} /> 강제 탈퇴
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 경고/차단/댓글제한/강제탈퇴 사유 입력 모달 (신고 관리 화면과 동일한 상태를 공유) */}
+        {sanctionAction && viewingUser && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
+            <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>
+                  {sanctionAction.type === "warn" ? "유저 경고" : sanctionAction.type === "ban" ? "앱 차단" : sanctionAction.type === "restrictComments" ? "댓글 제한" : "강제 탈퇴"}
+                </h3>
+                <button onClick={() => setSanctionAction(null)}>
+                  <X size={20} style={{ color: "var(--foreground)" }} />
+                </button>
+              </div>
+              <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>대상: {viewingUser.nickname}</p>
+
+              {sanctionAction.type === "ban" && (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setSanctionBanType("temporary")}
+                    className="py-2.5 rounded-xl text-xs font-semibold"
+                    style={{
+                      background: sanctionBanType === "temporary" ? "var(--primary)" : "var(--muted)",
+                      color: sanctionBanType === "temporary" ? "white" : "var(--muted-foreground)",
+                    }}
+                  >
+                    기간 지정
+                  </button>
+                  <button
+                    onClick={() => setSanctionBanType("permanent")}
+                    className="py-2.5 rounded-xl text-xs font-semibold"
+                    style={{
+                      background: sanctionBanType === "permanent" ? "var(--primary)" : "var(--muted)",
+                      color: sanctionBanType === "permanent" ? "white" : "var(--muted-foreground)",
+                    }}
+                  >
+                    영구 정지
+                  </button>
+                </div>
+              )}
+
+              {(sanctionAction.type === "restrictComments" || (sanctionAction.type === "ban" && sanctionBanType === "temporary")) && (
+                <div className="flex gap-2 items-center">
+                  {[3, 7, 30].map((d) => (
+                    <button
+                      key={d}
+                      onClick={() => setSanctionDays(d)}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold"
+                      style={{
+                        background: sanctionDays === d ? "var(--primary)" : "var(--muted)",
+                        color: sanctionDays === d ? "white" : "var(--muted-foreground)",
+                      }}
+                    >
+                      {d}일
+                    </button>
+                  ))}
+                  <input
+                    type="number"
+                    min={1}
+                    value={sanctionDays}
+                    onChange={(e) => setSanctionDays(Math.max(1, Number(e.target.value) || 1))}
+                    className="w-16 px-2 py-2 rounded-lg text-sm outline-none"
+                    style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                  />
+                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>일</span>
+                </div>
+              )}
+
+              <textarea
+                value={sanctionReason}
+                onChange={(e) => setSanctionReason(e.target.value)}
+                placeholder="사유를 입력하세요"
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
+                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+              />
+
+              <button
+                onClick={submitSanctionAction}
+                disabled={!sanctionReason.trim() || sanctionSubmitting}
+                className="w-full px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-50"
+                style={{ background: "#d4183d", color: "white" }}
+              >
+                {sanctionSubmitting ? "처리 중..." : "확인"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {AlertModal}
+        {ConfirmModal}
+      </div>
+    );
+  }
   if (activeSection === "adminReports") {
     return (
       <div className="relative flex flex-col flex-1 overflow-hidden">
@@ -1109,7 +1421,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
               <div className="flex items-center justify-between mb-1">
                 <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>
-                  {sanctionAction.type === "warn" ? "유저 경고" : sanctionAction.type === "ban" ? "앱 차단" : "댓글 제한"}
+                                    {sanctionAction.type === "warn" ? "유저 경고" : sanctionAction.type === "ban" ? "앱 차단" : sanctionAction.type === "restrictComments" ? "댓글 제한" : "강제 탈퇴"}
                 </h3>
                 <button onClick={() => setSanctionAction(null)}>
                   <X size={20} style={{ color: "var(--foreground)" }} />
@@ -1651,10 +1963,15 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       <div className="flex-1 min-h-0 overflow-y-auto px-4 flex flex-col gap-2.5 pb-3 no-scrollbar">
         {isAdmin && (
           <Section title="관리자">
-            <SettingRow
+                        <SettingRow
               icon={<AlertTriangle size={18} style={{ color: "#d4183d" }} />}
               label="신고 관리"
               onPress={() => setActiveSection("adminReports")}
+            />
+            <SettingRow
+              icon={<Users size={18} style={{ color: "var(--primary)" }} />}
+              label="회원 관리"
+              onPress={() => setActiveSection("adminMembers")}
             />
             <SettingRow
               icon={<MessageSquare size={18} style={{ color: "#5bc0de" }} />}

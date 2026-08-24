@@ -3,6 +3,8 @@ const router = express.Router();
 const User = require("../models/User");
 const Sanction = require("../models/Sanction");
 const Notification = require("../models/Notification");
+const FriendRequest = require("../models/FriendRequest");
+const crypto = require("crypto");
 const auth = require("../middleware/authMiddleware");
 const isAdmin = require("../middleware/adminMiddleware");
 
@@ -158,6 +160,74 @@ router.patch("/sanctions/:id/lift", async (req, res) => {
       );
     }
     res.json({ message: "해제되었습니다." });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// GET /api/admin/users?q=&page=1&limit=30 - 전체 회원 목록 조회/검색 (관리자 전용)
+// 학번/닉네임으로 검색하고, 현재 제재 상태(차단/댓글제한/탈퇴 여부)를 함께 내려준다.
+router.get("/users", async (req, res) => {
+  try {
+    const q = (req.query.q || "").trim();
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 30));
+
+    const query = q
+      ? { $or: [{ studentId: { $regex: q, $options: "i" } }, { nickname: { $regex: q, $options: "i" } }] }
+      : {};
+
+    const [users, total] = await Promise.all([
+      User.find(query)
+        .select("nickname studentId avatar isAdmin canPostEvents banned banType banUntil commentRestrictedUntil isWithdrawn createdAt")
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      User.countDocuments(query),
+    ]);
+
+    res.json({ users, total, page, hasMore: page * limit < total });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// POST /api/admin/users/:userId/withdraw - 관리자에 의한 강제 탈퇴
+// body: { reason: string }
+// DELETE /users/account(본인 탈퇴)와 동일하게 문서를 삭제하지 않고 익명화하며,
+// 처리 이력을 Sanction에 남겨 나중에 누가/언제/왜 탈퇴시켰는지 추적할 수 있게 한다.
+router.post("/users/:userId/withdraw", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { reason } = req.body;
+    if (userId === req.user.id) return res.status(400).json({ message: "본인은 대상으로 지정할 수 없습니다." });
+    if (!reason?.trim()) return res.status(400).json({ message: "사유를 입력해주세요." });
+
+    const target = await User.findById(userId);
+    if (!target) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    if (target.isWithdrawn) return res.status(400).json({ message: "이미 탈퇴한 사용자입니다." });
+
+    const sanction = await Sanction.create({ user: userId, type: "forceWithdraw", reason: reason.trim(), admin: req.user.id });
+
+    await User.updateMany(
+      {},
+      { $pull: { friends: userId, followers: userId, following: userId, blockedUsers: userId } }
+    );
+    await FriendRequest.deleteMany({ $or: [{ from: userId }, { to: userId }] });
+
+    target.nickname = "탈퇴한 사용자";
+    target.avatar = undefined;
+    target.studentId = `WITHDRAWN_${target.studentId}_${Date.now()}`;
+    target.password = crypto.randomBytes(32).toString("hex");
+    target.friends = [];
+    target.followers = [];
+    target.following = [];
+    target.blockedUsers = [];
+    target.isWithdrawn = true;
+    target.withdrawnAt = new Date();
+    await target.save();
+
+    res.status(201).json({ message: "강제 탈퇴 처리되었습니다.", sanction });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }
