@@ -4,7 +4,7 @@ const sanctionSchema = new mongoose.Schema({
   // 제재 대상
   user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 
-  type: { type: String, enum: ["warning", "ban", "commentRestriction"], required: true },
+    type: { type: String, enum: ["warning", "ban", "commentRestriction", "forceWithdraw"], required: true },
   reason: { type: String, required: true },
 
   // 처리한 관리자
