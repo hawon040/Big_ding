@@ -5,7 +5,7 @@ const mongoose = require("mongoose");
 const adminActionLogSchema = new mongoose.Schema({
   actor: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   actorIsAdmin: { type: Boolean, default: false }, // true면 관리자 권한으로 남의 글/댓글을 지운 것
-  actionType: { type: String, enum: ["deletePost", "deleteComment"], required: true },
+    actionType: { type: String, enum: ["deletePost", "deleteComment", "grantAdmin", "revokeAdmin"], required: true },
   board: { type: String },
   targetAuthor: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, // 삭제된 글/댓글의 원작성자
   snapshot: {

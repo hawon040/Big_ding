@@ -295,4 +295,81 @@ router.get("/logs", async (req, res) => {
   }
 });
 
+// GET /api/admin/audit-log?category=all|sanction|content&page=1&limit=30 - 통합 관리자 행동 로그 (관리자 전용)
+// 제재(Sanction: 경고/차단/댓글제한/강제탈퇴)와 콘텐츠 조치(AdminActionLog: 게시물/댓글 삭제,
+// 관리자 임명/해제)를 하나의 시간순 이력으로 합쳐서, 관리자가 누구를 언제 왜 조치했는지
+// 한 화면에서 추적할 수 있게 한다.
+router.get("/audit-log", async (req, res) => {
+  try {
+    const { category } = req.query;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 30));
+    // 합친 뒤 최신순으로 정렬해서 페이지를 잘라내야 하므로, 각 컬렉션에서 필요한 페이지 끝까지의
+    // 최신 항목을 넉넉히 가져온다.
+    const fetchLimit = page * limit;
+
+    const wantsSanction = !category || category === "all" || category === "sanction";
+    const wantsContent = !category || category === "all" || category === "content";
+
+    const [sanctions, contentLogs] = await Promise.all([
+      wantsSanction
+        ? Sanction.find()
+            .populate("user", "nickname studentId")
+            .populate("admin", "nickname studentId")
+            .sort({ createdAt: -1 })
+            .limit(fetchLimit)
+        : [],
+      wantsContent
+        ? AdminActionLog.find()
+            .populate("actor", "nickname studentId")
+            .populate("targetAuthor", "nickname studentId")
+            .sort({ createdAt: -1 })
+            .limit(fetchLimit)
+        : [],
+    ]);
+
+    // 두 컬렉션의 서로 다른 필드 구조를 화면에서 다루기 쉬운 공통 형태로 맞춘다.
+    const normalized = [
+      ...sanctions.map((s) => ({
+        _id: s._id,
+        category: "sanction",
+        actionType: s.type, // warning | ban | commentRestriction | forceWithdraw
+        actor: s.admin,
+        targetUser: s.user,
+        reason: s.reason,
+        board: undefined,
+        banType: s.banType,
+        expiresAt: s.expiresAt,
+        active: s.active,
+        createdAt: s.createdAt,
+      })),
+      ...contentLogs.map((l) => ({
+        _id: l._id,
+        category: "content",
+        actionType: l.actionType, // deletePost | deleteComment | grantAdmin | revokeAdmin
+        actor: l.actor,
+        targetUser: l.targetAuthor,
+        reason: undefined,
+        board: l.board,
+        snapshot: l.snapshot,
+        actorIsAdmin: l.actorIsAdmin,
+        createdAt: l.createdAt,
+      })),
+    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const start = (page - 1) * limit;
+    const pageItems = normalized.slice(start, start + limit);
+    // 정확한 전체 개수는 두 컬렉션을 각각 세어야 한다.
+    const [sanctionTotal, contentTotal] = await Promise.all([
+      wantsSanction ? Sanction.countDocuments() : 0,
+      wantsContent ? AdminActionLog.countDocuments() : 0,
+    ]);
+    const total = sanctionTotal + contentTotal;
+
+    res.json({ logs: pageItems, total, page, hasMore: page * limit < total });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 module.exports = router;

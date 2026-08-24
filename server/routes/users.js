@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require("../models/User");
 const FriendRequest = require("../models/FriendRequest");
 const Notification = require("../models/Notification");
+const AdminActionLog = require("../models/AdminActionLog");
 const auth = require("../middleware/authMiddleware");
 const isAdmin = require("../middleware/adminMiddleware");
 const upload = require("../middleware/upload");
@@ -286,6 +287,13 @@ router.patch("/:id/admin", auth, isAdmin, async (req, res) => {
       { new: true }
     ).select("nickname studentId isAdmin");
     if (!user) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    // 누가 언제 누구에게 관리자 권한을 부여/해제했는지 감사 로그에 남긴다.
+    await AdminActionLog.create({
+      actor: req.user.id,
+      actorIsAdmin: true,
+      actionType: nextIsAdmin ? "grantAdmin" : "revokeAdmin",
+      targetAuthor: user._id,
+    });
     res.json(user);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });

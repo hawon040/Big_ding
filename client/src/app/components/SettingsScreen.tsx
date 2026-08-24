@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, Moon, User, Users, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X, Heart, ThumbsDown, MessageCircle, Bookmark, Ban } from "lucide-react";
+import { Bell, Moon, User, Users, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X, Heart, ThumbsDown, MessageCircle, Bookmark, Ban, History } from "lucide-react";
 import api, { resolveAssetUrl } from "@/api";
 import defaultAvatar from "@/assets/default-avatar.svg";
 import {
@@ -70,6 +70,22 @@ interface AdminLogItem {
   targetAuthor: { _id: string; nickname: string; studentId?: string } | null;
   snapshot: { title?: string; content?: string };
   postId?: string;
+  createdAt: string;
+}
+
+interface AuditLogItem {
+  _id: string;
+  category: "sanction" | "content";
+  actionType: "warning" | "ban" | "commentRestriction" | "forceWithdraw" | "deletePost" | "deleteComment" | "grantAdmin" | "revokeAdmin";
+  actor: { _id: string; nickname: string; studentId?: string } | null;
+  targetUser: { _id: string; nickname: string; studentId?: string } | null;
+  reason?: string;
+  board?: string;
+  banType?: "permanent" | "temporary";
+  expiresAt?: string;
+  active?: boolean;
+  snapshot?: { title?: string; content?: string };
+  actorIsAdmin?: boolean;
   createdAt: string;
 }
 
@@ -162,7 +178,13 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [monitorLogs, setMonitorLogs] = useState<AdminLogItem[]>([]);
   const [monitorLogPage, setMonitorLogPage] = useState(1);
   const [monitorLogHasMore, setMonitorLogHasMore] = useState(false);
-  const [monitorLogLoading, setMonitorLogLoading] = useState(false);
+    const [monitorLogLoading, setMonitorLogLoading] = useState(false);
+  // + 관리자 행동 로그(제재 + 게시물/댓글 삭제 + 관리자 임명/해제를 하나로 합친 감사 로그)
+  const [auditCategory, setAuditCategory] = useState<"all" | "sanction" | "content">("all");
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditHasMore, setAuditHasMore] = useState(false);
+  const [auditLoading, setAuditLoading] = useState(false);
   const [adminInquiries, setAdminInquiries] = useState<AdminInquiryItem[]>([]);
   const [adminList, setAdminList] = useState<AdminUserItem[]>([]);
   const [adminSearchQuery, setAdminSearchQuery] = useState("");
@@ -296,7 +318,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
     });
   };
 
-  // 관리자가 모니터링 화면(게시물 상세)에서 댓글 하나를 바로 삭제한다.
+    // 관리자가 모니터링 화면(게시물 상세)에서 댓글 하나를 바로 삭제한다.
   const deleteMonitorComment = (post: Post, commentId: string) => {
     showConfirm("이 댓글을 삭제하시겠습니까?", async () => {
       try {
@@ -308,6 +330,29 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       }
     });
   };
+
+  // 통합 관리자 행동 로그(제재 + 게시물/댓글 삭제 + 관리자 임명/해제)를 불러온다.
+  const loadAuditLog = async (page: number, category: "all" | "sanction" | "content", append = false) => {
+    setAuditLoading(true);
+    try {
+      const res = await api.get("/admin/audit-log", { params: { category: category === "all" ? undefined : category, page, limit: 20 } });
+      const { logs, hasMore } = res.data as { logs: AuditLogItem[]; total: number; page: number; hasMore: boolean };
+      setAuditLogs((prev) => (append ? [...prev, ...logs] : logs));
+      setAuditPage(page);
+      setAuditHasMore(hasMore);
+    } catch {
+      if (!append) setAuditLogs([]);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === "adminAuditLog") {
+      setAuditCategory("all");
+      loadAuditLog(1, "all");
+    }
+  }, [activeSection]);
 
   useEffect(() => {
     if (activeSection === "adminReports") {
@@ -1031,6 +1076,104 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             </div>
           </div>
         )}
+
+        {AlertModal}
+        {ConfirmModal}
+      </div>
+    );
+  }
+
+    if (activeSection === "adminAuditLog") {
+    // 카테고리+행동타입에 따라 배지 라벨/색상을 결정한다.
+    const auditLabel = (log: AuditLogItem): { label: string; color: string } => {
+      switch (log.actionType) {
+        case "warning": return { label: "경고", color: "var(--muted-foreground)" };
+        case "ban": return { label: log.banType === "permanent" ? "영구 차단" : "기간 차단", color: "#d4183d" };
+        case "commentRestriction": return { label: "댓글 제한", color: "#d4183d" };
+        case "forceWithdraw": return { label: "강제 탈퇴", color: "#d4183d" };
+        case "deletePost": return { label: "게시물 삭제", color: "#d4183d" };
+        case "deleteComment": return { label: "댓글 삭제", color: "#d4183d" };
+        case "grantAdmin": return { label: "관리자 임명", color: "var(--primary)" };
+        case "revokeAdmin": return { label: "관리자 해제", color: "var(--muted-foreground)" };
+        default: return { label: log.actionType, color: "var(--muted-foreground)" };
+      }
+    };
+
+    return (
+      <div className="relative flex flex-col flex-1 overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
+          <button onClick={() => setActiveSection(null)}>
+            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
+          </button>
+          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>관리자 행동 로그</h2>
+        </div>
+
+        <div className="px-4 pt-4 flex gap-1.5">
+          {([
+            { key: "all", label: "전체" },
+            { key: "sanction", label: "제재" },
+            { key: "content", label: "삭제/권한" },
+          ] as { key: "all" | "sanction" | "content"; label: string }[]).map((t) => (
+            <button
+              key={t.key}
+              onClick={() => { setAuditCategory(t.key); loadAuditLog(1, t.key); }}
+              className="text-xs font-semibold px-3 py-1.5 rounded-full"
+              style={{ background: auditCategory === t.key ? "var(--primary)" : "var(--muted)", color: auditCategory === t.key ? "white" : "var(--muted-foreground)" }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar">
+          {auditLogs.length === 0 && !auditLoading ? (
+            <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+              기록이 없습니다.
+            </p>
+          ) : (
+            auditLogs.map((log) => {
+              const { label, color } = auditLabel(log);
+              return (
+                <div key={log._id} className="rounded-2xl p-4 shadow-sm flex flex-col gap-1.5" style={{ background: "var(--card)" }}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: `${color}22`, color }}>
+                      {label}
+                    </span>
+                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                      {new Date(log.createdAt).toLocaleString("ko-KR")}
+                    </span>
+                  </div>
+                  <p className="text-sm" style={{ color: "var(--foreground)" }}>
+                    <span className="font-semibold">{log.actor?.nickname ?? "알 수 없음"}</span>
+                    {" → "}
+                    {log.targetUser?.nickname ?? "탈퇴한 사용자"}
+                  </p>
+                  {log.reason && (
+                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>사유: {log.reason}</p>
+                  )}
+                  {log.category === "content" && log.snapshot?.title && (
+                    <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>제목: {log.snapshot.title}</p>
+                  )}
+                  {log.category === "content" && log.board && (
+                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                      {BOARDS.find((b) => b.id === log.board)?.label ?? log.board}
+                    </p>
+                  )}
+                </div>
+              );
+            })
+          )}
+          {auditHasMore && (
+            <button
+              onClick={() => loadAuditLog(auditPage + 1, auditCategory, true)}
+              disabled={auditLoading}
+              className="w-full py-2.5 rounded-xl text-xs font-semibold disabled:opacity-50"
+              style={{ background: "var(--muted)", color: "var(--foreground)" }}
+            >
+              {auditLoading ? "불러오는 중..." : "더 보기"}
+            </button>
+          )}
+        </div>
 
         {AlertModal}
         {ConfirmModal}
@@ -2331,10 +2474,15 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               label="행사공지 관리자"
               onPress={() => setActiveSection("adminUsers")}
             />
-            <SettingRow
+                        <SettingRow
               icon={<UserX size={18} style={{ color: "#d4183d" }} />}
               label="제재 관리"
               onPress={() => setActiveSection("sanctions")}
+            />
+            <SettingRow
+              icon={<History size={18} style={{ color: "#5cb85c" }} />}
+              label="관리자 행동 로그"
+              onPress={() => setActiveSection("adminAuditLog")}
               last
             />
           </Section>
