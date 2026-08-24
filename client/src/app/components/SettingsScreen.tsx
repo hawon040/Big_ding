@@ -61,6 +61,18 @@ interface AdminMemberItem {
   createdAt?: string;
 }
 
+interface AdminLogItem {
+  _id: string;
+  actor: { _id: string; nickname: string; studentId?: string } | null;
+  actorIsAdmin: boolean;
+  actionType: "deletePost" | "deleteComment";
+  board?: string;
+  targetAuthor: { _id: string; nickname: string; studentId?: string } | null;
+  snapshot: { title?: string; content?: string };
+  postId?: string;
+  createdAt: string;
+}
+
 interface SanctionItem {
   _id: string;
   user: { _id: string; nickname: string; studentId?: string; avatar?: string } | null;
@@ -126,7 +138,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [showingUserProfile, setShowingUserProfile] = useState(false);
   const [userProfilePosts, setUserProfilePosts] = useState<Post[]>([]);
   // + 신고된 사용자에게 이 화면에서 바로 제재(경고/차단/댓글제한)를 부여하기
-    const [sanctionAction, setSanctionAction] = useState<{ type: "warn" | "ban" | "restrictComments" | "withdraw" } | null>(null);
+  const [sanctionAction, setSanctionAction] = useState<{ type: "warn" | "ban" | "restrictComments" | "withdraw" } | null>(null);
   const [sanctionReason, setSanctionReason] = useState("");
   const [sanctionBanType, setSanctionBanType] = useState<"temporary" | "permanent">("temporary");
   const [sanctionDays, setSanctionDays] = useState(7);
@@ -138,6 +150,19 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [memberHasMore, setMemberHasMore] = useState(false);
   const [memberLoading, setMemberLoading] = useState(false);
   const [viewingMember, setViewingMember] = useState<AdminMemberItem | null>(null);
+  // + 게시물/댓글 통합 모니터링 화면(게시판별 최근 글 + 삭제 로그)
+  const [monitorTab, setMonitorTab] = useState<"posts" | "logs">("posts");
+  const [monitorBoard, setMonitorBoard] = useState("");
+  const [monitorSearchQuery, setMonitorSearchQuery] = useState("");
+  const [monitorPosts, setMonitorPosts] = useState<Post[]>([]);
+  const [monitorPage, setMonitorPage] = useState(1);
+  const [monitorHasMore, setMonitorHasMore] = useState(false);
+  const [monitorLoading, setMonitorLoading] = useState(false);
+  const [monitorLogType, setMonitorLogType] = useState<"all" | "deletePost" | "deleteComment">("all");
+  const [monitorLogs, setMonitorLogs] = useState<AdminLogItem[]>([]);
+  const [monitorLogPage, setMonitorLogPage] = useState(1);
+  const [monitorLogHasMore, setMonitorLogHasMore] = useState(false);
+  const [monitorLogLoading, setMonitorLogLoading] = useState(false);
   const [adminInquiries, setAdminInquiries] = useState<AdminInquiryItem[]>([]);
   const [adminList, setAdminList] = useState<AdminUserItem[]>([]);
   const [adminSearchQuery, setAdminSearchQuery] = useState("");
@@ -192,7 +217,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   }, [activeSection]);
 
   // 관리자 화면에 들어갈 때마다 최신 신고/관리자 목록을 서버에서 다시 불러온다.
-    // 회원 관리 화면의 회원 목록을 (검색어 + 페이지 기준으로) 서버에서 불러온다.
+  // 회원 관리 화면의 회원 목록을 (검색어 + 페이지 기준으로) 서버에서 불러온다.
   // append가 true면 "더 보기"로 이어붙이고, 아니면 새 검색/최초 진입이므로 목록을 새로 교체한다.
   const loadMembers = async (page: number, q: string, append = false) => {
     setMemberLoading(true);
@@ -215,6 +240,74 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       loadMembers(1, "");
     }
   }, [activeSection]);
+
+  // 게시판 통합 모니터링: 게시판/검색어 기준으로 최근 게시물을 불러온다.
+  const loadMonitorPosts = async (page: number, board: string, q: string, append = false) => {
+    setMonitorLoading(true);
+    try {
+      const res = await api.get("/admin/posts", { params: { board: board || undefined, q, page, limit: 20 } });
+      const { posts, hasMore } = res.data as { posts: Post[]; total: number; page: number; hasMore: boolean };
+      setMonitorPosts((prev) => (append ? [...prev, ...posts] : posts));
+      setMonitorPage(page);
+      setMonitorHasMore(hasMore);
+    } catch {
+      if (!append) setMonitorPosts([]);
+    } finally {
+      setMonitorLoading(false);
+    }
+  };
+
+  // 삭제 로그(게시물/댓글 삭제 이력)를 불러온다.
+  const loadMonitorLogs = async (page: number, type: "all" | "deletePost" | "deleteComment", append = false) => {
+    setMonitorLogLoading(true);
+    try {
+      const res = await api.get("/admin/logs", { params: { type: type === "all" ? undefined : type, page, limit: 20 } });
+      const { logs, hasMore } = res.data as { logs: AdminLogItem[]; total: number; page: number; hasMore: boolean };
+      setMonitorLogs((prev) => (append ? [...prev, ...logs] : logs));
+      setMonitorLogPage(page);
+      setMonitorLogHasMore(hasMore);
+    } catch {
+      if (!append) setMonitorLogs([]);
+    } finally {
+      setMonitorLogLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === "adminMonitoring") {
+      setMonitorTab("posts");
+      setMonitorBoard("");
+      setMonitorSearchQuery("");
+      loadMonitorPosts(1, "", "");
+    }
+  }, [activeSection]);
+
+  // 관리자가 모니터링 화면에서 게시물을 바로 삭제한다 (기존 DELETE /posts/:id 재사용).
+  const deleteMonitorPost = (post: Post) => {
+    showConfirm("이 게시물을 삭제하시겠습니까?", async () => {
+      try {
+        await api.delete(`/posts/${post._id}`);
+        setMonitorPosts((prev) => prev.filter((p) => p._id !== post._id));
+        if (viewingPost?._id === post._id) setViewingPost(null);
+        showAlert("게시물이 삭제되었습니다.");
+      } catch {
+        showAlert("게시물 삭제에 실패했습니다.");
+      }
+    });
+  };
+
+  // 관리자가 모니터링 화면(게시물 상세)에서 댓글 하나를 바로 삭제한다.
+  const deleteMonitorComment = (post: Post, commentId: string) => {
+    showConfirm("이 댓글을 삭제하시겠습니까?", async () => {
+      try {
+        await api.delete(`/posts/${post._id}/comments/${commentId}`);
+        setViewingPost((prev) => (prev && prev._id === post._id ? { ...prev, comments: prev.comments.filter((c) => c._id !== commentId) } : prev));
+        setMonitorPosts((prev) => prev.map((p) => (p._id === post._id ? { ...p, comments: p.comments.filter((c) => c._id !== commentId) } : p)));
+      } catch {
+        showAlert("댓글 삭제에 실패했습니다.");
+      }
+    });
+  };
 
   useEffect(() => {
     if (activeSection === "adminReports") {
@@ -320,7 +413,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           banType: sanctionBanType,
           days: sanctionBanType === "temporary" ? sanctionDays : undefined,
         });
-            } else if (sanctionAction.type === "restrictComments") {
+      } else if (sanctionAction.type === "restrictComments") {
         await api.post(`/admin/users/${viewingUser._id}/restrict-comments`, {
           reason: sanctionReason.trim(),
           days: sanctionDays,
@@ -944,6 +1037,255 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       </div>
     );
   }
+
+  if (activeSection === "adminMonitoring") {
+    return (
+      <div className="relative flex flex-col flex-1 overflow-hidden">
+        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
+          <button onClick={() => setActiveSection(null)}>
+            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
+          </button>
+          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>게시물/댓글 모니터링</h2>
+        </div>
+
+        <div className="grid grid-cols-2 px-4 gap-2 mt-4 mb-1">
+          <button
+            onClick={() => { setMonitorTab("posts"); loadMonitorPosts(1, monitorBoard, monitorSearchQuery); }}
+            className="py-2.5 rounded-xl text-xs font-semibold"
+            style={{ background: monitorTab === "posts" ? "var(--primary)" : "var(--muted)", color: monitorTab === "posts" ? "white" : "var(--muted-foreground)" }}
+          >
+            최근 게시물
+          </button>
+          <button
+            onClick={() => { setMonitorTab("logs"); loadMonitorLogs(1, monitorLogType); }}
+            className="py-2.5 rounded-xl text-xs font-semibold"
+            style={{ background: monitorTab === "logs" ? "var(--primary)" : "var(--muted)", color: monitorTab === "logs" ? "white" : "var(--muted-foreground)" }}
+          >
+            삭제 로그
+          </button>
+        </div>
+
+        {monitorTab === "posts" ? (
+          <>
+            <div className="px-4 pt-2 flex flex-col gap-2">
+              <input
+                value={monitorSearchQuery}
+                onChange={(e) => { setMonitorSearchQuery(e.target.value); loadMonitorPosts(1, monitorBoard, e.target.value); }}
+                placeholder="제목/내용 검색"
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+              />
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                <button
+                  onClick={() => { setMonitorBoard(""); loadMonitorPosts(1, "", monitorSearchQuery); }}
+                  className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full"
+                  style={{ background: monitorBoard === "" ? "var(--primary)" : "var(--muted)", color: monitorBoard === "" ? "white" : "var(--muted-foreground)" }}
+                >
+                  전체
+                </button>
+                {BOARDS.map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => { setMonitorBoard(b.id); loadMonitorPosts(1, b.id, monitorSearchQuery); }}
+                    className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full"
+                    style={{ background: monitorBoard === b.id ? "var(--primary)" : "var(--muted)", color: monitorBoard === b.id ? "white" : "var(--muted-foreground)" }}
+                  >
+                    {b.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar">
+              {monitorPosts.length === 0 && !monitorLoading ? (
+                <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+                  게시물이 없습니다.
+                </p>
+              ) : (
+                monitorPosts.map((p) => (
+                  <button
+                    key={p._id}
+                    onClick={() => { setViewingPost(p); setViewingCommentId(null); }}
+                    className="rounded-2xl p-4 shadow-sm flex flex-col gap-1.5 text-left"
+                    style={{ background: "var(--card)" }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs px-2 py-0.5 rounded-full shrink-0" style={{ background: "var(--secondary)", color: "var(--primary)" }}>
+                        {BOARDS.find((b) => b.id === p.board)?.label ?? p.board}
+                      </span>
+                      <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                        {new Date(p.createdAt).toLocaleString("ko-KR")}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>{p.title}</p>
+                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                      {p.author?.nickname ?? "알 수 없음"} · 댓글 {p.comments?.length ?? 0} · 좋아요 {p.likes?.length ?? 0}
+                    </p>
+                  </button>
+                ))
+              )}
+              {monitorHasMore && (
+                <button
+                  onClick={() => loadMonitorPosts(monitorPage + 1, monitorBoard, monitorSearchQuery, true)}
+                  disabled={monitorLoading}
+                  className="w-full py-2.5 rounded-xl text-xs font-semibold disabled:opacity-50"
+                  style={{ background: "var(--muted)", color: "var(--foreground)" }}
+                >
+                  {monitorLoading ? "불러오는 중..." : "더 보기"}
+                </button>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="px-4 pt-2 flex gap-1.5">
+              {([
+                { key: "all", label: "전체" },
+                { key: "deletePost", label: "게시물 삭제" },
+                { key: "deleteComment", label: "댓글 삭제" },
+              ] as { key: "all" | "deletePost" | "deleteComment"; label: string }[]).map((t) => (
+                <button
+                  key={t.key}
+                  onClick={() => { setMonitorLogType(t.key); loadMonitorLogs(1, t.key); }}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-full"
+                  style={{ background: monitorLogType === t.key ? "var(--primary)" : "var(--muted)", color: monitorLogType === t.key ? "white" : "var(--muted-foreground)" }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar">
+              {monitorLogs.length === 0 && !monitorLogLoading ? (
+                <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+                  삭제 로그가 없습니다.
+                </p>
+              ) : (
+                monitorLogs.map((log) => (
+                  <div key={log._id} className="rounded-2xl p-4 shadow-sm flex flex-col gap-1.5" style={{ background: "var(--card)" }}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#d4183d22", color: "#d4183d" }}>
+                          {log.actionType === "deletePost" ? "게시물 삭제" : "댓글 삭제"}
+                        </span>
+                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}>
+                          {log.actorIsAdmin ? "관리자 삭제" : "본인 삭제"}
+                        </span>
+                      </div>
+                      <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                        {new Date(log.createdAt).toLocaleString("ko-KR")}
+                      </span>
+                    </div>
+                    {log.snapshot?.title && (
+                      <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>{log.snapshot.title}</p>
+                    )}
+                    {log.snapshot?.content && (
+                      <p className="text-xs line-clamp-2" style={{ color: "var(--muted-foreground)" }}>{log.snapshot.content}</p>
+                    )}
+                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                      {log.board ? `${BOARDS.find((b) => b.id === log.board)?.label ?? log.board} · ` : ""}
+                      원작성자: {log.targetAuthor?.nickname ?? "탈퇴한 사용자"} · 처리자: {log.actor?.nickname ?? "알 수 없음"}
+                    </p>
+                  </div>
+                ))
+              )}
+              {monitorLogHasMore && (
+                <button
+                  onClick={() => loadMonitorLogs(monitorLogPage + 1, monitorLogType, true)}
+                  disabled={monitorLogLoading}
+                  className="w-full py-2.5 rounded-xl text-xs font-semibold disabled:opacity-50"
+                  style={{ background: "var(--muted)", color: "var(--foreground)" }}
+                >
+                  {monitorLogLoading ? "불러오는 중..." : "더 보기"}
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* 게시물 상세 (모니터링 화면에서 탭한 게시물) — 그 자리에서 게시물/댓글 삭제 가능 */}
+        {viewingPost && (
+          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--background)" }}>
+            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+              <button onClick={() => { setViewingPost(null); setViewingCommentId(null); }} className="text-lg" style={{ color: "var(--foreground)" }}>←</button>
+              <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물 상세</h2>
+              <button
+                onClick={() => deleteMonitorPost(viewingPost)}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0"
+                style={{ background: "#d4183d", color: "white" }}
+              >
+                게시물 삭제
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+              <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <img src={resolveAssetUrl(viewingPost.author?.avatar) || defaultAvatar} alt="프로필 사진" className="w-7 h-7 rounded-full object-cover" />
+                    <div>
+                      <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{viewingPost.author?.nickname ?? "알 수 없음"}</p>
+                      <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(viewingPost)}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs px-2 py-0.5 rounded-full shrink-0" style={{ background: "var(--secondary)", color: "var(--primary)" }}>
+                    {BOARDS.find((b) => b.id === viewingPost.board)?.label ?? viewingPost.board}
+                  </span>
+                </div>
+                <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{viewingPost.title}</h3>
+                <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
+                  {viewingPost.content}
+                </p>
+                {viewingPost.images?.[0] && (
+                  <img src={resolveAssetUrl(viewingPost.images[0])} alt="첨부 이미지" className="mt-2 w-full max-h-72 object-cover rounded-xl" />
+                )}
+                <div className="flex items-center gap-4 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+                  <div className="flex items-center gap-1.5">
+                    <Heart size={14} style={{ color: "var(--muted-foreground)" }} />
+                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.likes?.length ?? 0}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <MessageCircle size={14} style={{ color: "var(--muted-foreground)" }} />
+                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.comments?.length ?? 0}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Bookmark size={14} style={{ color: "var(--muted-foreground)" }} />
+                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.scraps?.length ?? 0}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3" style={{ background: "var(--card)" }}>
+                <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                  댓글 {viewingPost.comments?.length ?? 0}개
+                </p>
+                {(viewingPost.comments ?? []).map((c) => (
+                  <div key={c._id} className="flex gap-2 items-start">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm overflow-hidden shrink-0" style={{ background: "var(--muted)" }}>
+                      <img src={resolveAssetUrl(c.author?.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1 px-3 py-2 rounded-xl text-xs" style={{ color: "var(--foreground)" }}>
+                      <span className="font-semibold">{c.author?.nickname ?? "알 수 없음"} </span>{c.content}
+                    </div>
+                    <button
+                      onClick={() => deleteMonitorComment(viewingPost, c._id)}
+                      className="text-[10px] font-semibold px-2 py-1 rounded-lg shrink-0"
+                      style={{ background: "var(--muted)", color: "#d4183d" }}
+                    >
+                      삭제
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {AlertModal}
+        {ConfirmModal}
+      </div>
+    );
+  }
+
   if (activeSection === "adminMembers") {
     const memberBadges = (m: AdminMemberItem) => {
       const badges: { label: string; color: string }[] = [];
@@ -1186,6 +1528,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       </div>
     );
   }
+
   if (activeSection === "adminReports") {
     return (
       <div className="relative flex flex-col flex-1 overflow-hidden">
@@ -1421,7 +1764,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
               <div className="flex items-center justify-between mb-1">
                 <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>
-                                    {sanctionAction.type === "warn" ? "유저 경고" : sanctionAction.type === "ban" ? "앱 차단" : sanctionAction.type === "restrictComments" ? "댓글 제한" : "강제 탈퇴"}
+                  {sanctionAction.type === "warn" ? "유저 경고" : sanctionAction.type === "ban" ? "앱 차단" : sanctionAction.type === "restrictComments" ? "댓글 제한" : "강제 탈퇴"}
                 </h3>
                 <button onClick={() => setSanctionAction(null)}>
                   <X size={20} style={{ color: "var(--foreground)" }} />
@@ -1963,7 +2306,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       <div className="flex-1 min-h-0 overflow-y-auto px-4 flex flex-col gap-2.5 pb-3 no-scrollbar">
         {isAdmin && (
           <Section title="관리자">
-                        <SettingRow
+            <SettingRow
               icon={<AlertTriangle size={18} style={{ color: "#d4183d" }} />}
               label="신고 관리"
               onPress={() => setActiveSection("adminReports")}
@@ -1972,6 +2315,11 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               icon={<Users size={18} style={{ color: "var(--primary)" }} />}
               label="회원 관리"
               onPress={() => setActiveSection("adminMembers")}
+            />
+            <SettingRow
+              icon={<FileText size={18} style={{ color: "#f0ad4e" }} />}
+              label="게시물/댓글 모니터링"
+              onPress={() => setActiveSection("adminMonitoring")}
             />
             <SettingRow
               icon={<MessageSquare size={18} style={{ color: "#5bc0de" }} />}

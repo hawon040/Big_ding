@@ -4,6 +4,8 @@ const User = require("../models/User");
 const Sanction = require("../models/Sanction");
 const Notification = require("../models/Notification");
 const FriendRequest = require("../models/FriendRequest");
+const Post = require("../models/Post");
+const AdminActionLog = require("../models/AdminActionLog");
 const crypto = require("crypto");
 const auth = require("../middleware/authMiddleware");
 const isAdmin = require("../middleware/adminMiddleware");
@@ -228,6 +230,66 @@ router.post("/users/:userId/withdraw", async (req, res) => {
     await target.save();
 
     res.status(201).json({ message: "강제 탈퇴 처리되었습니다.", sanction });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// GET /api/admin/posts?board=&q=&page=1&limit=30 - 게시판 통합 모니터링 (관리자 전용)
+// 일반 GET /posts와 달리 공개범위(팔로워 공개/나만 보기)나 차단 관계를 따지지 않고
+// 관리자가 모든 게시판의 최근 글을 한눈에 볼 수 있게 한다.
+router.get("/posts", async (req, res) => {
+  try {
+    const { board, q } = req.query;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 30));
+
+    const query = {};
+    if (board) query.board = board;
+    if (q?.trim()) {
+      query.$or = [
+        { title: { $regex: q.trim(), $options: "i" } },
+        { content: { $regex: q.trim(), $options: "i" } },
+      ];
+    }
+
+    const [posts, total] = await Promise.all([
+      Post.find(query)
+        .populate("author", "nickname avatar studentId")
+        .populate("comments.author", "nickname avatar")
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      Post.countDocuments(query),
+    ]);
+
+    res.json({ posts, total, page, hasMore: page * limit < total });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// GET /api/admin/logs?type=deletePost|deleteComment&page=1&limit=30 - 삭제된 글/댓글 로그 (관리자 전용)
+router.get("/logs", async (req, res) => {
+  try {
+    const { type } = req.query;
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 30));
+
+    const query = {};
+    if (type && ["deletePost", "deleteComment"].includes(type)) query.actionType = type;
+
+    const [logs, total] = await Promise.all([
+      AdminActionLog.find(query)
+        .populate("actor", "nickname studentId")
+        .populate("targetAuthor", "nickname studentId")
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      AdminActionLog.countDocuments(query),
+    ]);
+
+    res.json({ logs, total, page, hasMore: page * limit < total });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }

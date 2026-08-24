@@ -4,6 +4,7 @@ const Post = require("../models/Post");
 const User = require("../models/User");
 const Notification = require("../models/Notification");
 const GroupChat = require("../models/GroupChat");
+const AdminActionLog = require("../models/AdminActionLog");
 const auth = require("../middleware/authMiddleware");
 const upload = require("../middleware/upload");
 const profanityFilter = require("../middleware/profanityFilter");
@@ -310,10 +311,21 @@ router.delete("/:id/comments/:commentId", auth, async (req, res) => {
     const post = await Post.findById(req.params.id);
     const comment = post.comments.id(req.params.commentId);
     if (!comment) return res.status(404).json({ message: "댓글을 찾을 수 없습니다." });
-    if (comment.author.toString() !== req.user.id) {
+    const isAdminDeletion = comment.author.toString() !== req.user.id;
+    if (isAdminDeletion) {
       const me = await User.findById(req.user.id).select("isAdmin");
       if (!me?.isAdmin) return res.status(403).json({ message: "권한이 없습니다." });
     }
+    // 댓글 문서 자체는 지워지므로, 지우기 전에 내용을 스냅샷으로 로그에 남긴다.
+    await AdminActionLog.create({
+      actor: req.user.id,
+      actorIsAdmin: isAdminDeletion,
+      actionType: "deleteComment",
+      board: post.board,
+      targetAuthor: comment.author,
+      snapshot: { content: comment.content },
+      postId: post._id,
+    });
     comment.deleteOne();
     await post.save();
     await post.populate("comments.author", "nickname avatar");
@@ -385,10 +397,20 @@ router.patch("/:id", auth, async (req, res) => {
 router.delete("/:id", auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
-    if (post.author.toString() !== req.user.id) {
+    const isAdminDeletion = post.author.toString() !== req.user.id;
+    if (isAdminDeletion) {
       const me = await User.findById(req.user.id).select("isAdmin");
       if (!me?.isAdmin) return res.status(403).json({ message: "권한이 없습니다." });
     }
+    // 게시물 문서 자체는 지워지므로, 지우기 전에 제목/내용을 스냅샷으로 로그에 남긴다.
+    await AdminActionLog.create({
+      actor: req.user.id,
+      actorIsAdmin: isAdminDeletion,
+      actionType: "deletePost",
+      board: post.board,
+      targetAuthor: post.author,
+      snapshot: { title: post.title, content: post.content },
+    });
     await post.deleteOne();
     res.json({ message: "삭제되었습니다." });
   } catch (err) {
