@@ -55,12 +55,14 @@ router.delete("/follow/:targetId", auth, async (req, res) => {
   }
 });
 
-// 비공개 계정의 팔로워/팔로잉 "목록"은 본인이거나 친구가 아니면 볼 수 없다.
+// 비공개 계정의 팔로워/팔로잉 "목록"은 본인이거나 맞팔로우가 아니면 볼 수 없다.
 // (팔로우 여부/팔로워·팔로잉 숫자는 GET /api/users/:id에서 항상 내려준다 - 인스타와 동일)
 const canViewFollowLists = (user, viewerId) => {
   if (String(user._id) === String(viewerId)) return true;
   if (!user.isPrivate) return true;
-  return user.friends.some((id) => String(id) === String(viewerId));
+  const viewerFollowsThem = user.followers.some((id) => String(id) === String(viewerId));
+  const theyFollowViewer = user.following.some((id) => String(id) === String(viewerId));
+  return viewerFollowsThem && theyFollowViewer;
 };
 
 // 목록의 각 사용자에 대해, 요청한 본인이 그 사람을 팔로우하고 있는지 표시를 붙여준다.
@@ -80,11 +82,12 @@ const withIsFollowedByMe = async (users, viewerId) => {
 // GET /api/users/:id/followers - 팔로워 목록
 router.get("/:id/followers", auth, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).populate("followers", "nickname avatar studentId");
+    const user = await User.findById(req.params.id).select("isPrivate followers following");
     if (!user) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
     if (!canViewFollowLists(user, req.user.id)) {
       return res.status(403).json({ message: "비공개 계정입니다." });
     }
+    await user.populate("followers", "nickname avatar studentId");
     res.json(await withIsFollowedByMe(user.followers, req.user.id));
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
@@ -94,11 +97,12 @@ router.get("/:id/followers", auth, async (req, res) => {
 // GET /api/users/:id/following - 팔로잉 목록
 router.get("/:id/following", auth, async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).populate("following", "nickname avatar studentId");
+    const user = await User.findById(req.params.id).select("isPrivate followers following");
     if (!user) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
     if (!canViewFollowLists(user, req.user.id)) {
       return res.status(403).json({ message: "비공개 계정입니다." });
     }
+    await user.populate("following", "nickname avatar studentId");
     res.json(await withIsFollowedByMe(user.following, req.user.id));
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
@@ -307,6 +311,8 @@ router.get("/:id", auth, async (req, res) => {
   try {
     const user = await User.findById(req.params.id).select("nickname avatar studentId isPrivate followers following friends");
     if (!user) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
+    const isFollowedByMe = user.followers.some((id) => String(id) === String(req.user.id));
+    const followsMeBack = user.following.some((id) => String(id) === String(req.user.id));
     res.json({
       _id: user._id,
       nickname: user.nickname,
@@ -315,7 +321,9 @@ router.get("/:id", auth, async (req, res) => {
       isPrivate: !!user.isPrivate,
       followerCount: user.followers.length,
       followingCount: user.following.length,
-      isFollowedByMe: user.followers.some((id) => String(id) === String(req.user.id)),
+      isFollowedByMe,
+      // 비공개 계정의 글/북마크는 "맞팔로우"(서로 팔로우)일 때만 공개한다.
+      isMutualFollow: isFollowedByMe && followsMeBack,
       isFriend: user.friends.some((id) => String(id) === String(req.user.id)),
     });
   } catch (err) {

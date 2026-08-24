@@ -491,7 +491,7 @@ export function OtherUserProfile({
   const [followingCount, setFollowingCount] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
-  const [isFriend, setIsFriend] = useState(false);
+  const [isMutualFollow, setIsMutualFollow] = useState(false);
   const [userListModal, setUserListModal] = useState<"followers" | "following" | null>(null);
   const [userList, setUserList] = useState<Friend[]>([]);
   const [userListQuery, setUserListQuery] = useState("");
@@ -520,7 +520,7 @@ export function OtherUserProfile({
           setFollowingCount(res.data.followingCount);
           setIsFollowing(res.data.isFollowedByMe);
           setIsPrivate(res.data.isPrivate);
-          setIsFriend(res.data.isFriend);
+          setIsMutualFollow(res.data.isMutualFollow);
         })
         .catch(() => {});
     };
@@ -546,7 +546,7 @@ export function OtherUserProfile({
   };
 
   const isSelf = currentUserId === author._id;
-  const canViewFull = isSelf || !isPrivate || isFriend;
+  const canViewFull = isSelf || !isPrivate || isMutualFollow;
 
   const openUserList = async (kind: "followers" | "following") => {
     if (!canViewFull) return;
@@ -594,7 +594,7 @@ export function OtherUserProfile({
               className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-md overflow-hidden shrink-0"
               style={{ background: "var(--accent)", border: "3px solid var(--primary)" }}
             >
-              <img src={resolveAssetUrl(author.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+              <img src={canViewFull ? (resolveAssetUrl(author.avatar) || defaultAvatar) : defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
             </button>
             <div className="flex-1 flex flex-col gap-1.5 pt-1">
               <div className="flex items-baseline gap-2">
@@ -683,7 +683,7 @@ export function OtherUserProfile({
             <Lock size={32} style={{ color: "var(--muted-foreground)" }} />
             <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>비공개 계정입니다</p>
             <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-              친구가 되면 게시글과 북마크를 볼 수 있어요.
+              맞팔로우하면 게시글과 북마크를 볼 수 있어요.
             </p>
           </div>
         ) : (
@@ -857,7 +857,7 @@ export function OtherUserProfile({
           </button>
           <div className="w-72 h-72 rounded-full overflow-hidden shadow-2xl" style={{ border: "4px solid var(--primary)" }}>
             <img
-              src={resolveAssetUrl(author.avatar) || defaultAvatar}
+              src={canViewFull ? (resolveAssetUrl(author.avatar) || defaultAvatar) : defaultAvatar}
               alt="프로필 사진 크게 보기"
               className="w-full h-full object-cover"
               onClick={(e) => e.stopPropagation()}
