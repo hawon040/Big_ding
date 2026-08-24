@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, Moon, User, Users, Shield, ChevronRight, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X, Heart, ThumbsDown, MessageCircle, Bookmark, Ban, History } from "lucide-react";
+import { Bell, Moon, User, Users, Shield, ChevronRight, ChevronDown, ChevronUp, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X, Heart, ThumbsDown, MessageCircle, Bookmark, Ban, History } from "lucide-react";
 import api, { resolveAssetUrl } from "@/api";
 import defaultAvatar from "@/assets/default-avatar.svg";
 import {
@@ -146,6 +146,11 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const isAdmin = !!getCurrentUser()?.isAdmin;
   // + 관리자 화면(신고 관리 / 관리자 관리)
   const [adminReports, setAdminReports] = useState<AdminReportItem[]>([]);
+  // + 신고 관리 / 건의사항 내역을 게시물/댓글 모니터링처럼 한 화면에서 탭으로 묶어 보여준다.
+  const [adminReportTab, setAdminReportTab] = useState<"reports" | "inquiries">("reports");
+  // + 커뮤니티 화면의 최신순/인기순 드롭다운과 같은 방식으로 미처리/처리완료 상태 필터링
+  const [adminStatusFilter, setAdminStatusFilter] = useState<"all" | "pending" | "resolved">("all");
+  const [showAdminStatusDropdown, setShowAdminStatusDropdown] = useState(false);
   // + 신고 대상(게시물/댓글) 조회 시, viewingPost 안에서 어떤 댓글이 신고 대상인지 강조하기 위한 id
   const [viewingCommentId, setViewingCommentId] = useState<string | null>(null);
   // + 신고 대상이 사용자(user)일 때 보여줄 모달
@@ -356,8 +361,9 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
   useEffect(() => {
     if (activeSection === "adminReports") {
+      setAdminReportTab("reports");
+      setAdminStatusFilter("all");
       api.get("/reports").then((res) => setAdminReports(res.data)).catch(() => {});
-    } else if (activeSection === "adminInquiries") {
       api.get("/inquiries").then((res) => setAdminInquiries(res.data)).catch(() => {});
     } else if (activeSection === "adminUsers") {
       api.get("/admin/event-admins").then((res) => setAdminList(res.data)).catch(() => {});
@@ -1679,15 +1685,82 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           <button onClick={() => setActiveSection(null)}>
             <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
           </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>신고 관리</h2>
+          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>신고/건의 관리</h2>
         </div>
+
+        <div className="grid grid-cols-2 px-4 gap-2 mt-4 mb-1">
+          <button
+            onClick={() => setAdminReportTab("reports")}
+            className="py-2.5 rounded-xl text-xs font-semibold"
+            style={{ background: adminReportTab === "reports" ? "var(--primary)" : "var(--muted)", color: adminReportTab === "reports" ? "white" : "var(--muted-foreground)" }}
+          >
+            신고 ({adminReports.length})
+          </button>
+          <button
+            onClick={() => setAdminReportTab("inquiries")}
+            className="py-2.5 rounded-xl text-xs font-semibold"
+            style={{ background: adminReportTab === "inquiries" ? "var(--primary)" : "var(--muted)", color: adminReportTab === "inquiries" ? "white" : "var(--muted-foreground)" }}
+          >
+            건의사항 ({adminInquiries.length})
+          </button>
+        </div>
+
+        {/* 미처리/처리완료 상태 필터: 커뮤니티 화면의 최신순/인기순 드롭다운과 동일한 방식 */}
+        <div className="px-4 mb-1 flex justify-end">
+          <div className="relative">
+            <button
+              onClick={() => setShowAdminStatusDropdown((v) => !v)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap"
+              style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
+            >
+              {adminStatusFilter === "all" ? "전체" : adminStatusFilter === "pending" ? "미처리" : "처리완료"}
+              {showAdminStatusDropdown ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+
+            {showAdminStatusDropdown && (
+              <div
+                className="absolute right-0 top-full mt-1 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
+                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+              >
+                <button
+                  onClick={() => { setAdminStatusFilter("all"); setShowAdminStatusDropdown(false); }}
+                  className="w-full px-3 py-2 text-xs text-left"
+                  style={{ color: adminStatusFilter === "all" ? "var(--primary)" : "var(--foreground)" }}
+                >
+                  전체
+                </button>
+                <button
+                  onClick={() => { setAdminStatusFilter("pending"); setShowAdminStatusDropdown(false); }}
+                  className="w-full px-3 py-2 text-xs text-left"
+                  style={{ color: adminStatusFilter === "pending" ? "var(--primary)" : "var(--foreground)" }}
+                >
+                  미처리
+                </button>
+                <button
+                  onClick={() => { setAdminStatusFilter("resolved"); setShowAdminStatusDropdown(false); }}
+                  className="w-full px-3 py-2 text-xs text-left"
+                  style={{ color: adminStatusFilter === "resolved" ? "var(--primary)" : "var(--foreground)" }}
+                >
+                  처리완료
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 상태 드롭다운 외부 클릭 닫기 */}
+        {showAdminStatusDropdown && (
+          <div className="absolute inset-0 z-10" onClick={() => setShowAdminStatusDropdown(false)} />
+        )}
+
+        {adminReportTab === "reports" ? (
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-          {adminReports.length === 0 ? (
+          {adminReports.filter((r) => adminStatusFilter === "all" || r.status === adminStatusFilter).length === 0 ? (
             <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
               접수된 신고가 없습니다.
             </p>
           ) : (
-            adminReports.map((report) => (
+            adminReports.filter((r) => adminStatusFilter === "all" || r.status === adminStatusFilter).map((report) => (
               <div key={report._id} className="rounded-2xl p-4 shadow-sm flex flex-col gap-2" style={{ background: "var(--card)" }}>
                 <div className="flex items-center justify-between">
                   <span
@@ -1739,6 +1812,48 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             ))
           )}
         </div>
+        ) : (
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+          {adminInquiries.filter((i) => adminStatusFilter === "all" || i.status === adminStatusFilter).length === 0 ? (
+            <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+              접수된 건의사항이 없습니다.
+            </p>
+          ) : (
+            adminInquiries.filter((i) => adminStatusFilter === "all" || i.status === adminStatusFilter).map((inquiry) => (
+              <div key={inquiry._id} className="rounded-2xl p-4 shadow-sm flex flex-col gap-2" style={{ background: "var(--card)" }}>
+                <div className="flex items-center justify-between">
+                  <span
+                    className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{
+                      background: inquiry.status === "pending" ? "#d4183d22" : "var(--muted)",
+                      color: inquiry.status === "pending" ? "#d4183d" : "var(--muted-foreground)",
+                    }}
+                  >
+                    {inquiry.status === "pending" ? "미처리" : "처리완료"}
+                  </span>
+                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    {new Date(inquiry.createdAt).toLocaleString("ko-KR")}
+                  </span>
+                </div>
+                <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{inquiry.title}</p>
+                <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>{inquiry.content}</p>
+                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  작성자: {inquiry.user?.nickname ?? "알 수 없음"}{inquiry.user?.studentId ? ` (${inquiry.user.studentId})` : ""}
+                </p>
+                <div className="flex gap-2 mt-1">
+                  <button
+                    onClick={() => toggleInquiryStatus(inquiry)}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+                    style={{ background: "var(--muted)", color: "var(--foreground)" }}
+                  >
+                    {inquiry.status === "pending" ? "처리완료로 표시" : "미처리로 되돌리기"}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        )}
 
         {/* 신고 대상 게시물/댓글 바로 조회 */}
         {viewingPost && (
@@ -1988,61 +2103,6 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           </div>
         )}
 
-        {AlertModal}
-        {ConfirmModal}
-      </div>
-    );
-  }
-
-  if (activeSection === "adminInquiries") {
-    return (
-      <div className="relative flex flex-col flex-1 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setActiveSection(null)}>
-            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
-          </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>건의사항 내역</h2>
-        </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-          {adminInquiries.length === 0 ? (
-            <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
-              접수된 건의사항이 없습니다.
-            </p>
-          ) : (
-            adminInquiries.map((inquiry) => (
-              <div key={inquiry._id} className="rounded-2xl p-4 shadow-sm flex flex-col gap-2" style={{ background: "var(--card)" }}>
-                <div className="flex items-center justify-between">
-                  <span
-                    className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                    style={{
-                      background: inquiry.status === "pending" ? "#d4183d22" : "var(--muted)",
-                      color: inquiry.status === "pending" ? "#d4183d" : "var(--muted-foreground)",
-                    }}
-                  >
-                    {inquiry.status === "pending" ? "미처리" : "처리완료"}
-                  </span>
-                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                    {new Date(inquiry.createdAt).toLocaleString("ko-KR")}
-                  </span>
-                </div>
-                <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{inquiry.title}</p>
-                <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>{inquiry.content}</p>
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                  작성자: {inquiry.user?.nickname ?? "알 수 없음"}{inquiry.user?.studentId ? ` (${inquiry.user.studentId})` : ""}
-                </p>
-                <div className="flex gap-2 mt-1">
-                  <button
-                    onClick={() => toggleInquiryStatus(inquiry)}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-                    style={{ background: "var(--muted)", color: "var(--foreground)" }}
-                  >
-                    {inquiry.status === "pending" ? "처리완료로 표시" : "미처리로 되돌리기"}
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
         {AlertModal}
         {ConfirmModal}
       </div>
@@ -2451,7 +2511,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           <Section title="관리자">
             <SettingRow
               icon={<AlertTriangle size={18} style={{ color: "#d4183d" }} />}
-              label="신고 관리"
+              label="신고/건의 관리"
               onPress={() => setActiveSection("adminReports")}
             />
             <SettingRow
@@ -2463,11 +2523,6 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               icon={<FileText size={18} style={{ color: "#f0ad4e" }} />}
               label="게시물/댓글 모니터링"
               onPress={() => setActiveSection("adminMonitoring")}
-            />
-            <SettingRow
-              icon={<MessageSquare size={18} style={{ color: "#5bc0de" }} />}
-              label="건의사항 내역"
-              onPress={() => setActiveSection("adminInquiries")}
             />
             <SettingRow
               icon={<Shield size={18} style={{ color: "var(--primary)" }} />}
