@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bell, Moon, User, Users, Shield, ChevronRight, ChevronDown, ChevronUp, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X, Heart, ThumbsDown, MessageCircle, Bookmark, Ban, History } from "lucide-react";
+import { Bell, Moon, User, Users, ChevronRight, ChevronDown, ChevronUp, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X, Heart, ThumbsDown, MessageCircle, Bookmark, Ban, History } from "lucide-react";
 import api, { resolveAssetUrl } from "@/api";
 import defaultAvatar from "@/assets/default-avatar.svg";
 import {
@@ -2523,11 +2523,6 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               icon={<FileText size={18} style={{ color: "#f0ad4e" }} />}
               label="게시물/댓글 모니터링"
               onPress={() => setActiveSection("adminMonitoring")}
-            />
-            <SettingRow
-              icon={<Shield size={18} style={{ color: "var(--primary)" }} />}
-              label="행사공지 관리자"
-              onPress={() => setActiveSection("adminUsers")}
             />
                         <SettingRow
               icon={<UserX size={18} style={{ color: "#d4183d" }} />}
