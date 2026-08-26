@@ -414,7 +414,7 @@ export const loadStoredInteractions = (): StoredInteractions => {
 export const BOARDS = [
   { id: "free" as BoardType, label: "게시판", emoji: "💬", icon: MessageCircle },
   { id: "event" as BoardType, label: "공지사항", emoji: "📢", icon: Megaphone },
-  { id: "qna" as BoardType, label: "선배들 작품 전시 공간", emoji: "🏆", icon: Users },
+  { id: "qna" as BoardType, label: "선배들 작품 전시 공간", emoji: "🖼️", icon: Users },
   { id: "contest" as BoardType, label: "꿀팁 게시판", emoji: "💡", icon: Trophy },
   { id: "lecture" as BoardType, label: "전공 강의평가", emoji: "⭐", icon: BookOpen },
   { id: "meeting" as BoardType, label: "공강모임", emoji: "☕", icon: Coffee },
@@ -4631,19 +4631,34 @@ const handleDeleteSelectedChats = () => {
 
       {/* Board tabs */}
       {!showSearch && (
-        <div className="flex gap-2 px-4 pb-3 overflow-x-auto no-scrollbar shrink-0">
-          {BOARDS.map(({ id, label, emoji }) => (
-            <button
-              key={id}
-              onClick={() => setActiveBoard(id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap"
-              style={{
-                background: activeBoard === id ? "var(--primary)" : "var(--muted)",
-                color: activeBoard === id ? "white" : "var(--muted-foreground)",
-              }}
-            >
-              {emoji} {label}
-            </button>
+        <div className="flex items-center px-4 pb-4 overflow-x-auto no-scrollbar shrink-0">
+          {BOARDS.map(({ id, label, emoji }, idx) => (
+            <div key={id} className="flex items-center shrink-0">
+              {idx > 0 && (
+                <span
+                  className="mx-3 text-base font-semibold select-none"
+                  style={{ color: "var(--muted-foreground)", opacity: 0.5 }}
+                >
+                  |
+                </span>
+              )}
+              <button
+                onClick={() => setActiveBoard(id)}
+                className="flex items-center gap-1.5 text-base whitespace-nowrap transition-colors"
+                style={{
+                  color:
+                    activeBoard === id
+                      ? "var(--primary)"
+                      : id === "free"
+                      ? "white"
+                      : "var(--muted-foreground)",
+                  fontWeight: activeBoard === id ? 700 : 500,
+                }}
+              >
+                <span className="text-lg">{emoji}</span>
+                <span>{label}</span>
+              </button>
+            </div>
           ))}
         </div>
       )}
