@@ -168,7 +168,8 @@ router.patch("/sanctions/:id/lift", async (req, res) => {
 });
 
 // GET /api/admin/users?q=&page=1&limit=30 - 전체 회원 목록 조회/검색 (관리자 전용)
-// 학번/닉네임으로 검색하고, 현재 제재 상태(차단/댓글제한/탈퇴 여부)를 함께 내려준다.
+// 학번/닉네임으로 검색하고, 현재 제재 상태(차단/댓글제한/탈퇴 여부)와
+// 누적 경고/차단 횟수를 함께 내려준다.
 router.get("/users", async (req, res) => {
   try {
     const q = (req.query.q || "").trim();
@@ -188,7 +189,28 @@ router.get("/users", async (req, res) => {
       User.countDocuments(query),
     ]);
 
-    res.json({ users, total, page, hasMore: page * limit < total });
+    // 이 페이지에 있는 유저들의 경고/차단 누적 횟수를 한 번에 집계한다.
+    const userIds = users.map((u) => u._id);
+    const counts = await Sanction.aggregate([
+      { $match: { user: { $in: userIds }, type: { $in: ["warning", "ban"] } } },
+      { $group: { _id: { user: "$user", type: "$type" }, count: { $sum: 1 } } },
+    ]);
+
+    const countMap = {};
+    for (const c of counts) {
+      const uid = c._id.user.toString();
+      if (!countMap[uid]) countMap[uid] = { warningCount: 0, banCount: 0 };
+      if (c._id.type === "warning") countMap[uid].warningCount = c.count;
+      if (c._id.type === "ban") countMap[uid].banCount = c.count;
+    }
+
+    const usersWithCounts = users.map((u) => {
+      const obj = u.toObject();
+      const c = countMap[u._id.toString()] || { warningCount: 0, banCount: 0 };
+      return { ...obj, warningCount: c.warningCount, banCount: c.banCount };
+    });
+
+    res.json({ users: usersWithCounts, total, page, hasMore: page * limit < total });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }

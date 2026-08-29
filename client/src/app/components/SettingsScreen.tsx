@@ -59,6 +59,8 @@ interface AdminMemberItem {
   commentRestrictedUntil?: string;
   isWithdrawn?: boolean;
   createdAt?: string;
+  warningCount?: number;
+  banCount?: number;
 }
 
 interface AdminLogItem {
@@ -151,6 +153,9 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   // + 커뮤니티 화면의 최신순/인기순 드롭다운과 같은 방식으로 미처리/처리완료 상태 필터링
   const [adminStatusFilter, setAdminStatusFilter] = useState<"all" | "pending" | "resolved">("all");
   const [showAdminStatusDropdown, setShowAdminStatusDropdown] = useState(false);
+  // + 신고/건의 목록 더보기 개수
+  const [visibleReportsCount, setVisibleReportsCount] = useState(5);
+  const [visibleInquiriesCount, setVisibleInquiriesCount] = useState(5);
   // + 신고 대상(게시물/댓글) 조회 시, viewingPost 안에서 어떤 댓글이 신고 대상인지 강조하기 위한 id
   const [viewingCommentId, setViewingCommentId] = useState<string | null>(null);
   // + 신고 대상이 사용자(user)일 때 보여줄 모달
@@ -371,6 +376,12 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       setAdminSearchResults([]);
     }
   }, [activeSection]);
+
+  // + 탭이나 상태 필터가 바뀌면 더보기 개수를 10개로 초기화
+  useEffect(() => {
+    setVisibleReportsCount(5);
+    setVisibleInquiriesCount(5);
+  }, [adminReportTab, adminStatusFilter]);
 
   useEffect(() => {
     if (activeSection === "sanctions") {
@@ -1478,7 +1489,11 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 <img src={resolveAssetUrl(m.avatar) || defaultAvatar} alt="프로필 사진" className="w-9 h-9 rounded-full object-cover shrink-0" />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{m.nickname}</p>
-                  {m.studentId && <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{m.studentId}</p>}
+                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    {m.studentId}
+                    {!!m.warningCount && ` · 경고 ${m.warningCount}회`}
+                    {!!m.banCount && ` · 차단 ${m.banCount}회`}
+                  </p>
                 </div>
                 <div className="flex flex-wrap gap-1 justify-end shrink-0 max-w-[40%]">
                   {memberBadges(m).map((b, i) => (
@@ -1522,6 +1537,9 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                       가입일: {new Date(viewingMember.createdAt).toLocaleDateString("ko-KR")}
                     </p>
                   )}
+                  <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+                    누적 경고 {viewingMember.warningCount ?? 0}회 · 누적 차단 {viewingMember.banCount ?? 0}회
+                  </p>
                 </div>
               </div>
 
@@ -1753,14 +1771,18 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           <div className="absolute inset-0 z-10" onClick={() => setShowAdminStatusDropdown(false)} />
         )}
 
-        {adminReportTab === "reports" ? (
+        {adminReportTab === "reports" ? (() => {
+        const filteredReports = adminReports.filter((r) => adminStatusFilter === "all" || r.status === adminStatusFilter);
+        const visibleReports = filteredReports.slice(0, visibleReportsCount);
+        const hasMoreReports = visibleReportsCount < filteredReports.length;
+        return (
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-          {adminReports.filter((r) => adminStatusFilter === "all" || r.status === adminStatusFilter).length === 0 ? (
+          {filteredReports.length === 0 ? (
             <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
               접수된 신고가 없습니다.
             </p>
           ) : (
-            adminReports.filter((r) => adminStatusFilter === "all" || r.status === adminStatusFilter).map((report) => (
+            visibleReports.map((report) => (
               <div key={report._id} className="rounded-2xl p-4 shadow-sm flex flex-col gap-2" style={{ background: "var(--card)" }}>
                 <div className="flex items-center justify-between">
                   <span
@@ -1811,15 +1833,29 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               </div>
             ))
           )}
+          {hasMoreReports && (
+            <button
+              onClick={() => setVisibleReportsCount((prev) => prev + 5)}
+              className="w-full py-2.5 rounded-xl text-xs font-semibold"
+              style={{ background: "var(--muted)", color: "var(--foreground)" }}
+            >
+              더 보기
+            </button>
+          )}
         </div>
-        ) : (
+        );
+                })() : (() => {
+        const filteredInquiries = adminInquiries.filter((i) => adminStatusFilter === "all" || i.status === adminStatusFilter);
+        const visibleInquiries = filteredInquiries.slice(0, visibleInquiriesCount);
+        const hasMoreInquiries = visibleInquiriesCount < filteredInquiries.length;
+        return (
         <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-          {adminInquiries.filter((i) => adminStatusFilter === "all" || i.status === adminStatusFilter).length === 0 ? (
+          {filteredInquiries.length === 0 ? (
             <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
               접수된 건의사항이 없습니다.
             </p>
           ) : (
-            adminInquiries.filter((i) => adminStatusFilter === "all" || i.status === adminStatusFilter).map((inquiry) => (
+            visibleInquiries.map((inquiry) => (
               <div key={inquiry._id} className="rounded-2xl p-4 shadow-sm flex flex-col gap-2" style={{ background: "var(--card)" }}>
                 <div className="flex items-center justify-between">
                   <span
@@ -1852,8 +1888,18 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               </div>
             ))
           )}
+          {hasMoreInquiries && (
+            <button
+              onClick={() => setVisibleInquiriesCount((prev) => prev + 5)}
+              className="w-full py-2.5 rounded-xl text-xs font-semibold"
+              style={{ background: "var(--muted)", color: "var(--foreground)" }}
+            >
+              더 보기
+            </button>
+          )}
         </div>
-        )}
+        );
+        })()}
 
         {/* 신고 대상 게시물/댓글 바로 조회 */}
         {viewingPost && (
