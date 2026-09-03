@@ -1392,6 +1392,22 @@ useEffect(() => {
       return next;
     });
   };
+  // 검색창에서 게시물뿐 아니라 계정(닉네임/학번)도 함께 찾아준다(인스타그램 통합검색 방식).
+  const [searchUserResults, setSearchUserResults] = useState<PostAuthor[]>([]);
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!showSearch || !q) {
+      setSearchUserResults([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      api.get("/users/search", { params: { q } })
+        .then((res) => { if (!cancelled) setSearchUserResults(res.data); })
+        .catch(() => { if (!cancelled) setSearchUserResults([]); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [searchQuery, showSearch]);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [newBoard, setNewBoard] = useState<BoardType>("free");
@@ -4466,7 +4482,7 @@ const handleDeleteSelectedChats = () => {
             <input
               type="text"
               autoFocus
-              placeholder="게시물 검색..."
+              placeholder="게시물, 계정 검색..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") addRecentSearch(searchQuery); }}
@@ -4521,10 +4537,36 @@ const handleDeleteSelectedChats = () => {
               </div>
             )
           )}
-          {searchQuery.trim() && visiblePosts.length === 0 && (
+          {searchQuery.trim() && visiblePosts.length === 0 && searchUserResults.length === 0 && (
             <p className="text-center text-sm py-10" style={{ color: "var(--muted-foreground)" }}>
               검색 결과가 없어요.
             </p>
+          )}
+          {searchQuery.trim() && searchUserResults.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>계정</span>
+              {searchUserResults.map((u) => (
+                <button
+                  key={u._id}
+                  onClick={() => { addRecentSearch(searchQuery); openAuthor(u); }}
+                  className="flex items-center gap-3 p-2.5 rounded-xl text-left"
+                  style={{ background: "var(--card)" }}
+                >
+                  <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+                    <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
+                    {u.studentId && (
+                      <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{u.studentId}</p>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          {searchQuery.trim() && visiblePosts.length > 0 && searchUserResults.length > 0 && (
+            <span className="text-xs font-semibold mt-1" style={{ color: "var(--muted-foreground)" }}>게시물</span>
           )}
           {searchQuery.trim() && visiblePosts.map((post) => (
             <div
