@@ -3,6 +3,7 @@ const router = express.Router();
 const Report = require("../models/Report");
 const Post = require("../models/Post");
 const User = require("../models/User");
+const Notification = require("../models/Notification");
 const auth = require("../middleware/authMiddleware");
 const isAdmin = require("../middleware/adminMiddleware");
 
@@ -71,14 +72,30 @@ router.get("/:id/target", auth, isAdmin, async (req, res) => {
 });
 
 // PATCH /api/reports/:id - 신고 처리 상태 변경 (관리자 전용)
+// body: { status, note? } - note는 별도의 유저 제재 없이(또는 게시물 삭제 등으로) 처리 완료할 때
+// 신고자에게 그대로 전달되는 처리 결과 메시지다.
 router.patch("/:id", auth, isAdmin, async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, note } = req.body;
     if (!["pending", "resolved"].includes(status)) {
       return res.status(400).json({ message: "올바르지 않은 상태입니다." });
     }
-    const report = await Report.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    const report = await Report.findById(req.params.id);
     if (!report) return res.status(404).json({ message: "신고를 찾을 수 없습니다." });
+    const wasPending = report.status === "pending";
+    report.status = status;
+    await report.save();
+
+    // 이미 제재 처리로 자동 해결된 신고가 아닐 때만, 이 처리 자체에 대한 결과를 신고자에게 알린다.
+    if (status === "resolved" && wasPending && !report.sanctionApplied) {
+      await Notification.create({
+        recipient: report.reporter,
+        sender: req.user.id,
+        type: "reportResolved",
+        message: note?.trim() || "검토 결과 별도의 제재 조치는 없었습니다.",
+      });
+    }
+
     res.json(report);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });

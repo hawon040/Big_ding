@@ -6,6 +6,7 @@ const notificationSchema = new mongoose.Schema({
   type: { type: String, enum: [
     "follow", "join", "leave", "comment", "like", "dislike", "scrap",
     "adminWarning", "adminBan", "adminCommentRestriction",
+    "reportResolved", "inquiryResolved",
   ], required: true },
   // 공강모임 참여/참여취소, 댓글 알림이 어느 게시물에 대한 것인지 표시하기 위한 참조
   post: { type: mongoose.Schema.Types.ObjectId, ref: "Post" },

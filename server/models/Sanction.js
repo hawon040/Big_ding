@@ -13,6 +13,9 @@ const sanctionSchema = new mongoose.Schema({
   // 어느 게시물에서 비롯된 제재인지 (선택)
   post: { type: mongoose.Schema.Types.ObjectId, ref: "Post" },
 
+  // 어느 신고를 처리하면서 내려진 제재인지 (선택). 신고자에게 처리 결과를 알리는 데 사용한다.
+  report: { type: mongoose.Schema.Types.ObjectId, ref: "Report" },
+
   // type이 "ban"일 때만 사용
   banType: { type: String, enum: ["permanent", "temporary"] },
 

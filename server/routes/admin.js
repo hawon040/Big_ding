@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require("../models/User");
 const Sanction = require("../models/Sanction");
 const Notification = require("../models/Notification");
+const Report = require("../models/Report");
 const FriendRequest = require("../models/FriendRequest");
 const Post = require("../models/Post");
 const AdminActionLog = require("../models/AdminActionLog");
@@ -14,20 +15,41 @@ router.use(auth, isAdmin);
 
 const addDays = (days) => new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 
+const SANCTION_LABELS = { warning: "경고", ban: "차단", commentRestriction: "댓글 작성 제한", forceWithdraw: "강제 탈퇴" };
+
+// 신고를 처리하는 과정에서 신고당한 사람에게 제재를 내렸다면, 그 신고를 처리 완료로 자동 전환하고
+// 신고자에게 "어떤 조치가 취해졌는지"와 사유를 알림으로 보낸다.
+const resolveReportWithSanction = async ({ reportId, sanctionType, reason, adminId, targetUserId }) => {
+  if (!reportId) return;
+  const report = await Report.findById(reportId);
+  if (!report || report.reporter.toString() === targetUserId) return;
+  report.status = "resolved";
+  report.sanctionApplied = true;
+  report.sanctionType = sanctionType;
+  await report.save();
+  await Notification.create({
+    recipient: report.reporter,
+    sender: adminId,
+    type: "reportResolved",
+    message: `${SANCTION_LABELS[sanctionType] || sanctionType} 조치가 적용되었습니다. 사유: ${reason}`,
+  });
+};
+
 // POST /api/admin/users/:userId/warn - 유저 경고
 // body: { reason: string, postId?: string }
 router.post("/users/:userId/warn", async (req, res) => {
   try {
     const { userId } = req.params;
-    const { reason, postId } = req.body;
+    const { reason, postId, reportId } = req.body;
     if (userId === req.user.id) return res.status(400).json({ message: "본인은 대상으로 지정할 수 없습니다." });
     if (!reason?.trim()) return res.status(400).json({ message: "사유를 입력해주세요." });
 
     const target = await User.findById(userId).select("_id");
     if (!target) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
 
-    const sanction = await Sanction.create({ user: userId, type: "warning", reason: reason.trim(), admin: req.user.id, post: postId || undefined });
+    const sanction = await Sanction.create({ user: userId, type: "warning", reason: reason.trim(), admin: req.user.id, post: postId || undefined, report: reportId || undefined });
     await Notification.create({ recipient: userId, sender: req.user.id, type: "adminWarning", post: postId || undefined, message: reason.trim() });
+    await resolveReportWithSanction({ reportId, sanctionType: "warning", reason: reason.trim(), adminId: req.user.id, targetUserId: userId });
     res.status(201).json(sanction);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
@@ -39,7 +61,7 @@ router.post("/users/:userId/warn", async (req, res) => {
 router.post("/users/:userId/ban", async (req, res) => {
   try {
     const { userId } = req.params;
-    const { reason, banType, days, postId } = req.body;
+    const { reason, banType, days, postId, reportId } = req.body;
     if (userId === req.user.id) return res.status(400).json({ message: "본인은 대상으로 지정할 수 없습니다." });
     if (!reason?.trim()) return res.status(400).json({ message: "사유를 입력해주세요." });
     if (!["permanent", "temporary"].includes(banType)) return res.status(400).json({ message: "차단 유형이 올바르지 않습니다." });
@@ -51,12 +73,13 @@ router.post("/users/:userId/ban", async (req, res) => {
     if (!target) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
 
     const expiresAt = banType === "temporary" ? addDays(days) : undefined;
-    const sanction = await Sanction.create({ user: userId, type: "ban", reason: reason.trim(), admin: req.user.id, post: postId || undefined, banType, expiresAt });
+    const sanction = await Sanction.create({ user: userId, type: "ban", reason: reason.trim(), admin: req.user.id, post: postId || undefined, report: reportId || undefined, banType, expiresAt });
 
     await User.findByIdAndUpdate(userId, {
       banned: true, banType, banReason: reason.trim(), banUntil: expiresAt, banSanctionId: sanction._id,
     });
     await Notification.create({ recipient: userId, sender: req.user.id, type: "adminBan", post: postId || undefined, message: reason.trim(), until: expiresAt });
+    await resolveReportWithSanction({ reportId, sanctionType: "ban", reason: reason.trim(), adminId: req.user.id, targetUserId: userId });
 
     res.status(201).json(sanction);
   } catch (err) {
@@ -69,7 +92,7 @@ router.post("/users/:userId/ban", async (req, res) => {
 router.post("/users/:userId/restrict-comments", async (req, res) => {
   try {
     const { userId } = req.params;
-    const { reason, days, postId } = req.body;
+    const { reason, days, postId, reportId } = req.body;
     if (userId === req.user.id) return res.status(400).json({ message: "본인은 대상으로 지정할 수 없습니다." });
     if (!reason?.trim()) return res.status(400).json({ message: "사유를 입력해주세요." });
     if (!Number.isInteger(days) || days < 1) return res.status(400).json({ message: "제한 기간(일수)을 올바르게 입력해주세요." });
@@ -78,12 +101,13 @@ router.post("/users/:userId/restrict-comments", async (req, res) => {
     if (!target) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
 
     const expiresAt = addDays(days);
-    const sanction = await Sanction.create({ user: userId, type: "commentRestriction", reason: reason.trim(), admin: req.user.id, post: postId || undefined, expiresAt });
+    const sanction = await Sanction.create({ user: userId, type: "commentRestriction", reason: reason.trim(), admin: req.user.id, post: postId || undefined, report: reportId || undefined, expiresAt });
 
     await User.findByIdAndUpdate(userId, {
       commentRestrictedUntil: expiresAt, commentRestrictionReason: reason.trim(), commentRestrictionSanctionId: sanction._id,
     });
     await Notification.create({ recipient: userId, sender: req.user.id, type: "adminCommentRestriction", post: postId || undefined, message: reason.trim(), until: expiresAt });
+    await resolveReportWithSanction({ reportId, sanctionType: "commentRestriction", reason: reason.trim(), adminId: req.user.id, targetUserId: userId });
 
     res.status(201).json(sanction);
   } catch (err) {
@@ -122,12 +146,13 @@ router.patch("/users/:userId/event-admin", async (req, res) => {
   }
 });
 
-// GET /api/admin/sanctions?type=warning|ban|commentRestriction - 제재 관리 화면 목록 조회
+// GET /api/admin/sanctions?type=warning|ban|commentRestriction&user=<id> - 제재 목록/특정 회원의 제재 내역 조회
 router.get("/sanctions", async (req, res) => {
   try {
-    const { type } = req.query;
+    const { type, user } = req.query;
     const query = {};
     if (type) query.type = type;
+    if (user) query.user = user;
     const sanctions = await Sanction.find(query)
       .populate("user", "nickname avatar studentId")
       .populate("admin", "nickname")
@@ -223,7 +248,7 @@ router.get("/users", async (req, res) => {
 router.post("/users/:userId/withdraw", async (req, res) => {
   try {
     const { userId } = req.params;
-    const { reason } = req.body;
+    const { reason, reportId } = req.body;
     if (userId === req.user.id) return res.status(400).json({ message: "본인은 대상으로 지정할 수 없습니다." });
     if (!reason?.trim()) return res.status(400).json({ message: "사유를 입력해주세요." });
 
@@ -231,7 +256,8 @@ router.post("/users/:userId/withdraw", async (req, res) => {
     if (!target) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
     if (target.isWithdrawn) return res.status(400).json({ message: "이미 탈퇴한 사용자입니다." });
 
-    const sanction = await Sanction.create({ user: userId, type: "forceWithdraw", reason: reason.trim(), admin: req.user.id });
+    const sanction = await Sanction.create({ user: userId, type: "forceWithdraw", reason: reason.trim(), admin: req.user.id, report: reportId || undefined });
+    await resolveReportWithSanction({ reportId, sanctionType: "forceWithdraw", reason: reason.trim(), adminId: req.user.id, targetUserId: userId });
 
     await User.updateMany(
       {},
@@ -262,11 +288,12 @@ router.post("/users/:userId/withdraw", async (req, res) => {
 // 관리자가 모든 게시판의 최근 글을 한눈에 볼 수 있게 한다.
 router.get("/posts", async (req, res) => {
   try {
-    const { board, q } = req.query;
+    const { id, board, q } = req.query;
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 30));
 
     const query = {};
+    if (id) query._id = id;
     if (board) query.board = board;
     if (q?.trim()) {
       query.$or = [
@@ -312,83 +339,6 @@ router.get("/logs", async (req, res) => {
     ]);
 
     res.json({ logs, total, page, hasMore: page * limit < total });
-  } catch (err) {
-    res.status(500).json({ message: "서버 오류" });
-  }
-});
-
-// GET /api/admin/audit-log?category=all|sanction|content&page=1&limit=30 - 통합 관리자 행동 로그 (관리자 전용)
-// 제재(Sanction: 경고/차단/댓글제한/강제탈퇴)와 콘텐츠 조치(AdminActionLog: 게시물/댓글 삭제,
-// 관리자 임명/해제)를 하나의 시간순 이력으로 합쳐서, 관리자가 누구를 언제 왜 조치했는지
-// 한 화면에서 추적할 수 있게 한다.
-router.get("/audit-log", async (req, res) => {
-  try {
-    const { category } = req.query;
-    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 30));
-    // 합친 뒤 최신순으로 정렬해서 페이지를 잘라내야 하므로, 각 컬렉션에서 필요한 페이지 끝까지의
-    // 최신 항목을 넉넉히 가져온다.
-    const fetchLimit = page * limit;
-
-    const wantsSanction = !category || category === "all" || category === "sanction";
-    const wantsContent = !category || category === "all" || category === "content";
-
-    const [sanctions, contentLogs] = await Promise.all([
-      wantsSanction
-        ? Sanction.find()
-            .populate("user", "nickname studentId")
-            .populate("admin", "nickname studentId")
-            .sort({ createdAt: -1 })
-            .limit(fetchLimit)
-        : [],
-      wantsContent
-        ? AdminActionLog.find()
-            .populate("actor", "nickname studentId")
-            .populate("targetAuthor", "nickname studentId")
-            .sort({ createdAt: -1 })
-            .limit(fetchLimit)
-        : [],
-    ]);
-
-    // 두 컬렉션의 서로 다른 필드 구조를 화면에서 다루기 쉬운 공통 형태로 맞춘다.
-    const normalized = [
-      ...sanctions.map((s) => ({
-        _id: s._id,
-        category: "sanction",
-        actionType: s.type, // warning | ban | commentRestriction | forceWithdraw
-        actor: s.admin,
-        targetUser: s.user,
-        reason: s.reason,
-        board: undefined,
-        banType: s.banType,
-        expiresAt: s.expiresAt,
-        active: s.active,
-        createdAt: s.createdAt,
-      })),
-      ...contentLogs.map((l) => ({
-        _id: l._id,
-        category: "content",
-        actionType: l.actionType, // deletePost | deleteComment | grantAdmin | revokeAdmin
-        actor: l.actor,
-        targetUser: l.targetAuthor,
-        reason: undefined,
-        board: l.board,
-        snapshot: l.snapshot,
-        actorIsAdmin: l.actorIsAdmin,
-        createdAt: l.createdAt,
-      })),
-    ].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-    const start = (page - 1) * limit;
-    const pageItems = normalized.slice(start, start + limit);
-    // 정확한 전체 개수는 두 컬렉션을 각각 세어야 한다.
-    const [sanctionTotal, contentTotal] = await Promise.all([
-      wantsSanction ? Sanction.countDocuments() : 0,
-      wantsContent ? AdminActionLog.countDocuments() : 0,
-    ]);
-    const total = sanctionTotal + contentTotal;
-
-    res.json({ logs: pageItems, total, page, hasMore: page * limit < total });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }

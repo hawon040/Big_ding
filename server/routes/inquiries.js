@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Inquiry = require("../models/Inquiry");
+const Notification = require("../models/Notification");
 const auth = require("../middleware/authMiddleware");
 const isAdmin = require("../middleware/adminMiddleware");
 
@@ -59,14 +60,29 @@ router.delete("/:id", auth, async (req, res) => {
 });
 
 // PATCH /api/inquiries/:id - 건의사항 처리 상태 변경 (관리자 전용)
+// body: { status, response? } - response는 작성자에게 그대로 전달되는 답변/피드백이다.
 router.patch("/:id", auth, isAdmin, async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, response } = req.body;
     if (!["pending", "resolved"].includes(status)) {
       return res.status(400).json({ message: "올바르지 않은 상태입니다." });
     }
-    const inquiry = await Inquiry.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    const inquiry = await Inquiry.findById(req.params.id);
     if (!inquiry) return res.status(404).json({ message: "건의사항을 찾을 수 없습니다." });
+    const wasPending = inquiry.status === "pending";
+    inquiry.status = status;
+    if (response?.trim()) inquiry.adminResponse = response.trim();
+    await inquiry.save();
+
+    if (status === "resolved" && wasPending) {
+      await Notification.create({
+        recipient: inquiry.user,
+        sender: req.user.id,
+        type: "inquiryResolved",
+        message: response?.trim() || "건의사항이 검토 및 처리되었습니다.",
+      });
+    }
+
     res.json(inquiry);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });

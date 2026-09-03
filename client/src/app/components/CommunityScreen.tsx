@@ -217,7 +217,8 @@ export interface NotificationItem {
   _id: string;
   sender: Friend;
   type: "follow" | "join" | "leave" | "comment" | "like" | "dislike" | "scrap"
-      | "adminWarning" | "adminBan" | "adminCommentRestriction";
+      | "adminWarning" | "adminBan" | "adminCommentRestriction"
+      | "reportResolved" | "inquiryResolved";
   post?: { _id: string; title: string; board: string } | null;
   commentContent?: string;
   message?: string;
@@ -6350,7 +6351,9 @@ const handleDeleteSelectedChats = () => {
           const senderId = String(n.sender._id);
           const isFollowingBack = followingIds.some((id) => String(id) === senderId);
           const isFollowBackPending = followBackPendingId === senderId;
-          const isAdminNotif = n.type === "adminWarning" || n.type === "adminBan" || n.type === "adminCommentRestriction";
+          const isAdminNotif =
+            n.type === "adminWarning" || n.type === "adminBan" || n.type === "adminCommentRestriction" ||
+            n.type === "reportResolved" || n.type === "inquiryResolved";
           const commentPreview = n.commentContent
             ? (n.commentContent.length > 20 ? `${n.commentContent.slice(0, 20)}…` : n.commentContent)
             : null;
@@ -6368,6 +6371,8 @@ const handleDeleteSelectedChats = () => {
             : n.type === "adminWarning" ? `에게 경고를 받았습니다.${n.post ? ` (게시물: "${n.post.title}")` : ""} 사유: ${n.message ?? "-"}`
             : n.type === "adminBan" ? `에게 계정이 ${n.until ? `${new Date(n.until).toLocaleDateString("ko-KR")}까지` : "영구"} 정지되었습니다.${n.post ? ` (게시물: "${n.post.title}")` : ""} 사유: ${n.message ?? "-"}`
             : n.type === "adminCommentRestriction" ? `에게 ${n.until ? new Date(n.until).toLocaleDateString("ko-KR") : ""}까지 댓글 작성이 제한되었습니다.${n.post ? ` (게시물: "${n.post.title}")` : ""} 사유: ${n.message ?? "-"}`
+            : n.type === "reportResolved" ? `가 신고 처리 결과를 보내왔습니다: ${n.message ?? "-"}`
+            : n.type === "inquiryResolved" ? `가 건의사항에 답변했습니다: ${n.message ?? "-"}`
             : "님과 관련된 새 알림이 있습니다.";
 
           return (
@@ -6386,7 +6391,10 @@ const handleDeleteSelectedChats = () => {
                     setSelectedPostId(n.post._id);
                     setViewedAuthor(null);
                     setShowChat(false);
-                } else if (n.type !== "adminWarning" && n.type !== "adminBan" && n.type !== "adminCommentRestriction") {
+                } else if (
+                  n.type !== "adminWarning" && n.type !== "adminBan" && n.type !== "adminCommentRestriction" &&
+                  n.type !== "reportResolved" && n.type !== "inquiryResolved"
+                ) {
                     // 게시물과 연결된 알림인데 원본 게시물이 이미 삭제되어 populate가 null을
                     // 반환한 경우. 예전에는 여기서 아무 반응도 없어서 어떤 알림은 상세페이지로
                     // 가고 어떤 알림은 그냥 무시되는 것처럼 보였다. 이제는 안내를 띄워준다.
