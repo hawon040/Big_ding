@@ -1423,7 +1423,13 @@ useEffect(() => {
   const [newPollDeleteMode, setNewPollDeleteMode] = useState(false);
 
   // 전공 강의평가(lecture) 전용 글쓰기 폼 상태
-  const LECTURE_GRADES = ["1학년", "2학년", "3학년", "4학년"];
+  const LECTURE_GROUPS: Record<string, string[]> = {
+  "기초교과군": ["C언어프로그래밍", "파이썬 프로그래밍"],
+  "심화교과군": ["데이터베이스이론 및 실습", "컴퓨터네트워크", "인공지능"],
+  "응용교과군": ["데이터시각화", "스마트폰프로그래밍", "Open CV프로그래밍", "캡스톤디자인", "클라우드응용시스템", "딥러닝 프로젝트"],
+  "핵심교과군": ["자료구조론", "유닉스 프로그래밍", "JAVA프로그래밍", "C++프로그래밍", "데이터베이스이론 및 실습", "파이썬응용", "빅데이터와AI"],
+};
+const LECTURE_GRADES = Object.keys(LECTURE_GROUPS);
   const [newLectureGrade, setNewLectureGrade] = useState("");
   const [newLectureName, setNewLectureName] = useState("");
   const [newLectureProfessor, setNewLectureProfessor] = useState("");
@@ -1431,6 +1437,7 @@ useEffect(() => {
   const [newLectureContent, setNewLectureContent] = useState("");
   const [professorList, setProfessorList] = useState<string[]>([]);
   const [showGradeDropdown, setShowGradeDropdown] = useState(false);
+  const [showLectureNameDropdown, setShowLectureNameDropdown] = useState(false);
   const [showProfessorDropdown, setShowProfessorDropdown] = useState(false);
 
   // 글쓰기 모달에서 게시판을 "전공 강의평가"로 선택하면 서버에서 교수님 목록을 불러온다.
@@ -5655,7 +5662,7 @@ const handleDeleteSelectedChats = () => {
                         border: "1.5px solid var(--border)",
                       }}
                     >
-                      {newLectureGrade || "학년 선택"}
+                      {newLectureGrade || "교과군 선택"}
                       {showGradeDropdown ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                     </button>
                     {showGradeDropdown && (
@@ -5685,21 +5692,45 @@ const handleDeleteSelectedChats = () => {
 
                 {/* 강의명 + 교수님 선택 */}
                 <div className="flex-1">
-                    <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>강의명</label>
-                    <input
-                      placeholder={newLectureGrade ? "강의명을 입력하세요" : "학년을 먼저 선택해주세요"}
-                      value={newLectureName}
-                      onChange={(e) => setNewLectureName(e.target.value)}
+                                     <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>강의명</label>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowLectureNameDropdown(!showLectureNameDropdown)}
                       disabled={!newLectureGrade}
-                      className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
+                      className="w-full px-4 py-3 rounded-2xl text-sm text-left flex items-center justify-between"
                       style={{
                         background: "var(--input-background)",
-                        color: "var(--foreground)",
+                        color: newLectureName ? "var(--foreground)" : "var(--muted-foreground)",
                         border: "1.5px solid var(--border)",
                         opacity: newLectureGrade ? 1 : 0.5,
-                        cursor: newLectureGrade ? "text" : "not-allowed",
+                        cursor: newLectureGrade ? "pointer" : "not-allowed",
                       }}
-                    />
+                    >
+                      {newLectureName || (newLectureGrade ? "강의명을 선택하세요" : "교과군을 먼저 선택해주세요")}
+                      <ChevronDown size={16} />
+                    </button>
+                    {showLectureNameDropdown && newLectureGrade && (
+                      <div
+                        className="absolute left-0 top-full mt-1 z-20 w-full rounded-xl shadow-lg py-1"
+                        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                      >
+                        {(LECTURE_GROUPS[newLectureGrade] ?? []).map((name) => (
+                          <button
+                            key={name}
+                            onClick={() => {
+                              setNewLectureName(name);
+                              setNewLectureProfessor("");
+                              setShowLectureNameDropdown(false);
+                            }}
+                            className="w-full px-4 py-2.5 text-sm text-left"
+                            style={{ color: newLectureName === name ? "var(--primary)" : "var(--foreground)" }}
+                          >
+                            {name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   </div>
                   <div className="flex-1">
                     <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>교수님 선택</label>
