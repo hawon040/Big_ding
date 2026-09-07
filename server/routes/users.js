@@ -8,6 +8,7 @@ const auth = require("../middleware/authMiddleware");
 const isAdmin = require("../middleware/adminMiddleware");
 const upload = require("../middleware/upload");
 const { uploadImage } = require("../config/cloudinary");
+const { escapeRegex } = require("../utils/regex");
 
 // GET /api/users/profile - 내 프로필 (팔로워/팔로잉 수 포함)
 router.get("/profile", auth, async (req, res) => {
@@ -175,8 +176,8 @@ router.get("/search", auth, async (req, res) => {
       _id: { $nin: excludedIds },
       isWithdrawn: { $ne: true },
       $or: [
-        { studentId: { $regex: q, $options: "i" } },
-        { nickname: { $regex: q, $options: "i" } },
+        { studentId: { $regex: escapeRegex(q), $options: "i" } },
+        { nickname: { $regex: escapeRegex(q), $options: "i" } },
       ],
     })
       .select("nickname avatar studentId")

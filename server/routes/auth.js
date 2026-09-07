@@ -3,12 +3,25 @@ const router = express.Router();
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const auth = require("../middleware/authMiddleware");
+const { checkAndRecordAttempt, resetAttempts } = require("../utils/codeAttemptLimiter");
 
 // 교수별 인증번호 설정 (관리자가 직접 관리) - 중복 제거를 위해 상단으로 분리
 const professorCodes = {
   "유진호": "11",
   "차대현": "22",
   "홍진근": "33",
+};
+
+// 인증번호(2자리)는 자릿수가 짧아 무차별 대입에 취약하다. IP 기준 rate limit과 별개로,
+// "이 학번을 대상으로 한 시도" 자체를 계정 단위로도 제한해서 자동화된 대량 시도를 늦춘다.
+const guardCodeAttempt = (res, studentId) => {
+  const { allowed, retryAfterMs } = checkAndRecordAttempt(`code:${studentId}`);
+  if (!allowed) {
+    res.status(429).json({
+      message: `시도 횟수를 초과했습니다. ${Math.ceil(retryAfterMs / 60000)}분 후 다시 시도해주세요.`,
+    });
+  }
+  return allowed;
 };
 
 // POST /api/auth/check-nickname
@@ -43,6 +56,8 @@ router.post("/check-nickname", async (req, res) => {
 router.post("/verify-code", async (req, res) => {
   try {
     const { studentId, professor, code } = req.body;
+    if (!studentId) return res.status(400).json({ message: "학번을 입력해주세요." });
+    if (!guardCodeAttempt(res, studentId)) return;
 
     // 해당 교수의 인증번호와 비교
     if (professorCodes[professor] !== code) {
@@ -53,6 +68,7 @@ router.post("/verify-code", async (req, res) => {
     const exists = await User.findOne({ studentId });
     if (exists) return res.status(400).json({ message: "이미 가입된 학번입니다." });
 
+    resetAttempts(`code:${studentId}`);
     res.json({ message: "인증 성공!" });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
@@ -88,6 +104,8 @@ router.post("/check-nickname", async (req, res) => {
 router.post("/register", async (req, res) => {
   try {
     const { studentId, name, professor, code, password } = req.body;
+    if (!studentId) return res.status(400).json({ message: "학번을 입력해주세요." });
+    if (!guardCodeAttempt(res, studentId)) return;
 
     // 교수별 인증번호 검증
     if (professorCodes[professor] !== code) {
@@ -98,6 +116,7 @@ router.post("/register", async (req, res) => {
     const exists = await User.findOne({ studentId });
     if (exists) return res.status(400).json({ message: "이미 가입된 학번입니다." });
 
+    resetAttempts(`code:${studentId}`);
     // 유저 생성
     const user = new User({
       studentId,
@@ -163,6 +182,9 @@ router.post("/login", async (req, res) => {
 router.post("/find-password", async (req, res) => {
   try {
     const { studentId, professor, code, newPassword } = req.body;
+    if (!studentId) return res.status(400).json({ message: "학번을 입력해주세요." });
+    if (!newPassword) return res.status(400).json({ message: "새 비밀번호를 입력해주세요." });
+    if (!guardCodeAttempt(res, studentId)) return;
 
     if (professorCodes[professor] !== code) {
       return res.status(401).json({ message: "인증번호가 올바르지 않습니다." });
@@ -176,6 +198,7 @@ router.post("/find-password", async (req, res) => {
       return res.status(401).json({ message: "담당 교수 정보가 일치하지 않습니다." });
     }
 
+    resetAttempts(`code:${studentId}`);
     user.password = newPassword; // pre save 훅에서 자동 해시 암호화
     await user.save();
     res.json({ message: "비밀번호가 재설정되었습니다." });
@@ -185,11 +208,27 @@ router.post("/find-password", async (req, res) => {
 });
 
 // PATCH /api/auth/password
-// 비밀번호 변경 (로그인 필요)
+// 비밀번호 변경 (로그인 필요). 탈취되거나 로그아웃하지 않고 자리를 비운 세션으로
+// 계정을 완전히 탈취(비번을 바꿔 원래 주인을 잠금)당하지 않도록, 현재 비밀번호
+// 확인을 거친 뒤에만 변경을 허용한다.
 router.patch("/password", auth, async (req, res) => {
   try {
-    const { newPassword } = req.body;
+    const { currentPassword, newPassword } = req.body;
+    if (!newPassword) {
+      return res.status(400).json({ message: "새 비밀번호를 입력해주세요." });
+    }
     const user = await User.findById(req.user.id);
+    // isFirstLogin(최초 로그인 직후 비밀번호 등록) 단계에서는 아직 본인이 정한 비밀번호가
+    // 없으므로 현재 비밀번호 확인을 요구하지 않는다.
+    if (!user.isFirstLogin) {
+      if (!currentPassword) {
+        return res.status(400).json({ message: "현재 비밀번호를 입력해주세요." });
+      }
+      const isMatch = await user.comparePassword(currentPassword);
+      if (!isMatch) {
+        return res.status(401).json({ message: "현재 비밀번호가 올바르지 않습니다." });
+      }
+    }
     user.password = newPassword;
     user.isFirstLogin = false;
     await user.save();

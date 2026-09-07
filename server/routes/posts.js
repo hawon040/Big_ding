@@ -9,6 +9,27 @@ const auth = require("../middleware/authMiddleware");
 const upload = require("../middleware/upload");
 const profanityFilter = require("../middleware/profanityFilter");
 const { uploadImage } = require("../config/cloudinary");
+const { escapeRegex } = require("../utils/regex");
+
+// 목록 조회(GET /)는 공개범위(전체/팔로워/나만)와 차단 관계를 걸러서 내려주지만,
+// 개별 게시물에 대한 액션(좋아요/댓글/투표/참여 등)은 postId만 알면 그 필터를
+// 우회해서 접근할 수 있었다. 여기서 그 게시물에 접근/상호작용할 권한이 있는지
+// 목록 조회와 동일한 기준으로 다시 확인한다.
+const canAccessPost = async (post, userId) => {
+  if (post.author.toString() === userId) return true;
+  const author = await User.findById(post.author).select("followers blockedUsers");
+  if (!author) return false;
+  if (author.blockedUsers.some((id) => id.toString() === userId)) return false;
+  const me = await User.findById(userId).select("blockedUsers");
+  if (me?.blockedUsers.some((id) => id.toString() === post.author.toString())) return false;
+
+  const visibility = post.visibility || "all";
+  if (visibility === "private") return false;
+  if (visibility === "followers") {
+    return author.followers.some((id) => id.toString() === userId);
+  }
+  return true;
+};
 
 // GET /api/posts?board=free
 router.get("/", auth, async (req, res) => {
@@ -16,11 +37,14 @@ router.get("/", auth, async (req, res) => {
     const { board, search } = req.query;
     const query = { isBlocked: false };
     if (board) query.board = board;
-    if (search) query.$or = [
-      { title: { $regex: search, $options: "i" } },
-      { content: { $regex: search, $options: "i" } },
-      { tags: { $in: [new RegExp(search, "i")] } },
-    ];
+    if (search) {
+      const safeSearch = escapeRegex(search);
+      query.$or = [
+        { title: { $regex: safeSearch, $options: "i" } },
+        { content: { $regex: safeSearch, $options: "i" } },
+        { tags: { $in: [new RegExp(safeSearch, "i")] } },
+      ];
+    }
 
     // 내가 차단했거나 나를 차단한 사용자의 글은 서로 보이지 않게 제외한다.
     const me = await User.findById(req.user.id).select("blockedUsers following");
@@ -120,6 +144,9 @@ router.post("/:id/join", auth, async (req, res) => {
     if (!post || post.board !== "meeting") {
       return res.status(404).json({ message: "모임 게시물을 찾을 수 없습니다." });
     }
+    if (!(await canAccessPost(post, req.user.id))) {
+      return res.status(403).json({ message: "권한이 없습니다." });
+    }
     const alreadyJoined = post.participants.some((id) => id.toString() === req.user.id);
     if (alreadyJoined) {
       return res.status(400).json({ message: "이미 참여한 모임입니다." });
@@ -154,6 +181,9 @@ router.post("/:id/leave", auth, async (req, res) => {
     if (!post || post.board !== "meeting") {
       return res.status(404).json({ message: "모임 게시물을 찾을 수 없습니다." });
     }
+    if (!(await canAccessPost(post, req.user.id))) {
+      return res.status(403).json({ message: "권한이 없습니다." });
+    }
     const alreadyJoined = post.participants.some((id) => id.toString() === req.user.id);
     if (!alreadyJoined) {
       return res.status(400).json({ message: "참여하지 않은 모임입니다." });
@@ -186,6 +216,10 @@ const notifyPostAction = async (post, userId, type) => {
 router.post("/:id/like", auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "게시물을 찾을 수 없습니다." });
+    if (!(await canAccessPost(post, req.user.id))) {
+      return res.status(403).json({ message: "권한이 없습니다." });
+    }
     const idx = post.likes.indexOf(req.user.id);
     if (idx === -1) {
       post.likes.push(req.user.id);
@@ -207,6 +241,10 @@ router.post("/:id/like", auth, async (req, res) => {
 router.post("/:id/dislike", auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "게시물을 찾을 수 없습니다." });
+    if (!(await canAccessPost(post, req.user.id))) {
+      return res.status(403).json({ message: "권한이 없습니다." });
+    }
     const idx = post.dislikes.indexOf(req.user.id);
     if (idx === -1) {
       post.dislikes.push(req.user.id);
@@ -229,6 +267,9 @@ router.post("/:id/scrap", auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ message: "게시물을 찾을 수 없습니다." });
+    if (!(await canAccessPost(post, req.user.id))) {
+      return res.status(403).json({ message: "권한이 없습니다." });
+    }
     const idx = post.scraps.indexOf(req.user.id);
     if (idx === -1) {
       post.scraps.push(req.user.id);
@@ -249,6 +290,9 @@ router.get("/:id/likes", auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id).populate("likes", "nickname avatar studentId");
     if (!post) return res.status(404).json({ message: "게시물을 찾을 수 없습니다." });
+    if (!(await canAccessPost(post, req.user.id))) {
+      return res.status(403).json({ message: "권한이 없습니다." });
+    }
     res.json(post.likes);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
@@ -260,6 +304,9 @@ router.get("/:id/dislikes", auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id).populate("dislikes", "nickname avatar studentId");
     if (!post) return res.status(404).json({ message: "게시물을 찾을 수 없습니다." });
+    if (!(await canAccessPost(post, req.user.id))) {
+      return res.status(403).json({ message: "권한이 없습니다." });
+    }
     res.json(post.dislikes);
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
@@ -285,6 +332,10 @@ router.post("/:id/comments", auth, profanityFilter, async (req, res) => {
     }
 
     const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "게시물을 찾을 수 없습니다." });
+    if (!(await canAccessPost(post, req.user.id))) {
+      return res.status(403).json({ message: "권한이 없습니다." });
+    }
     const { parentComment } = req.body;
     // 답글이 실제로 이 게시물에 존재하는 최상위 댓글을 가리키는지 확인한다.
     if (parentComment && !post.comments.some((c) => c._id.toString() === parentComment && !c.parentComment)) {
@@ -309,12 +360,15 @@ router.post("/:id/comments", auth, profanityFilter, async (req, res) => {
 router.delete("/:id/comments/:commentId", auth, async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
+    if (!post) return res.status(404).json({ message: "게시물을 찾을 수 없습니다." });
     const comment = post.comments.id(req.params.commentId);
     if (!comment) return res.status(404).json({ message: "댓글을 찾을 수 없습니다." });
     const isAdminDeletion = comment.author.toString() !== req.user.id;
     if (isAdminDeletion) {
       const me = await User.findById(req.user.id).select("isAdmin");
       if (!me?.isAdmin) return res.status(403).json({ message: "권한이 없습니다." });
+    } else if (!(await canAccessPost(post, req.user.id))) {
+      return res.status(403).json({ message: "권한이 없습니다." });
     }
     // 댓글 문서 자체는 지워지므로, 지우기 전에 내용을 스냅샷으로 로그에 남긴다.
     await AdminActionLog.create({
@@ -343,6 +397,9 @@ router.post("/:id/poll/vote", auth, async (req, res) => {
     const post = await Post.findById(req.params.id);
     if (!post || !post.poll) {
       return res.status(404).json({ message: "투표를 찾을 수 없습니다." });
+    }
+    if (!(await canAccessPost(post, req.user.id))) {
+      return res.status(403).json({ message: "권한이 없습니다." });
     }
     if (typeof optionIndex !== "number" || optionIndex < 0 || optionIndex >= post.poll.options.length) {
       return res.status(400).json({ message: "잘못된 옵션입니다." });

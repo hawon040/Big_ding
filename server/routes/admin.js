@@ -10,6 +10,7 @@ const AdminActionLog = require("../models/AdminActionLog");
 const crypto = require("crypto");
 const auth = require("../middleware/authMiddleware");
 const isAdmin = require("../middleware/adminMiddleware");
+const { escapeRegex } = require("../utils/regex");
 
 router.use(auth, isAdmin);
 
@@ -202,7 +203,7 @@ router.get("/users", async (req, res) => {
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 30));
 
     const query = q
-      ? { $or: [{ studentId: { $regex: q, $options: "i" } }, { nickname: { $regex: q, $options: "i" } }] }
+      ? { $or: [{ studentId: { $regex: escapeRegex(q), $options: "i" } }, { nickname: { $regex: escapeRegex(q), $options: "i" } }] }
       : {};
 
     const [users, total] = await Promise.all([
@@ -296,9 +297,10 @@ router.get("/posts", async (req, res) => {
     if (id) query._id = id;
     if (board) query.board = board;
     if (q?.trim()) {
+      const safeQ = escapeRegex(q.trim());
       query.$or = [
-        { title: { $regex: q.trim(), $options: "i" } },
-        { content: { $regex: q.trim(), $options: "i" } },
+        { title: { $regex: safeQ, $options: "i" } },
+        { content: { $regex: safeQ, $options: "i" } },
       ];
     }
 

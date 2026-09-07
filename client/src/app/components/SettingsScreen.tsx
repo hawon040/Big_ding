@@ -811,16 +811,30 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             </p>
           </div>
           <button
-            onClick={() => {
-              if (newPassword === confirmPassword) {
+            onClick={async () => {
+              if (!currentPassword.trim()) {
+                showAlert("현재 비밀번호를 입력해주세요.");
+                return;
+              }
+              const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+              if (!passwordRegex.test(newPassword)) {
+                showAlert("새 비밀번호는 8자 이상이며 영문과 숫자를 포함해야 합니다.");
+                return;
+              }
+              if (newPassword !== confirmPassword) {
+                showAlert("새 비밀번호가 일치하지 않습니다.");
+                return;
+              }
+              try {
+                await api.patch("/auth/password", { currentPassword, newPassword });
                 showAlert("비밀번호가 변경되었습니다.", () => {
                   setCurrentPassword("");
                   setNewPassword("");
                   setConfirmPassword("");
                   setActiveSection(null);
                 });
-              } else {
-                showAlert("새 비밀번호가 일치하지 않습니다.");
+              } catch (err: any) {
+                showAlert(err?.response?.data?.message || "비밀번호 변경에 실패했습니다.");
               }
             }}
             className="w-full py-3 rounded-xl font-semibold text-sm mt-2"
