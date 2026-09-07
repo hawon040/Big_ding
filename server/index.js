@@ -62,14 +62,6 @@ app.use("/api/group-chats", require("./routes/groupChat"));
 // 저장된 기존 아바타/채팅/게시글 이미지를 계속 보여주기 위한 하위 호환용이다.
 app.use("/uploads", express.static("uploads"));
 
-// 관리자 페이지 정적 파일 제공
-app.use(express.static("admin"));
-
-// http://localhost:5000/admin 접속 시 admin/index.html 반환
-app.get("/admin", (req, res) => {
-  res.sendFile(__dirname + "/admin/index.html");
-});
-
 // 헬스체크
 app.get("/", (req, res) => res.json({ message: "BigData Community Server 🚀" }));
 
