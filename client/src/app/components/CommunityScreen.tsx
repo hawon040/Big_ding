@@ -164,6 +164,7 @@ export interface Post {
   images: string[];
   tags?: string[];
   rating?: number;
+  lectureGrade?: string;
   maxParticipants?: number;
   currentParticipants?: number;
   participants?: string[];
@@ -900,6 +901,7 @@ export function CommunityScreen({
 // 모든 게시판 공통: 최신순/인기순 정렬
   const [sortOrder, setSortOrder] = useState<"latest" | "popular">("latest");
   const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [lectureGroupFilter, setLectureGroupFilter] = useState<string>("전체");
   // 게시판을 옮길 때마다 필터를 초기화해서, 다른 게시판으로 갔다가 다시 꿀팁 게시판으로
   // 돌아와도 이전에 선택했던 필터가 남아있지 않게 한다.
   useEffect(() => {
@@ -2659,9 +2661,14 @@ const renderRatingStars = (rating: number, size: number = 14) => (
 
  // 인기순 = 좋아요 수 + 스크랩 수 합산이 높은 순
  const getPopularityScore = (post: Post) => post.likes.length + (post.scraps?.length ?? 0);
- const sortedVisiblePosts = sortOrder === "popular"
+  const sortedVisiblePosts = (sortOrder === "popular"
    ? [...visiblePosts].sort((a, b) => getPopularityScore(b) - getPopularityScore(a))
-   : visiblePosts;
+   : visiblePosts
+ ).filter((post) => {
+   if (activeBoard !== "lecture") return true;
+   if (lectureGroupFilter === "전체") return true;
+   return post.lectureGrade === lectureGroupFilter;
+ });
 
   const toggleFriendSelectMode = () => {
   setIsFriendSelectMode((prev) => !prev);
@@ -4763,14 +4770,16 @@ const handleDeleteSelectedChats = () => {
             </div>
           )}
 
-          {/* 최신순/인기순 정렬: 모든 게시판에서 노출 */}
+                 {/* 최신순/인기순 정렬 또는 강의평가 교과군 필터 */}
           <div className="relative">
             <button
               onClick={() => setShowSortDropdown((v) => !v)}
               className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap"
               style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
             >
-              {sortOrder === "latest" ? "최신순" : "인기순"}
+              {activeBoard === "lecture"
+                ? lectureGroupFilter
+                : sortOrder === "latest" ? "최신순" : "인기순"}
               {showSortDropdown ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
 
@@ -4779,25 +4788,40 @@ const handleDeleteSelectedChats = () => {
                 className="absolute right-0 top-full mt-1 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
                 style={{ background: "var(--card)", border: "1px solid var(--border)" }}
               >
-                <button
-                  onClick={() => { setSortOrder("latest"); setShowSortDropdown(false); }}
-                  className="w-full px-3 py-2 text-xs text-left"
-                  style={{ color: sortOrder === "latest" ? "var(--primary)" : "var(--foreground)" }}
-                >
-                  최신순
-                </button>
-                <button
-                  onClick={() => { setSortOrder("popular"); setShowSortDropdown(false); }}
-                  className="w-full px-3 py-2 text-xs text-left"
-                  style={{ color: sortOrder === "popular" ? "var(--primary)" : "var(--foreground)" }}
-                >
-                  인기순
-                </button>
+                {activeBoard === "lecture" ? (
+                  ["전체", "기초교과군", "심화교과군", "응용교과군", "핵심교과군"].map((group) => (
+                    <button
+                      key={group}
+                      onClick={() => { setLectureGroupFilter(group); setShowSortDropdown(false); }}
+                      className="w-full px-3 py-2 text-xs text-left"
+                      style={{ color: lectureGroupFilter === group ? "var(--primary)" : "var(--foreground)" }}
+                    >
+                      {group}
+                    </button>
+                  ))
+                ) : (
+                  <>
+                    <button
+                      onClick={() => { setSortOrder("latest"); setShowSortDropdown(false); }}
+                      className="w-full px-3 py-2 text-xs text-left"
+                      style={{ color: sortOrder === "latest" ? "var(--primary)" : "var(--foreground)" }}
+                    >
+                      최신순
+                    </button>
+                    <button
+                      onClick={() => { setSortOrder("popular"); setShowSortDropdown(false); }}
+                      className="w-full px-3 py-2 text-xs text-left"
+                      style={{ color: sortOrder === "popular" ? "var(--primary)" : "var(--foreground)" }}
+                    >
+                      인기순
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
         </div>
-      )}
+      )}   
 
       {/* 더보기 메뉴 / 꿀팁 필터 메뉴 / 정렬 메뉴 외부 클릭 닫기 */}
       {(showMoreMenu !== null || showContestFilterMenu || showSortDropdown) && (
@@ -5060,7 +5084,7 @@ const handleDeleteSelectedChats = () => {
             </span>
           </div>
         )}
-        {post.rating && (
+        {post.rating && post.board !== "lecture" && (
           <div className="flex items-center gap-1 mb-1.5">
             {renderRatingStars(post.rating, 14)}
             <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
@@ -5453,6 +5477,7 @@ const handleDeleteSelectedChats = () => {
                     formData.append("content", newLectureContent.trim());
                     formData.append("rating", String(newLectureRating));
                     formData.append("tags", JSON.stringify([newLectureGrade, newLectureProfessor]));
+                    formData.append("lectureGrade", newLectureGrade);
                     const res = await api.post("/posts", formData);
                     setPosts((prev) => [res.data, ...prev]);
                     setNewLectureGrade("");

@@ -41,6 +41,7 @@ const postSchema = new mongoose.Schema({
   dislikes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   comments: [commentSchema],
   rating: { type: Number, min: 0.5, max: 5 },          // 강의평가
+  lectureGrade: { type: String },                        // 강의평가 교과군
   maxParticipants: { type: Number },                   // 공강모임
   currentParticipants: { type: Number, default: 1 },
   participants: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // 공강모임 참여자 목록(중복 참여 방지용)
