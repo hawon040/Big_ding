@@ -130,16 +130,13 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
 
   return (
     <div
-      className="relative flex flex-col items-center min-h-full px-6 pt-16 pb-10"
+      className="relative flex flex-col items-center justify-center min-h-full px-6 py-10"
       style={{ ...(LOGIN_TOKENS as any), background: "var(--login-bg)" }}
     >
       <div className="flex flex-col items-center mb-8">
         <h1 className="notranslate text-[34px] leading-none" translate="no" style={{ color: "var(--login-text)", fontFamily: "var(--font-logo)" }}>
           Big Ding
         </h1>
-        <p className="text-sm mt-1" style={{ color: "var(--login-text-muted)" }}>
-          강의평부터 학교 생활까지
-        </p>
       </div>
 
       <div
