@@ -5,7 +5,6 @@ import {
 } from "lucide-react";
 import api, { resolveAssetUrl } from "@/api";
 import defaultAvatar from "@/assets/default-avatar.svg";
-import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import {
   BOARDS, loadStoredInteractions, filterProfanity,
   STORAGE_KEY, INTERACTIONS_UPDATED_EVENT,
@@ -439,7 +438,6 @@ useEffect(() => {
               <ArrowLeft size={16} />
             </IconButton>
           )}
-          <img src={bigRoadingIcon} alt="Big Ding" className="h-7 w-7 rounded-md object-cover" />
           <span className="notranslate text-2xl leading-none" translate="no" style={{ color: "var(--text-strong)", fontFamily: "var(--font-logo)" }}>
             Big Ding
           </span>

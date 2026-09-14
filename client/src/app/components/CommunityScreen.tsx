@@ -1,5 +1,4 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
-import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import defaultAvatar from "@/assets/default-avatar.svg";
 import api, { resolveAssetUrl } from "@/api";
 import { useSocket } from "@/hooks/useSocket";
@@ -4221,7 +4220,6 @@ const handleDeleteSelectedChats = () => {
     <div className="px-4 pt-5 pb-3 shrink-0">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <img src={bigRoadingIcon} alt="Big Ding" className="w-10 h-10 rounded-[var(--r-md)] object-cover" />
           <h1 className="notranslate text-[26px] leading-none" translate="no" style={{ color: "var(--text-strong)", fontFamily: "var(--font-logo)" }}>
             Big Ding
           </h1>

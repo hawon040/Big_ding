@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft, ChevronRight, Eye, EyeOff, Loader2 } from "lucide-react";
-import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import api from "@/api";
 import "@/styles/tokens.css";
 
@@ -135,9 +134,6 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
       style={{ ...(LOGIN_TOKENS as any), background: "var(--login-bg)" }}
     >
       <div className="flex flex-col items-center mb-8">
-        <div className="w-20 h-20 rounded-3xl mb-4 overflow-hidden">
-          <img src={bigRoadingIcon} alt="Big Ding" className="w-full h-full object-cover" />
-        </div>
         <h1 className="notranslate text-[34px] leading-none" translate="no" style={{ color: "var(--login-text)", fontFamily: "var(--font-logo)" }}>
           Big Ding
         </h1>

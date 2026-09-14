@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
-import bigRoadingIcon from "@/assets/big-roading-icon.png";
 import "@/styles/tokens.css";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -162,9 +161,6 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
         </button>
 
         <div className="mb-3 flex flex-col items-center">
-          <div className="mb-1.5 h-14 w-14 overflow-hidden rounded-[var(--r-lg)]">
-            <img src={bigRoadingIcon} alt="Big Ding" className="h-full w-full object-cover" />
-          </div>
           <h2 className="text-base font-bold" style={{ color: "var(--text-strong)" }}>
             회원가입
           </h2>
