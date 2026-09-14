@@ -9,6 +9,8 @@ import { LunchScreen } from "./components/LunchScreen";
 import { Utensils, Plus } from "lucide-react";
 import api from "@/api";
 import { useSocket } from "@/hooks/useSocket";
+import "@/styles/tokens.css";
+import { Modal } from "@/components/ui/Modal";
 
 type Tab = "community" | "chat" | "profile" | "settings" | "lunch";
 
@@ -169,7 +171,7 @@ const [currentTime, setCurrentTime] = useState("");
           height: "844px",
           borderRadius: "44px",
           border: "8px solid #05070f",
-          background: "var(--background)",
+          background: "var(--bg-base)",
           boxShadow: "0 40px 80px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.1)",
         }}
       >
@@ -181,46 +183,20 @@ const [currentTime, setCurrentTime] = useState("");
         {children}
 
         {/* 개인정보 수집 동의 팝업 */}
-        {showConsentModal && (
-          <div
-            className="absolute inset-0 z-[60] flex items-center justify-center px-6"
-            style={{ background: "rgba(0,0,0,0.6)" }}
-          >
-            <div
-              className="w-full rounded-2xl overflow-hidden shadow-2xl"
-              style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
-            >
-              <div
-                className="px-5 py-4 text-base font-semibold"
-                style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
-              >
-                Code
-              </div>
-              <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-                이름, 학번에 대한 개인 정보 수집 및 이용에 동의하시겠습니까?
-              </div>
-              <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-                <button
-                  className="flex-1 py-3 text-sm font-medium"
-                  style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
-                  onClick={() => {
-                    setShowConsentModal(false);
-                    setShowRegister(true);
-                  }}
-                >
-                  확인
-                </button>
-                <button
-                  className="flex-1 py-3 text-sm font-medium"
-                  style={{ color: "var(--foreground)" }}
-                  onClick={() => setShowConsentModal(false)}
-                >
-                  취소
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <Modal
+          open={showConsentModal}
+          title="개인정보 수집 동의"
+          onClose={() => setShowConsentModal(false)}
+          cancelText="취소"
+          onCancel={() => setShowConsentModal(false)}
+          confirmText="확인"
+          onConfirm={() => {
+            setShowConsentModal(false);
+            setShowRegister(true);
+          }}
+        >
+          이름, 학번에 대한 개인 정보 수집 및 이용에 동의하시겠습니까?
+        </Modal>
       </div>
     </div>
   );
@@ -257,7 +233,7 @@ const [currentTime, setCurrentTime] = useState("");
       {/* Status bar */}
       <div
         className="flex items-center justify-between px-8 pt-2 pb-1 mt-8 text-xs font-semibold shrink-0"
-        style={{ color: "var(--foreground)" }}
+        style={{ color: "var(--text-strong)" }}
       >
        <span>{currentTime}</span>
         <div className="flex items-center gap-1">
@@ -291,7 +267,7 @@ const [currentTime, setCurrentTime] = useState("");
         {activeTab === "profile" && (
           <div
             className="absolute inset-0 overflow-hidden flex flex-col"
-            style={{ background: "var(--background)" }}
+            style={{ background: "var(--bg-base)" }}
           >
             <ProfileScreen
               nickname={nickname}
@@ -310,7 +286,7 @@ const [currentTime, setCurrentTime] = useState("");
         {activeTab === "lunch" && (
           <div
             className="absolute inset-0 overflow-hidden flex flex-col"
-            style={{ background: "var(--background)" }}
+            style={{ background: "var(--bg-base)" }}
           >
             <LunchScreen onBack={() => setActiveTab("community")} />
           </div>
@@ -318,7 +294,7 @@ const [currentTime, setCurrentTime] = useState("");
         {activeTab === "settings" && (
           <div
             className="absolute inset-0 overflow-hidden flex flex-col"
-            style={{ background: "var(--background)" }}
+            style={{ background: "var(--bg-base)" }}
           >
             <SettingsScreen
               darkMode={darkMode}
@@ -348,7 +324,7 @@ const [currentTime, setCurrentTime] = useState("");
                 }}
                 className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
                 style={{
-                  background: "var(--primary)",
+                  background: "var(--blue-primary-2)",
                   animation: "fab-pop 0.18s ease-out",
                 }}
                 aria-label="점심메뉴 추천 룰렛"
@@ -360,7 +336,7 @@ const [currentTime, setCurrentTime] = useState("");
               onClick={() => setShowFabMenu((v) => !v)}
               className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform duration-200"
               style={{
-                background: "var(--primary)",
+                background: "var(--blue-primary-2)",
                 transform: showFabMenu ? "rotate(135deg)" : "rotate(0deg)",
               }}
               aria-label="메뉴 열기"
@@ -383,7 +359,7 @@ const [currentTime, setCurrentTime] = useState("");
       <div className="flex justify-center pb-2 pt-1 shrink-0">
         <div
           className="w-28 h-1 rounded-full"
-          style={{ background: "var(--muted-foreground)", opacity: 0.35 }}
+          style={{ background: "var(--text-muted)", opacity: 0.35 }}
         />
       </div>
     </>

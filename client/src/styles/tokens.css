@@ -1,0 +1,174 @@
+/*
+ * New light design-language tokens (extracted from docs/design/community-ref.png).
+ * Foundation only — not yet imported by index.css / any live screen. Import
+ * this file directly wherever the new components are used (see
+ * client/src/dev/DesignPreview.tsx) until the app-wide switchover happens.
+ * The existing dark tokens in styles/globals.css and styles/theme.css are
+ * untouched and still power every current screen.
+ */
+
+:root {
+  /* Backgrounds */
+  --bg-base: #f4f7fb;
+  --bg-card: #ffffff;
+  --bg-input: #f4f7fb; /* same as bg-base by design: inputs read as a cut-out of the page, distinguished by border, not fill */
+
+  /* Blue scale — three jobs, three steps */
+  --blue-soft: #dce8fa; /* chip / icon-box fills, input focus fill */
+  --blue-primary: #3b82f6; /* focus rings, active icon color, links on tinted surfaces */
+  --blue-primary-2: #4f8df7; /* hover/pressed shade for blue-primary surfaces */
+  --blue-deep: #1d4ed8; /* primary button fill, link text (meets 4.5:1 on white) */
+
+  /* Text */
+  --text-strong: #0b0f19; /* logo, headings */
+  --text-body: #1f2937; /* body copy, labels */
+  --text-muted: #64748b; /* secondary/help text */
+
+  /* Line */
+  --border-subtle: #dce8fa;
+
+  /* Status */
+  --danger: #dc2626;
+  --success: #15803d;
+
+  /* Radius */
+  --r-sm: 10px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  /* Elevation */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04);
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /*
+   * Board accent tags — same 7 hues as CommunityScreen's BOARD_ACCENTS
+   * (app/components/CommunityScreen.tsx), softened to pill bg/fg pairs that
+   * match this reference's muted pill tone and hold 4.5:1+ contrast.
+   * -bg/-fg are the accessible pill pair; -dot keeps the original saturated
+   * hex for non-text uses (e.g. a card's left accent bar) so it still lines
+   * up visually with the untouched CommunityScreen until that screen migrates.
+   */
+  --tag-free-bg: #e0f2fe;
+  --tag-free-fg: #0369a1;
+  --tag-free-dot: #7dd3fc;
+
+  --tag-event-bg: #fce7f3;
+  --tag-event-fg: #be185d;
+  --tag-event-dot: #f472b6;
+
+  --tag-qna-bg: #f3e8ff;
+  --tag-qna-fg: #7e22ce;
+  --tag-qna-dot: #c084fc;
+
+  --tag-contest-bg: #dcfce7;
+  --tag-contest-fg: #15803d;
+  --tag-contest-dot: #4ade80;
+
+  --tag-lecture-bg: #fef3c7;
+  --tag-lecture-fg: #92400e;
+  --tag-lecture-dot: #fbbf24;
+
+  --tag-meeting-bg: #ffedd5;
+  --tag-meeting-fg: #c2410c;
+  --tag-meeting-dot: #fb923c;
+
+  --tag-alumni-bg: #f1f5f9;
+  --tag-alumni-fg: #334155;
+  --tag-alumni-dot: #94a3b8;
+
+  /* Status tones — unrelated to board categories (admin/moderation badges: "관리자", "영구차단", "탈퇴", "미처리"...). */
+  --tag-info-bg: #dbeafe;
+  --tag-info-fg: #1d4ed8;
+
+  --tag-danger-bg: #fee2e2;
+  --tag-danger-fg: #b91c1c;
+
+  --tag-muted-bg: #f1f5f9;
+  --tag-muted-fg: #475569;
+
+  --tag-success-bg: #dcfce7;
+  --tag-success-fg: #15803d;
+
+  /* Wordmark — the "Big Ding" logotype only, never body/UI text. Loaded via index.html <link>. */
+  --font-logo: "Pacifico", cursive;
+}
+
+/*
+ * Dark mode — toggled by SettingsScreen's "다크 모드" switch, which adds/removes
+ * the `.dark` class on <html> (see app/App.tsx). Same token names as :root above,
+ * re-pointed to a dark navy palette so every component that already reads these
+ * tokens (Button, Card, Chip, Badge, ...) adapts automatically with no component
+ * changes needed. Board/status tag -dot values are intentionally unchanged —
+ * they're saturated accent colors used for non-text accents (e.g. a card's left
+ * border), not text, so they read fine on both themes.
+ */
+.dark {
+  /* Backgrounds */
+  --bg-base: #0a0f1f;
+  --bg-card: #121a30;
+  --bg-input: #131c33;
+
+  /* Blue scale */
+  --blue-soft: #182440;
+  --blue-primary: #60a5fa;
+  --blue-primary-2: #3b82f6;
+  --blue-deep: #2563eb;
+
+  /* Text */
+  --text-strong: #f1f5f9;
+  --text-body: #cbd5e1;
+  --text-muted: #8291b3;
+
+  /* Line */
+  --border-subtle: rgba(99, 140, 255, 0.18);
+
+  /* Status */
+  --danger: #f87171;
+  --success: #4ade80;
+
+  /* Elevation — shadows barely read on dark surfaces, so lean on a soft ambient glow instead */
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.35);
+
+  /* Board accent tags — dark-tinted bg + brightened fg for the same 4.5:1+ contrast */
+  --tag-free-bg: #0c3a52;
+  --tag-free-fg: #7dd3fc;
+
+  --tag-event-bg: #4a1942;
+  --tag-event-fg: #f9a8d4;
+
+  --tag-qna-bg: #3b0f5c;
+  --tag-qna-fg: #d8b4fe;
+
+  --tag-contest-bg: #0c3b23;
+  --tag-contest-fg: #86efac;
+
+  --tag-lecture-bg: #452a06;
+  --tag-lecture-fg: #fcd34d;
+
+  --tag-meeting-bg: #4a2109;
+  --tag-meeting-fg: #fdba74;
+
+  --tag-alumni-bg: #1e293b;
+  --tag-alumni-fg: #cbd5e1;
+
+  /* Status tones */
+  --tag-info-bg: #1e3a5f;
+  --tag-info-fg: #93c5fd;
+
+  --tag-danger-bg: #4c1010;
+  --tag-danger-fg: #fca5a5;
+
+  --tag-muted-bg: #1e293b;
+  --tag-muted-fg: #cbd5e1;
+
+  --tag-success-bg: #0c3b23;
+  --tag-success-fg: #86efac;
+}

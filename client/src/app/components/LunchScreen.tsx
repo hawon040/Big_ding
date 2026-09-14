@@ -1,8 +1,15 @@
 import { useState, useRef } from "react";
-import { Plus, X, Utensils, RotateCcw, ChevronLeft } from "lucide-react";
+import { ArrowLeft, Plus, RotateCcw, Utensils, X } from "lucide-react";
+import "@/styles/tokens.css";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { IconButton } from "@/components/ui/IconButton";
+import { Badge } from "@/components/ui/Badge";
 
 const DEFAULT_MENUS = ["한식", "중식", "일식", "양식", "분식", "샐러드", "패스트푸드", "국밥·국수"];
 
+// 룰렛 조각 색은 여러 항목을 한눈에 구분해야 하는 게임 콘텐츠라, 파란 계열 위주인
+// 공용 토큰 팔레트로는 표현이 안 된다. 게시판 액센트 색과 같은 성격의 예외로 유지한다.
 const WHEEL_COLORS = [
   "#FDE68A", "#FCA5A5", "#A7F3D0", "#93C5FD",
   "#C4B5FD", "#F9A8D4", "#FDBA74", "#5EEAD4",
@@ -79,20 +86,20 @@ export function LunchScreen({ onBack }: LunchScreenProps) {
   };
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
       {/* 헤더 */}
-      <div className="flex items-center gap-2 px-4 py-5 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+      <div className="flex shrink-0 items-center gap-3 px-4 py-4">
         {onBack && (
-          <button onClick={onBack} className="shrink-0">
-            <ChevronLeft size={22} style={{ color: "var(--foreground)" }} />
-          </button>
+          <IconButton aria-label="뒤로 가기" onClick={onBack}>
+            <ArrowLeft size={16} />
+          </IconButton>
         )}
-        <Utensils size={20} style={{ color: "var(--primary)" }} />
-        <h2 className="font-semibold text-base" style={{ color: "var(--foreground)" }}>
+        <Utensils size={18} style={{ color: "var(--blue-primary)" }} />
+        <h2 className="text-base font-semibold" style={{ color: "var(--text-strong)" }}>
           점심메뉴 추천
         </h2>
       </div>
-      <div className="flex-1 overflow-y-auto px-4 py-6 flex flex-col items-center gap-6 no-scrollbar">
+      <div className="no-scrollbar flex flex-1 flex-col items-center gap-6 overflow-y-auto px-4 py-6">
         {/* 룰렛 */}
         <div className="relative" style={{ width: size, height: size }}>
           {/* 포인터 */}
@@ -102,7 +109,7 @@ export function LunchScreen({ onBack }: LunchScreenProps) {
               top: -6, zIndex: 10, width: 0, height: 0,
               borderLeft: "10px solid transparent",
               borderRight: "10px solid transparent",
-              borderTop: "18px solid var(--primary)",
+              borderTop: "18px solid var(--blue-deep)",
             }}
           />
           <svg
@@ -116,7 +123,7 @@ export function LunchScreen({ onBack }: LunchScreenProps) {
                 : "none",
             }}
           >
-            <circle cx={center} cy={center} r={radius + 4} fill="var(--card)" />
+            <circle cx={center} cy={center} r={radius + 4} fill="var(--bg-card)" />
             {menus.map((menu, i) => {
               const midAngle = i * sliceAngle + sliceAngle / 2;
               const labelPos = polarToCartesian(midAngle, radius * 0.62);
@@ -127,7 +134,7 @@ export function LunchScreen({ onBack }: LunchScreenProps) {
                   <path
                     d={buildSlicePath(i)}
                     fill={WHEEL_COLORS[i % WHEEL_COLORS.length]}
-                    stroke="var(--card)"
+                    stroke="var(--bg-card)"
                     strokeWidth={2}
                   />
                   <text
@@ -137,7 +144,7 @@ export function LunchScreen({ onBack }: LunchScreenProps) {
                     fontWeight={700}
                     textAnchor="middle"
                     dominantBaseline="middle"
-                    fill="#1f2937"
+                    fill="var(--text-body)"
                     transform={`rotate(${textRotate}, ${labelPos.x}, ${labelPos.y})`}
                   >
                     {menu}
@@ -145,49 +152,37 @@ export function LunchScreen({ onBack }: LunchScreenProps) {
                 </g>
               );
             })}
-            <circle cx={center} cy={center} r={14} fill="var(--primary)" />
+            <circle cx={center} cy={center} r={14} fill="var(--blue-deep)" />
           </svg>
         </div>
 
-        <button
-          onClick={handleSpin}
-          disabled={spinning || menus.length < 2}
-          className="px-8 py-3 rounded-2xl font-semibold text-sm shadow-sm flex items-center gap-2"
-          style={{
-            background: spinning ? "var(--muted)" : "var(--primary)",
-            color: spinning ? "var(--muted-foreground)" : "white",
-          }}
-        >
+        <Button variant={spinning ? "secondary" : "primary"} size={52} disabled={spinning || menus.length < 2} onClick={handleSpin}>
           <RotateCcw size={16} />
           {spinning ? "돌아가는 중..." : "룰렛 돌리기"}
-        </button>
+        </Button>
 
         {result && !spinning && (
-          <div className="w-full text-center py-3 rounded-2xl" style={{ background: "var(--accent)" }}>
-            <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>오늘의 점심은</p>
-            <p className="text-lg font-bold mt-0.5" style={{ color: "var(--foreground)" }}>{result} 🍽️</p>
-          </div>
+          <Card className="w-full text-center" style={{ background: "var(--blue-soft)" }}>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>오늘의 점심은</p>
+            <p className="mt-0.5 text-lg font-bold" style={{ color: "var(--text-strong)" }}>{result} 🍽️</p>
+          </Card>
         )}
 
         {/* 메뉴 목록 편집 */}
         <div className="w-full">
-          <p className="text-xs font-semibold mb-2" style={{ color: "var(--muted-foreground)" }}>
+          <p className="mb-2 text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
             메뉴 목록 ({menus.length}/12)
           </p>
-          <div className="flex flex-wrap gap-2 mb-3">
+          <div className="mb-3 flex flex-wrap gap-2">
             {menus.map((menu) => (
-              <span
-                key={menu}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs"
-                style={{ background: "var(--muted)", color: "var(--foreground)" }}
-              >
+              <Badge key={menu} tone="info" className="gap-1 py-1.5 text-xs font-normal">
                 {menu}
                 {menus.length > 2 && (
-                  <button onClick={() => removeMenu(menu)}>
-                    <X size={12} style={{ color: "var(--muted-foreground)" }} />
+                  <button onClick={() => removeMenu(menu)} aria-label={`${menu} 삭제`}>
+                    <X size={12} />
                   </button>
                 )}
-              </span>
+              </Badge>
             ))}
           </div>
           <div className="flex gap-2">
@@ -197,16 +192,12 @@ export function LunchScreen({ onBack }: LunchScreenProps) {
               onChange={(e) => setNewMenu(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") addMenu(); }}
               placeholder="메뉴 추가 (예: 마라탕)"
-              className="flex-1 px-3 py-2.5 rounded-xl text-sm outline-none"
-              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+              aria-label="메뉴 추가"
+              className="flex-1 rounded-[var(--r-md)] border border-[var(--border-subtle)] bg-[var(--bg-input)] px-3 py-2.5 text-sm text-[var(--text-body)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--blue-primary)] focus:bg-[var(--blue-soft)] focus:ring-2 focus:ring-[var(--blue-primary)]/30"
             />
-            <button
-              onClick={addMenu}
-              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-              style={{ background: "var(--primary)" }}
-            >
-              <Plus size={18} color="white" />
-            </button>
+            <IconButton aria-label="메뉴 추가" onClick={addMenu} active>
+              <Plus size={18} />
+            </IconButton>
           </div>
         </div>
       </div>

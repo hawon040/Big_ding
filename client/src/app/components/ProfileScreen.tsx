@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import {
   Camera, ChevronRight, Heart, FileText, Edit3, MessageCircle, Bookmark,
-  Lock, Users, Globe, X, ThumbsDown, Star, MoreVertical, Trash2,
+  Lock, Users, Globe, X, ThumbsDown, Star, MoreVertical, Trash2, ArrowLeft,
 } from "lucide-react";
 import api, { resolveAssetUrl } from "@/api";
 import defaultAvatar from "@/assets/default-avatar.svg";
@@ -14,6 +14,14 @@ import {
   OtherUserProfile,
   type Post, type StoredInteractions, type Friend, type PostAuthor,
 } from "./CommunityScreen";
+import "@/styles/tokens.css";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Card } from "@/components/ui/Card";
+import { IconButton } from "@/components/ui/IconButton";
+import { Badge, type BoardTone } from "@/components/ui/Badge";
+import { Avatar } from "@/components/ui/Avatar";
+import { Modal } from "@/components/ui/Modal";
 
 const VISIBILITY_STORAGE_KEY = "bigding_post_visibility_v1";
 
@@ -42,6 +50,11 @@ interface ProfileScreenProps {
   // 커뮤니티(게시물/댓글 작성자 아바타)에서 "내 프로필"을 눌러 들어온 경우에만 전달된다.
   // 존재하면 헤더에 뒤로가기 버튼을 보여주고, 눌렀을 때 커뮤니티로 돌아간다.
   onBack?: () => void;
+}
+
+// 게시판 라벨 배지 (BOARD_ACCENTS와 동일한 톤을 Badge 컴포넌트로)
+function BoardBadge({ board }: { board?: string }) {
+  return <Badge tone={board as BoardTone}>{BOARDS.find((b) => b.id === board)?.label ?? board ?? ""}</Badge>;
 }
 
 export function ProfileScreen({ nickname, setNickname, onBack }: ProfileScreenProps) {
@@ -386,24 +399,48 @@ useEffect(() => {
     }
   };
 
+  const AlertModal = (
+    <Modal open={!!alertMessage} title="알림" onClose={closeAlert}>
+      {alertMessage}
+    </Modal>
+  );
+
+  const ConfirmModal = (
+    <Modal
+      open={!!confirmState}
+      title="확인"
+      onClose={closeConfirm}
+      cancelText="취소"
+      onCancel={closeConfirm}
+      onConfirm={() => {
+        if (!confirmState) return;
+        const action = confirmState.onConfirm;
+        setConfirmState(null);
+        action();
+      }}
+    >
+      {confirmState?.message}
+    </Modal>
+  );
+
+  const TABS: { id: "posts" | "comments" | "scrapped"; icon: typeof FileText }[] = [
+    { id: "posts", icon: FileText },
+    { id: "comments", icon: MessageCircle },
+    { id: "scrapped", icon: Bookmark },
+  ];
+
   return (
-    <div className="relative flex flex-col flex-1 overflow-hidden">
+    <div className="relative flex flex-1 flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
       {/* Profile header (Instagram 스타일) */}
-      <div
-        className="relative px-4 pt-3 pb-3 shrink-0"
-        style={{ background: "linear-gradient(160deg, var(--background) 0%, #0a0f1f 100%)" }}
-      >
-        <div className="flex items-center gap-1.5 mb-4">
+      <div className="relative shrink-0 px-4 pb-3 pt-3">
+        <div className="mb-4 flex items-center gap-1.5">
           {onBack && (
-            <button onClick={onBack} className="mr-1 text-lg" style={{ color: "var(--foreground)" }}>
-              ←
-            </button>
+            <IconButton aria-label="뒤로 가기" onClick={onBack} className="mr-1">
+              <ArrowLeft size={16} />
+            </IconButton>
           )}
-          <img src={bigRoadingIcon} alt="Big Roading" className="w-7 h-7 object-cover rounded-md" />
-          <span
-            className="text-lg"
-            style={{ color: "var(--foreground)", fontFamily: "'Brush Script MT', cursive" }}
-          >
+          <img src={bigRoadingIcon} alt="Big Ding" className="h-7 w-7 rounded-md object-cover" />
+          <span className="notranslate text-2xl leading-none" translate="no" style={{ color: "var(--text-strong)", fontFamily: "var(--font-logo)" }}>
             Big Ding
           </span>
         </div>
@@ -411,12 +448,7 @@ useEffect(() => {
         {/* 아바타 + (닉네임/학번 위, 게시글/팔로워/팔로잉 아래) */}
         <div className="flex items-start gap-6">
           <div className="relative shrink-0">
-            <div
-              className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-md overflow-hidden"
-              style={{ background: "var(--accent)", border: "3px solid var(--primary)" }}
-            >
-              <img src={resolveAssetUrl(avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-            </div>
+            <Avatar src={resolveAssetUrl(avatar)} fallbackSrc={defaultAvatar} size="xl" />
             <input
               id="avatar-upload"
               type="file"
@@ -427,15 +459,16 @@ useEffect(() => {
             {editMode && (
               <button
                 onClick={() => document.getElementById("avatar-upload")?.click()}
-                className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center shadow"
-                style={{ background: "var(--primary)" }}
+                className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full shadow"
+                style={{ background: "var(--blue-deep)" }}
+                aria-label="프로필 사진 변경"
               >
                 <Camera size={13} color="white" />
               </button>
             )}
           </div>
 
-          <div className="flex-1 flex flex-col gap-1.5 pt-1">
+          <div className="flex flex-1 flex-col gap-1.5 pt-1">
             {/* 닉네임 / 학번 (아바타 오른쪽 위) */}
             {editMode ? (
               <div className="flex items-center">
@@ -446,22 +479,18 @@ useEffect(() => {
                     setNicknameChecked(false);
                   }}
                   maxLength={10}
-                  className="font-bold text-base border-b-2 outline-none bg-transparent"
-                  style={{ color: "var(--foreground)", borderColor: "var(--primary)", width: "160px" }}
+                  className="w-[160px] border-b-2 bg-transparent text-base font-bold outline-none"
+                  style={{ color: "var(--text-strong)", borderColor: "var(--blue-primary)" }}
                 />
-                <button
-                  onClick={checkNicknameDuplicate}
-                  className="rounded-lg text-xs font-semibold whitespace-nowrap"
-                  style={{ background: "var(--primary)", color: "white", marginLeft: "10px", padding: "4px 8px" }}
-                >
+                <Button size={44} className="ml-2.5 h-8 px-3" onClick={checkNicknameDuplicate}>
                   중복확인
-                </button>
+                </Button>
               </div>
             ) : (
               <div className="flex flex-col">
-                <h2 className="font-bold text-base" style={{ color: "var(--foreground)" }}>{nickname}</h2>
+                <h2 className="text-base font-bold" style={{ color: "var(--text-strong)" }}>{nickname}</h2>
                 {/* 로그인 시 입력한 학번의 3~4번째 자리(입학연도)를 닉네임 아래에 표시 */}
-                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                   #{studentId ? studentId.slice(2, 4) : "23"}학번
                 </span>
               </div>
@@ -469,24 +498,27 @@ useEffect(() => {
 
             {/* 게시글/팔로워/팔로잉 (닉네임 아래, 닉네임과 왼쪽 맞춤) */}
             <div className="flex items-center gap-10">
-              <div className="flex flex-col items-center gap-0.2">
-                <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{myPosts.length}</span>
-                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>게시글</span>
+              <div className="flex flex-col items-center gap-0.5">
+                <span className="text-base font-bold" style={{ color: "var(--text-strong)" }}>{myPosts.length}</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>게시글</span>
               </div>
-              <button onClick={() => openUserList("followers")} className="flex flex-col items-center gap-0.2">
-                <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{followerCount}</span>
-                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로워</span>
+              <button onClick={() => openUserList("followers")} className="flex flex-col items-center gap-0.5">
+                <span className="text-base font-bold" style={{ color: "var(--text-strong)" }}>{followerCount}</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>팔로워</span>
               </button>
-              <button onClick={() => openUserList("following")} className="flex flex-col items-center gap-0.2">
-                <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{followingCount}</span>
-                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로잉</span>
+              <button onClick={() => openUserList("following")} className="flex flex-col items-center gap-0.5">
+                <span className="text-base font-bold" style={{ color: "var(--text-strong)" }}>{followingCount}</span>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>팔로잉</span>
               </button>
             </div>
           </div>
         </div>
 
         {/* 프로필 편집 버튼 (인스타의 "프로필 편집" 버튼처럼 가로 전체) */}
-        <button
+        <Button
+          variant="secondary"
+          fullWidth
+          className="mt-3"
           onClick={async () => {
             if (editMode) {
               const error = validateNickname(nicknameInput);
@@ -512,8 +544,6 @@ useEffect(() => {
             setNicknameChecked(false);
             setEditMode(true);
           }}
-          className="w-full mt-3 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5"
-          style={{ background: "var(--muted)", color: "var(--foreground)" }}
         >
           {editMode ? (
             "완료"
@@ -523,87 +553,66 @@ useEffect(() => {
               프로필 편집
             </>
           )}
-        </button>
+        </Button>
       </div>
 
       {/* Tabs (인스타 그리드 탭처럼 아이콘 + 밑줄) */}
-      <div className="grid grid-cols-3 shrink-0 border-t border-b" style={{ borderColor: "var(--border)" }}>
-        <button
-          onClick={() => setActiveTab("posts")}
-          className="flex items-center justify-center py-3"
-          style={{
-            borderBottom: activeTab === "posts" ? "2px solid var(--foreground)" : "2px solid transparent",
-            color: activeTab === "posts" ? "var(--foreground)" : "var(--muted-foreground)",
-          }}
-        >
-          <FileText size={18} />
-        </button>
-        <button
-          onClick={() => setActiveTab("comments")}
-          className="flex items-center justify-center py-3"
-          style={{
-            borderBottom: activeTab === "comments" ? "2px solid var(--foreground)" : "2px solid transparent",
-            color: activeTab === "comments" ? "var(--foreground)" : "var(--muted-foreground)",
-          }}
-        >
-          <MessageCircle size={18} />
-        </button>
-        <button
-          onClick={() => setActiveTab("scrapped")}
-          className="flex items-center justify-center py-3"
-          style={{
-            borderBottom: activeTab === "scrapped" ? "2px solid var(--foreground)" : "2px solid transparent",
-            color: activeTab === "scrapped" ? "var(--foreground)" : "var(--muted-foreground)",
-          }}
-        >
-          <Bookmark size={18} />
-        </button>
+      <div className="grid shrink-0 grid-cols-3 border-b border-t" style={{ borderColor: "var(--border-subtle)" }}>
+        {TABS.map(({ id, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className="flex items-center justify-center py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--blue-primary)]"
+            style={{
+              borderBottom: activeTab === id ? "2px solid var(--blue-deep)" : "2px solid transparent",
+              color: activeTab === id ? "var(--blue-deep)" : "var(--text-muted)",
+            }}
+          >
+            <Icon size={18} />
+          </button>
+        ))}
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-3 pb-6 flex flex-col gap-3">
+      <div className="no-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto px-4 pb-6 pt-3">
         {activeTab === "posts" && (
           postsLoading && myPosts.length === 0 ? (
-            <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
+            <p className="py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
               불러오는 중...
             </p>
           ) : myPosts.length === 0 ? (
-            <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
+            <p className="py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
               아직 작성한 글이 없어요.
             </p>
           ) : myPosts.map((post) => {
             const visibility = ((post as any).visibility as Visibility) ?? "all";
             const VisibilityIcon = VISIBILITY_META[visibility].Icon;
             return (
-              <div key={post._id} className="p-3.5 rounded-2xl shadow-sm cursor-pointer" style={{ background: "var(--card)" }} onClick={() => setSelectedPostId(post._id)}>
-                <div className="flex items-start justify-between mb-2">
+              <Card key={post._id} className="cursor-pointer" onClick={() => setSelectedPostId(post._id)}>
+                <div className="mb-2 flex items-start justify-between">
                   <div className="flex-1">
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full font-medium"
-                      style={{ background: "var(--secondary)", color: "var(--primary)" }}
-                    >
-                      {getBoardLabel(post.board)}
-                    </span>
-                    <p className="font-semibold text-sm mt-1.5" style={{ color: "var(--foreground)" }}>{post.title}</p>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+                    <BoardBadge board={post.board} />
+                    <p className="mt-1.5 text-sm font-semibold" style={{ color: "var(--text-strong)" }}>{post.title}</p>
+                    <p className="mt-0.5 text-xs" style={{ color: "var(--text-muted)" }}>
                       {getDisplayTime(post)}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button onClick={(e) => { e.stopPropagation(); setShowVisibilityModal(post._id); }}>
-                      <VisibilityIcon size={16} style={{ color: "var(--muted-foreground)" }} />
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button onClick={(e) => { e.stopPropagation(); setShowVisibilityModal(post._id); }} aria-label="공개 범위 설정">
+                      <VisibilityIcon size={16} style={{ color: "var(--text-muted)" }} />
                     </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDeletePost(post._id);
                       }}
+                      aria-label="게시물 삭제"
                     >
-                      <Trash2 size={16} style={{ color: "#d4183d" }} />
+                      <Trash2 size={16} style={{ color: "var(--danger)" }} />
                     </button>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 pt-2 border-t" style={{ borderColor: "var(--border)" }}>
+                <div className="flex items-center gap-3 border-t pt-2" style={{ borderColor: "var(--border-subtle)" }}>
                   <button
                     className="flex items-center gap-1"
                     onClick={(e) => {
@@ -613,10 +622,10 @@ useEffect(() => {
                   >
                     <Heart
                       size={13}
-                      fill={isLiked(post) ? "var(--primary)" : "none"}
-                      color={isLiked(post) ? "var(--primary)" : "var(--muted-foreground)"}
+                      fill={isLiked(post) ? "var(--blue-deep)" : "none"}
+                      color={isLiked(post) ? "var(--blue-deep)" : "var(--text-muted)"}
                     />
-                    <span className="text-xs" style={{ color: isLiked(post) ? "var(--primary)" : "var(--muted-foreground)" }}>
+                    <span className="text-xs" style={{ color: isLiked(post) ? "var(--blue-deep)" : "var(--text-muted)" }}>
                       {post.likes.length}
                     </span>
                   </button>
@@ -629,37 +638,36 @@ useEffect(() => {
                   >
                     <ThumbsDown
                       size={13}
-                      fill={isDisliked(post) ? "#d4183d" : "none"}
-                      color={isDisliked(post) ? "#d4183d" : "var(--muted-foreground)"}
+                      fill={isDisliked(post) ? "var(--danger)" : "none"}
+                      color={isDisliked(post) ? "var(--danger)" : "var(--text-muted)"}
                     />
-                    <span className="text-xs" style={{ color: isDisliked(post) ? "#d4183d" : "var(--muted-foreground)" }}>
+                    <span className="text-xs" style={{ color: isDisliked(post) ? "var(--danger)" : "var(--text-muted)" }}>
                       {post.dislikes.length}
                     </span>
                   </button>
                   <div className="flex items-center gap-1">
-                    <MessageCircle size={13} style={{ color: "var(--muted-foreground)" }} />
-                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(post)}</span>
+                    <MessageCircle size={13} style={{ color: "var(--text-muted)" }} />
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{getCommentCount(post)}</span>
                   </div>
                 </div>
-              </div>
+              </Card>
             );
           })
         )}
 
         {activeTab === "comments" && (
           myWrittenComments.length === 0 ? (
-            <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
+            <p className="py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
               작성한 댓글이 없어요.
             </p>
           ) : myWrittenComments.map((comment) => (
-            <div
+            <Card
               key={comment.commentId}
-              className="p-3.5 rounded-2xl shadow-sm cursor-pointer"
-              style={{ background: "var(--card)" }}
+              className="cursor-pointer"
               onClick={() => setSelectedPostId(comment.postId)}
             >
-              <div className="flex items-start justify-between mb-1">
-                <p className="text-xs font-semibold" style={{ color: "var(--primary)" }}>
+              <div className="mb-1 flex items-start justify-between">
+                <p className="text-xs font-semibold" style={{ color: "var(--blue-deep)" }}>
                   {comment.postTitle}
                 </p>
                 <button
@@ -667,59 +675,53 @@ useEffect(() => {
                     e.stopPropagation();
                     handleDeleteComment(comment.postId, comment.commentId);
                   }}
+                  aria-label="댓글 삭제"
                 >
-                  <X size={14} style={{ color: "#d4183d" }} />
+                  <X size={14} style={{ color: "var(--danger)" }} />
                 </button>
               </div>
-              <p className="text-sm" style={{ color: "var(--foreground)" }}>{comment.text}</p>
-            </div>
+              <p className="text-sm" style={{ color: "var(--text-body)" }}>{comment.text}</p>
+            </Card>
           ))
         )}
 
         {activeTab === "scrapped" && (
           scrappedPosts.length === 0 ? (
-            <p className="text-sm text-center py-8" style={{ color: "var(--muted-foreground)" }}>
+            <p className="py-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
               스크랩한 게시물이 없어요.
             </p>
           ) : scrappedPosts.map((post) => (
-            <div
-              key={post._id}
-              className="p-3.5 rounded-2xl shadow-sm cursor-pointer"
-              style={{ background: "var(--card)" }}
-              onClick={() => setSelectedPostId(post._id)}
-            >
-              <span
-                className="text-xs px-2 py-0.5 rounded-full font-medium"
-                style={{ background: "var(--secondary)", color: "var(--primary)" }}
-              >
-                {getBoardLabel(post.board)}
-              </span>
-              <p className="font-semibold text-sm mt-1.5" style={{ color: "var(--foreground)" }}>{post.title}</p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+            <Card key={post._id} className="cursor-pointer" onClick={() => setSelectedPostId(post._id)}>
+              <BoardBadge board={post.board} />
+              <p className="mt-1.5 text-sm font-semibold" style={{ color: "var(--text-strong)" }}>{post.title}</p>
+              <p className="mt-0.5 text-xs" style={{ color: "var(--text-muted)" }}>
                 {getDisplayTime(post)}
               </p>
-            </div>
+            </Card>
           ))
         )}
 
         {/* 상세 화면 */}
         {selectedPost && (
-          <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-              <button onClick={() => setSelectedPostId(null)} className="text-lg">←</button>
-              <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
+          <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--bg-base)" }}>
+            <div className="flex shrink-0 items-center gap-3 px-4 py-4">
+              <IconButton aria-label="뒤로 가기" onClick={() => setSelectedPostId(null)}>
+                <ArrowLeft size={16} />
+              </IconButton>
+              <h2 className="flex-1 text-base font-semibold" style={{ color: "var(--text-strong)" }}>게시물</h2>
               {currentUser && selectedPost.author._id === currentUser._id && (
             <div className="relative">
               <button
                 onClick={() => setShowPostMenu(showPostMenu ? null : selectedPost._id)}
-                style={{ color: "var(--foreground)" }}
+                style={{ color: "var(--text-body)" }}
+                aria-label="게시물 메뉴"
               >
                 <MoreVertical size={20} />
               </button>
               {showPostMenu === selectedPost._id && (
                 <div
-                  className="absolute right-0 top-7 z-50 rounded-xl shadow-lg overflow-hidden"
-                  style={{ background: "var(--card)", border: "1px solid var(--border)", minWidth: "120px" }}
+                  className="absolute right-0 top-7 z-50 overflow-hidden rounded-[var(--r-md)]"
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", minWidth: "120px", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }}
                 >
                   <button
                     onClick={() => {
@@ -728,8 +730,8 @@ useEffect(() => {
                       setEditContent(selectedPost.content);
                       setEditingPost(selectedPost);
                     }}
-                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left"
-                    style={{ color: "var(--foreground)" }}
+                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm"
+                    style={{ color: "var(--text-body)" }}
                   >
                     <Edit3 size={14} /> 수정
                   </button>
@@ -738,8 +740,8 @@ useEffect(() => {
                       setShowPostMenu(null);
                       handleDeletePost(selectedPost._id);
                     }}
-                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left border-t"
-                    style={{ color: "#d4183d", borderColor: "var(--border)" }}
+                    className="flex w-full items-center gap-2 border-t px-4 py-3 text-left text-sm"
+                    style={{ color: "var(--danger)", borderColor: "var(--border-subtle)" }}
                   >
                     <Trash2 size={14} /> 삭제
                   </button>
@@ -749,47 +751,39 @@ useEffect(() => {
           )}
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-              <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
-                    style={{ background: "var(--muted)" }}
-                  >
-                    <img src={resolveAssetUrl(selectedPost.author.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                  </div>
+            <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
+              <Card>
+                <div className="mb-3 flex items-center gap-2">
+                  <Avatar src={resolveAssetUrl(selectedPost.author.avatar)} fallbackSrc={defaultAvatar} />
                   <div className="flex-1">
-                    <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                    <p className="text-sm font-semibold" style={{ color: "var(--text-strong)" }}>
                       {selectedPost.author.nickname}
                     </p>
-                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                       {getDisplayTime(selectedPost)}
                     </p>
                   </div>
                   {selectedPost.price && (
-                    <span className="px-2 py-1 rounded-xl text-xs font-bold"
-                      style={{ background: "var(--accent)", color: "var(--foreground)" }}>
-                      {selectedPost.price}원
-                    </span>
+                    <Badge tone="info">{selectedPost.price}원</Badge>
                   )}
                 </div>
 
-                <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h3>
+                <h3 className="mb-1 font-semibold" style={{ color: "var(--text-strong)" }}>{selectedPost.title}</h3>
 
                 {selectedPost.rating && (
-                  <div className="flex items-center gap-1 mb-1.5 mt-2">
+                  <div className="mb-1.5 mt-2 flex items-center gap-1">
                     {[...Array(5)].map((_, i) => (
                       <Star key={i} size={14}
-                        fill={i < Math.floor(selectedPost!.rating!) ? "#ffc107" : "none"}
-                        color={i < Math.floor(selectedPost!.rating!) ? "#ffc107" : "var(--muted-foreground)"} />
+                        fill={i < Math.floor(selectedPost!.rating!) ? "var(--tag-lecture-fg)" : "none"}
+                        color={i < Math.floor(selectedPost!.rating!) ? "var(--tag-lecture-fg)" : "var(--text-muted)"} />
                     ))}
-                    <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
+                    <span className="ml-1 text-xs font-semibold" style={{ color: "var(--text-strong)" }}>
                       {selectedPost.rating.toFixed(1)}
                     </span>
                   </div>
                 )}
 
-                <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
+                <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
                   {selectedPost.content}
                 </p>
 
@@ -797,50 +791,41 @@ useEffect(() => {
                   <img
                     src={resolveAssetUrl(selectedPost.images[0])}
                     alt="첨부 이미지"
-                    className="mt-2 w-full max-h-72 object-cover rounded-xl cursor-pointer"
+                    className="mt-2 max-h-72 w-full cursor-pointer rounded-[var(--r-md)] object-cover"
                     onClick={() => setFullscreenImage(resolveAssetUrl(selectedPost.images[0]) || null)}
                   />
                 )}
 
                 {selectedPost.tags && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
+                  <div className="mt-2 flex flex-wrap gap-1.5">
                     {selectedPost.tags.map((tag, i) => (
-                      <span key={i} className="text-xs px-2 py-0.5 rounded-full"
-                        style={{ background: "var(--secondary)", color: "var(--primary)" }}>
-                        #{tag}
-                      </span>
+                      <Badge key={i} tone="info">#{tag}</Badge>
                     ))}
                   </div>
                 )}
 
                 {selectedPost.maxParticipants && (
                   <div className="mt-2">
-                    <span
-                      className="text-xs px-2 py-1 rounded-full font-medium"
-                      style={{
-                        background: selectedPost.currentParticipants === selectedPost.maxParticipants ? "#5cb85c22" : "var(--secondary)",
-                        color: selectedPost.currentParticipants === selectedPost.maxParticipants ? "#5cb85c" : "var(--primary)",
-                      }}
-                    >
+                    <Badge tone={selectedPost.currentParticipants === selectedPost.maxParticipants ? "success" : "info"}>
                       {selectedPost.currentParticipants}/{selectedPost.maxParticipants}명
                       {selectedPost.currentParticipants === selectedPost.maxParticipants ? " 모집완료" : " 모집중"}
-                    </span>
+                    </Badge>
                   </div>
                 )}
 
-                <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+                <div className="mt-3 flex items-center gap-3 border-t pt-2.5" style={{ borderColor: "var(--border-subtle)" }}>
                   <button className="flex items-center gap-1.5" onClick={() => handleLike(selectedPost)}>
-                    <Heart size={16} fill={isLiked(selectedPost) ? "#3b82f6" : "none"}
-                      color={isLiked(selectedPost) ? "#3b82f6" : "var(--muted-foreground)"} />
-                    <span className="text-xs" style={{ color: isLiked(selectedPost) ? "var(--primary)" : "var(--muted-foreground)" }}>
+                    <Heart size={16} fill={isLiked(selectedPost) ? "var(--blue-primary)" : "none"}
+                      color={isLiked(selectedPost) ? "var(--blue-primary)" : "var(--text-muted)"} />
+                    <span className="text-xs" style={{ color: isLiked(selectedPost) ? "var(--blue-deep)" : "var(--text-muted)" }}>
                       {selectedPost.likes.length}
                     </span>
                   </button>
 
                   <button className="flex items-center gap-1.5" onClick={() => handleDislike(selectedPost)}>
-                    <ThumbsDown size={16} fill={isDisliked(selectedPost) ? "#d4183d" : "none"}
-                      color={isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)"} />
-                    <span className="text-xs" style={{ color: isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)" }}>
+                    <ThumbsDown size={16} fill={isDisliked(selectedPost) ? "var(--danger)" : "none"}
+                      color={isDisliked(selectedPost) ? "var(--danger)" : "var(--text-muted)"} />
+                    <span className="text-xs" style={{ color: isDisliked(selectedPost) ? "var(--danger)" : "var(--text-muted)" }}>
                       {selectedPost.dislikes.length}
                     </span>
                   </button>
@@ -850,50 +835,47 @@ useEffect(() => {
                       commentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
                       commentInputRef.current?.focus();
                     }}>
-                    <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
-                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(selectedPost)}</span>
+                    <MessageCircle size={16} style={{ color: "var(--text-muted)" }} />
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{getCommentCount(selectedPost)}</span>
                   </button>
 
                   <button className="flex items-center gap-1.5"
                     onClick={() => setSavedPosts((s) => ({ ...s, [selectedPost._id]: !s[selectedPost._id] }))}>
-                    <Bookmark size={16} fill={savedPosts[selectedPost._id] ? "var(--primary)" : "none"}
-                      color={savedPosts[selectedPost._id] ? "var(--primary)" : "var(--muted-foreground)"} />
+                    <Bookmark size={16} fill={savedPosts[selectedPost._id] ? "var(--blue-primary)" : "none"}
+                      color={savedPosts[selectedPost._id] ? "var(--blue-primary)" : "var(--text-muted)"} />
                   </button>
                 </div>
-              </div>
+              </Card>
 
-              <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3" style={{ background: "var(--card)" }}>
-  <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+              <Card className="flex flex-col gap-3">
+  <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
     댓글 {getCommentCount(selectedPost)}개
   </p>
 
                 {selectedPost.comments.map((c) => (
-                  <div key={c._id} className="flex gap-2 items-start relative">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm overflow-hidden"
-                      style={{ background: "var(--muted)" }}>
-                      <img src={resolveAssetUrl(c.author.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
-                      style={{ color: "var(--foreground)" }}>
+                  <div key={c._id} className="relative flex items-start gap-2">
+                    <Avatar src={resolveAssetUrl(c.author.avatar)} fallbackSrc={defaultAvatar} size="sm" />
+                    <div className="flex flex-1 items-start justify-between gap-2 rounded-[var(--r-md)] px-3 py-2 text-xs"
+                      style={{ color: "var(--text-body)" }}>
                       <span><span className="font-semibold">{c.author.nickname} </span>{c.content}</span>
                       {currentUser && c.author._id === currentUser._id && (
                         <div className="relative shrink-0">
                           <button
                             onClick={() => setOpenCommentMenu(openCommentMenu === c._id ? null : c._id)}
-                            style={{ color: "var(--muted-foreground)" }}
+                            style={{ color: "var(--text-muted)" }}
                             aria-label="댓글 더보기"
                           >
                             <MoreVertical size={14} />
                           </button>
                           {openCommentMenu === c._id && (
                             <div
-                              className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
-                              style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                              className="absolute right-0 top-6 z-20 min-w-[90px] rounded-[var(--r-md)] py-1"
+                              style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }}
                             >
                               <button
                                 onClick={() => handleDeleteComment(selectedPost._id, c._id)}
-                                className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
-                                style={{ color: "#d4183d" }}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:opacity-70"
+                                style={{ color: "var(--danger)" }}
                               >
                                 <Trash2 size={13} /> 삭제
                               </button>
@@ -904,36 +886,30 @@ useEffect(() => {
                     </div>
                   </div>
                 ))}
-              </div>
+              </Card>
             </div>
           </div>
         )}
       </div>
       {/* 팔로워/팔로잉 목록 */}
       {userListModal && (
-        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-            <button onClick={() => setUserListModal(null)}>
-              <X size={20} style={{ color: "var(--foreground)" }} />
-            </button>
-            <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>
+        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--bg-base)" }}>
+          <div className="flex shrink-0 items-center gap-3 px-4 py-4">
+            <IconButton aria-label="닫기" onClick={() => setUserListModal(null)}>
+              <X size={16} />
+            </IconButton>
+            <h2 className="flex-1 font-semibold" style={{ color: "var(--text-strong)" }}>
               {userListModal === "followers" ? "팔로워" : "팔로잉"}
             </h2>
           </div>
           {userList.length > 0 && (
-            <div className="px-4 pt-3 shrink-0">
-              <input
-                value={userListQuery}
-                onChange={(e) => setUserListQuery(e.target.value)}
-                placeholder="검색"
-                className="w-full px-3 py-2 rounded-xl text-sm outline-none"
-                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-              />
+            <div className="shrink-0 px-4 pt-3">
+              <Input label="검색" hideLabel value={userListQuery} onChange={(e) => setUserListQuery(e.target.value)} placeholder="검색" />
             </div>
           )}
-          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar">
+          <div className="no-scrollbar flex flex-1 flex-col gap-2 overflow-y-auto px-4 py-3">
             {userList.length === 0 ? (
-              <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+              <p className="mt-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
                 {userListModal === "followers" ? "아직 팔로워가 없습니다." : "아직 팔로잉하는 사람이 없습니다."}
               </p>
             ) : (
@@ -946,41 +922,37 @@ useEffect(() => {
                 .map((u) => (
                 <div
                   key={u._id}
-                  className="flex items-center gap-3 p-2.5 rounded-xl text-left"
-                  style={{ background: "var(--card)" }}
+                  className="flex items-center gap-3 rounded-[var(--r-lg)] p-2.5 text-left"
+                  style={{ background: "var(--bg-card)" }}
                 >
                   <button
                     onClick={() => {
                       setUserListModal(null);
                       setViewingUser(u);
                     }}
-                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
                   >
-                    <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                      <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
+                    <Avatar src={resolveAssetUrl(u.avatar)} fallbackSrc={defaultAvatar} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium" style={{ color: "var(--text-strong)" }}>{u.nickname}</p>
                       {u.studentId && (
-                        <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{u.studentId}</p>
+                        <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>{u.studentId}</p>
                       )}
                     </div>
                   </button>
-                  <button
+                  <Button
+                    variant={u.isFollowedByMe ? "secondary" : "primary"}
+                    size={44}
+                    className="h-8 shrink-0 px-3"
                     onClick={() => toggleListFollow(u)}
-                    className="text-xs px-3 py-1.5 rounded-xl font-semibold shrink-0"
-                    style={{
-                      background: u.isFollowedByMe ? "var(--muted)" : "var(--primary)",
-                      color: u.isFollowedByMe ? "var(--muted-foreground)" : "white",
-                    }}
                   >
                     {u.isFollowedByMe ? "팔로잉" : "팔로우"}
-                  </button>
+                  </Button>
                   {userListModal === "followers" && (
                     <button
                       onClick={() => removeFollower(u)}
                       className="shrink-0"
-                      style={{ color: "var(--muted-foreground)" }}
+                      style={{ color: "var(--text-muted)" }}
                       aria-label="팔로워 삭제"
                     >
                       <X size={16} />
@@ -995,7 +967,7 @@ useEffect(() => {
 
       {/* 목록에서 클릭한 사용자의 프로필 */}
       {viewingUser && (
-        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--bg-base)" }}>
           <OtherUserProfile
             author={viewingUser}
             posts={posts}
@@ -1009,10 +981,12 @@ useEffect(() => {
         </div>
       )}
       {editingPost && (
-        <div className="absolute inset-0 z-[60] flex flex-col" style={{ background: "var(--background)" }}>
-          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-            <button onClick={() => setEditingPost(null)} className="text-lg">←</button>
-            <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물 수정</h2>
+        <div className="absolute inset-0 z-[60] flex flex-col" style={{ background: "var(--bg-base)" }}>
+          <div className="flex shrink-0 items-center gap-3 px-4 py-4">
+            <IconButton aria-label="뒤로 가기" onClick={() => setEditingPost(null)}>
+              <ArrowLeft size={16} />
+            </IconButton>
+            <h2 className="flex-1 text-base font-semibold" style={{ color: "var(--text-strong)" }}>게시물 수정</h2>
             <button
               onClick={async () => {
                 try {
@@ -1027,30 +1001,21 @@ useEffect(() => {
                   showAlert("수정에 실패했습니다.");
                 }
               }}
-              style={{ color: "var(--primary)" }}
+              style={{ color: "var(--blue-deep)" }}
               className="text-sm font-semibold"
             >
               완료
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4">
-            <div>
-              <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>제목</label>
-              <input
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>내용</label>
+          <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
+            <Input label="제목" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+            <div className="flex flex-col gap-1">
+              <label className="text-[13px] font-medium" style={{ color: "var(--text-body)" }}>내용</label>
               <textarea
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
                 rows={8}
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
-                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                className="w-full resize-none rounded-[var(--r-md)] border border-[var(--border-subtle)] bg-[var(--bg-input)] px-4 py-3 text-sm text-[var(--text-body)] outline-none focus:border-[var(--blue-primary)] focus:bg-[var(--blue-soft)] focus:ring-2 focus:ring-[var(--blue-primary)]/30"
               />
             </div>
           </div>
@@ -1058,16 +1023,16 @@ useEffect(() => {
       )}
       {/* Visibility modal */}
       {showVisibilityModal && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
+        <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(15,23,42,0.45)" }}>
           <div
-            className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3"
-            style={{ background: "var(--background)" }}
+            className="flex w-full flex-col gap-3 rounded-[var(--r-lg)] px-4 py-6"
+            style={{ background: "var(--bg-card)", boxShadow: "0 12px 32px rgba(15,23,42,0.16)" }}
           >
-            <div className="flex items-center justify-between mb-2 ">
-              <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>공개 범위 설정</h3>
-              <button onClick={() => setShowVisibilityModal(null)}>
-                <X size={20} style={{ color: "var(--foreground)" }} />
-              </button>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="font-semibold" style={{ color: "var(--text-strong)" }}>공개 범위 설정</h3>
+              <IconButton aria-label="닫기" onClick={() => setShowVisibilityModal(null)} className="h-9 w-9">
+                <X size={16} />
+              </IconButton>
             </div>
             {(Object.keys(VISIBILITY_META) as Visibility[]).map((id) => {
               const { label, Icon } = VISIBILITY_META[id];
@@ -1086,10 +1051,10 @@ useEffect(() => {
                       showAlert("공개 범위 변경에 실패했습니다.");
                     }
                   }}
-                  className="w-full px-4 py-3 rounded-xl flex items-center gap-3 text-left text-sm"
-                  style={{ background: "var(--card)", color: "var(--foreground)" }}
+                  className="flex w-full items-center gap-3 rounded-[var(--r-md)] px-4 py-3 text-left text-sm"
+                  style={{ background: "var(--bg-base)", color: "var(--text-body)" }}
                 >
-                  <span style={{ color: "var(--primary)" }}><Icon size={18} /></span>
+                  <span style={{ color: "var(--blue-primary)" }}><Icon size={18} /></span>
                   {label}
                 </button>
               );
@@ -1098,86 +1063,8 @@ useEffect(() => {
         </div>
       )}
 
-      {/* 커스텀 알림 팝업 (확인 1개) */}
-      {alertMessage && (
-        <div
-          className="absolute inset-0 z-[70] flex items-center justify-center px-6"
-          style={{ background: "rgba(0,0,0,0.6)" }}
-        >
-          <div
-            className="w-full rounded-2xl overflow-hidden shadow-2xl"
-            style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
-          >
-            <div
-              className="flex items-center justify-between px-5 py-4 text-base font-semibold"
-              style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
-            >
-              Code
-              <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-              {alertMessage}
-            </div>
-            <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-              <button
-                className="w-full py-3 text-sm font-medium"
-                style={{ color: "var(--foreground)" }}
-                onClick={closeAlert}
-              >
-                확인
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 커스텀 확인 팝업 (확인/취소 2개) */}
-      {confirmState && (
-        <div
-          className="absolute inset-0 z-[70] flex items-center justify-center px-6"
-          style={{ background: "rgba(0,0,0,0.6)" }}
-        >
-          <div
-            className="w-full rounded-2xl overflow-hidden shadow-2xl"
-            style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
-          >
-            <div
-              className="flex items-center justify-between px-5 py-4 text-base font-semibold"
-              style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
-            >
-              Code
-              <button onClick={closeConfirm} style={{ color: "var(--muted-foreground)" }}>
-                <X size={18} />
-              </button>
-            </div>
-            <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-              {confirmState.message}
-            </div>
-            <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-              <button
-                className="flex-1 py-3 text-sm font-medium"
-                style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
-                onClick={() => {
-                  const action = confirmState.onConfirm;
-                  setConfirmState(null);
-                  action();
-                }}
-              >
-                확인
-              </button>
-              <button
-                className="flex-1 py-3 text-sm font-medium"
-                style={{ color: "var(--foreground)" }}
-                onClick={closeConfirm}
-              >
-                취소
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {AlertModal}
+      {ConfirmModal}
 
       {/* 이미지 전체화면 뷰어 (카톡처럼 클릭 시 확대) */}
       {fullscreenImage && (
@@ -1188,15 +1075,16 @@ useEffect(() => {
         >
           <button
             onClick={() => setFullscreenImage(null)}
-            className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full"
             style={{ background: "rgba(255,255,255,0.15)" }}
+            aria-label="닫기"
           >
             <X size={20} color="white" />
           </button>
           <img
             src={fullscreenImage}
             alt="확대 이미지"
-            className="max-w-full max-h-full object-contain"
+            className="max-h-full max-w-full object-contain"
             onClick={(e) => e.stopPropagation()}
           />
         </div>

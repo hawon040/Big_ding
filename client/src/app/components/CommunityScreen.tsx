@@ -7,8 +7,24 @@ import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
   Search, Star, Send, UserPlus, ChevronDown, ChevronUp, FileText,
   Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, MoreHorizontal, Repeat2, Edit2, Trash2, AlertTriangle, Bell, Lock,
-  Settings, Camera, LogOut, ChevronRight, Images, Ban, MessageSquareOff
+  Settings, Camera, LogOut, ChevronRight, Images, Ban, MessageSquareOff, ArrowLeft
 } from "lucide-react";
+import "@/styles/tokens.css";
+import { Card } from "@/components/ui/Card";
+import { Chip } from "@/components/ui/Chip";
+import { Badge, type BoardTone } from "@/components/ui/Badge";
+import { IconButton } from "@/components/ui/IconButton";
+import { Dropdown } from "@/components/ui/Dropdown";
+import { Avatar } from "@/components/ui/Avatar";
+import { ImageCarousel } from "@/components/ui/ImageCarousel";
+import { Button } from "@/components/ui/Button";
+import { ScreenHeader } from "@/components/ui/ScreenHeader";
+import { Input } from "@/components/ui/Input";
+import { Modal } from "@/components/ui/Modal";
+import { UserRow } from "@/components/ui/UserRow";
+import { PollCard } from "@/components/ui/PollCard";
+import { MessageBubble } from "@/components/ui/MessageBubble";
+import { List, ListItem } from "@/components/ui/List";
 
 export type BoardType = "free" | "qna" | "contest" | "event" | "lecture" | "meeting" | "alumni";
 // "행사공지" 게시판은 관리자(User.isAdmin) 또는 행사공지 작성 권한(User.canPostEvents)을
@@ -217,7 +233,7 @@ export interface ChatPhoto {
 export interface NotificationItem {
   _id: string;
   sender: Friend;
-  type: "follow" | "join" | "leave" | "comment" | "like" | "dislike" | "scrap"
+  type: "follow" | "join" | "leave" | "comment" | "reply" | "like" | "dislike" | "scrap"
       | "adminWarning" | "adminBan" | "adminCommentRestriction"
       | "reportResolved" | "inquiryResolved";
   post?: { _id: string; title: string; board: string } | null;
@@ -259,7 +275,7 @@ export const renderLinkifiedText = (content: string) =>
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
           className="underline break-all"
-          style={{ color: "var(--primary)" }}
+          style={{ color: "var(--blue-primary)" }}
         >
           {url}
         </a>
@@ -581,53 +597,46 @@ export function OtherUserProfile({
   }
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden">
-      <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-        <button onClick={onBack} className="text-lg" style={{ color: "var(--foreground)" }}>←</button>
-        <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>프로필</h2>
-      </div>
+    <div className="flex flex-col flex-1 overflow-hidden" style={{ background: "var(--bg-base)" }}>
+      <ScreenHeader title="프로필" onBack={onBack} />
 
       <div className="flex-1 overflow-y-auto no-scrollbar">
         {/* 프로필 상단 카드: 내 프로필(ProfileScreen)과 동일한 인스타 스타일 구성 */}
-        <div className="relative px-4 pt-6 pb-4" style={{ background: "linear-gradient(160deg, #111a30 0%, #0a0f1f 100%)" }}>
+        <div className="relative px-4 pt-2 pb-4">
           <div className="flex items-start gap-6">
-            <button
-              onClick={() => setShowAvatarZoom(true)}
-              className="w-20 h-20 rounded-full flex items-center justify-center text-4xl shadow-md overflow-hidden shrink-0"
-              style={{ background: "var(--accent)", border: "3px solid var(--primary)" }}
-            >
-              <img src={canViewFull ? (resolveAssetUrl(author.avatar) || defaultAvatar) : defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+            <button onClick={() => setShowAvatarZoom(true)} className="shrink-0">
+              <Avatar src={canViewFull ? resolveAssetUrl(author.avatar) : null} fallbackSrc={defaultAvatar} size="xl" />
             </button>
             <div className="flex-1 flex flex-col gap-1.5 pt-1">
               <div className="flex items-baseline gap-2">
-                <h2 className="font-bold text-base" style={{ color: "var(--foreground)" }}>{author.nickname}</h2>
-                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                <h2 className="font-bold text-base" style={{ color: "var(--text-strong)" }}>{author.nickname}</h2>
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                   #{author.studentId ? author.studentId.slice(2, 4) : "23"}학번
                 </span>
                 {isPrivate && (
-                  <Lock size={12} style={{ color: "var(--muted-foreground)" }} />
+                  <Lock size={12} style={{ color: "var(--text-muted)" }} />
                 )}
               </div>
               <div className="flex items-center gap-10">
                 <div className="flex flex-col items-center gap-0.5">
-                  <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{authorPosts.length}</span>
-                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>게시글</span>
+                  <span className="font-bold text-base" style={{ color: "var(--text-strong)" }}>{authorPosts.length}</span>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>게시글</span>
                 </div>
                 <button
                   onClick={() => openUserList("followers")}
                   className="flex flex-col items-center gap-0.5"
                   style={{ cursor: canViewFull ? "pointer" : "default" }}
                 >
-                  <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{followerCount}</span>
-                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로워</span>
+                  <span className="font-bold text-base" style={{ color: "var(--text-strong)" }}>{followerCount}</span>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>팔로워</span>
                 </button>
                 <button
                   onClick={() => openUserList("following")}
                   className="flex flex-col items-center gap-0.5"
                   style={{ cursor: canViewFull ? "pointer" : "default" }}
                 >
-                  <span className="font-bold text-base" style={{ color: "var(--foreground)" }}>{followingCount}</span>
-                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>팔로잉</span>
+                  <span className="font-bold text-base" style={{ color: "var(--text-strong)" }}>{followingCount}</span>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>팔로잉</span>
                 </button>
               </div>
             </div>
@@ -635,35 +644,24 @@ export function OtherUserProfile({
 
           {!isSelf && (
             <div className="flex gap-2 mt-3">
-              <button
-                onClick={toggleFollow}
-                className="flex-1 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5"
-                style={{
-                  background: isFollowing ? "var(--muted)" : "var(--primary)",
-                  color: isFollowing ? "var(--foreground)" : "white",
-                }}
-              >
+              <Button variant={isFollowing ? "secondary" : "primary"} className="flex-1" onClick={toggleFollow}>
                 {isFollowing ? "팔로잉" : "팔로우"}
-              </button>
-              <button
-                onClick={() => onMessage?.(author)}
-                className="flex-1 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-1.5"
-                style={{ background: "var(--muted)", color: "var(--foreground)" }}
-              >
+              </Button>
+              <Button variant="secondary" className="flex-1" onClick={() => onMessage?.(author)}>
                 메시지
-              </button>
+              </Button>
             </div>
           )}
         </div>
 
         {/* 탭: 다른 사용자의 프로필에서는 댓글 내역을 노출하지 않는다 */}
-        <div className="grid grid-cols-2 shrink-0 border-t border-b" style={{ borderColor: "var(--border)" }}>
+        <div className="grid grid-cols-2 shrink-0 border-t border-b" style={{ borderColor: "var(--border-subtle)" }}>
           <button
             onClick={() => setTab("posts")}
             className="flex items-center justify-center py-3"
             style={{
-              borderBottom: tab === "posts" ? "2px solid var(--foreground)" : "2px solid transparent",
-              color: tab === "posts" ? "var(--foreground)" : "var(--muted-foreground)",
+              borderBottom: tab === "posts" ? "2px solid var(--blue-deep)" : "2px solid transparent",
+              color: tab === "posts" ? "var(--blue-deep)" : "var(--text-muted)",
             }}
           >
             <FileText size={18} />
@@ -672,8 +670,8 @@ export function OtherUserProfile({
             onClick={() => setTab("scrapped")}
             className="flex items-center justify-center py-3"
             style={{
-              borderBottom: tab === "scrapped" ? "2px solid var(--foreground)" : "2px solid transparent",
-              color: tab === "scrapped" ? "var(--foreground)" : "var(--muted-foreground)",
+              borderBottom: tab === "scrapped" ? "2px solid var(--blue-deep)" : "2px solid transparent",
+              color: tab === "scrapped" ? "var(--blue-deep)" : "var(--text-muted)",
             }}
           >
             <Bookmark size={18} />
@@ -682,9 +680,9 @@ export function OtherUserProfile({
 
         {!canViewFull ? (
           <div className="flex flex-col items-center gap-2 py-16">
-            <Lock size={32} style={{ color: "var(--muted-foreground)" }} />
-            <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>비공개 계정입니다</p>
-            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+            <Lock size={32} style={{ color: "var(--text-muted)" }} />
+            <p className="text-sm font-semibold" style={{ color: "var(--text-strong)" }}>비공개 계정입니다</p>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
               맞팔로우하면 게시글과 북마크를 볼 수 있어요.
             </p>
           </div>
@@ -692,42 +690,37 @@ export function OtherUserProfile({
           <div className="px-4 pt-3 pb-6 flex flex-col gap-3">
             {tab === "posts" ? (
               authorPosts.length === 0 ? (
-                <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
+                <p className="text-center text-sm py-8" style={{ color: "var(--text-muted)" }}>
                   작성한 게시물이 없어요
                 </p>
               ) : (
                 authorPosts.map((p) => (
-                  <div
-                    key={p._id}
-                    onClick={() => onOpenPost(p._id)}
-                    className="p-4 rounded-2xl cursor-pointer"
-                    style={{ background: "var(--card)" }}
-                  >
-                    <p className="text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>
+                  <Card key={p._id} onClick={() => onOpenPost(p._id)} className="cursor-pointer">
+                    <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
                       {getBoardLabel(p.board)}
                     </p>
-                    <h3 className="font-semibold text-sm mb-1" style={{ color: "var(--foreground)" }}>
+                    <h3 className="font-semibold text-sm mb-1" style={{ color: "var(--text-strong)" }}>
                       {p.title}
                     </h3>
-                    <p className="text-xs leading-relaxed mb-2" style={{ color: "var(--muted-foreground)" }}>
+                    <p className="text-xs leading-relaxed mb-2" style={{ color: "var(--text-muted)" }}>
                       {p.content}
                     </p>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
+                      <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
                         <Heart size={12} /> {p.likes.length}
                       </span>
-                      <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
+                      <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
                         <MessageCircle size={12} /> {p.comments.length}
                       </span>
-                      <span className="text-xs ml-auto" style={{ color: "var(--muted-foreground)" }}>
+                      <span className="text-xs ml-auto" style={{ color: "var(--text-muted)" }}>
                         {getDisplayTime(p)}
                       </span>
                     </div>
-                  </div>
+                  </Card>
                 ))
               )
             ) : (
-              <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
+              <p className="text-center text-sm py-8" style={{ color: "var(--text-muted)" }}>
                 스크랩한 게시물이 없어요.
               </p>
             )}
@@ -742,39 +735,21 @@ export function OtherUserProfile({
     style={{ background: "var(--background)" }}
   >
     {/* 상단 헤더 */}
-    <div
-      className="flex items-center gap-3 px-4 py-4 border-b shrink-0 pointer-events-auto"
-      style={{ borderColor: "var(--border)" }}
-    >
-      <button onClick={() => setUserListModal(null)}>
-        <X size={20} style={{ color: "var(--foreground)" }} />
-      </button>
-      <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>
-        {userListModal === "followers" ? "팔로워" : "팔로잉"}
-      </h2>
+    <div className="pointer-events-auto">
+      <ScreenHeader title={userListModal === "followers" ? "팔로워" : "팔로잉"} onBack={() => setUserListModal(null)} />
     </div>
 
     {/* 검색창 */}
     {userList.length > 0 && (
       <div className="px-4 pt-3 shrink-0 pointer-events-auto">
-        <input
-          value={userListQuery}
-          onChange={(e) => setUserListQuery(e.target.value)}
-          placeholder="검색"
-          className="w-full px-3 py-2 rounded-xl text-sm outline-none"
-          style={{
-            background: "var(--input-background)",
-            color: "var(--foreground)",
-            border: "1.5px solid var(--border)",
-          }}
-        />
+        <Input label="검색" hideLabel value={userListQuery} onChange={(e) => setUserListQuery(e.target.value)} placeholder="검색" />
       </div>
     )}
 
     {/* 목록 */}
     <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar pointer-events-auto">
       {userList.length === 0 ? (
-        <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+        <p className="text-sm text-center mt-10" style={{ color: "var(--text-muted)" }}>
           {userListModal === "followers"
             ? "아직 팔로워가 없습니다."
             : "아직 팔로잉하는 사람이 없습니다."}
@@ -787,54 +762,25 @@ export function OtherUserProfile({
             u.studentId?.toLowerCase().includes(userListQuery.trim().toLowerCase())
           )
           .map((u) => (
-            <div
+            <UserRow
               key={u._id}
-              className="flex items-center gap-3 p-2.5 rounded-xl text-left"
-              style={{ background: "var(--card)" }}
-            >
-              {/* 프로필 클릭 */}
-              <button
-                onClick={() => {
-                  setUserListModal(null);
-                  setViewingNestedUser(u);
-                  setShowAvatarZoom(true);
-                }}
-                className="flex items-center gap-3 flex-1 min-w-0 text-left"
-              >
-                <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                  <img
-                    src={resolveAssetUrl(u.avatar) || defaultAvatar}
-                    alt="프로필 사진"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
-                    {u.nickname}
-                  </p>
-                  {u.studentId && (
-                    <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
-                      {u.studentId}
-                    </p>
-                  )}
-                </div>
-              </button>
-
-              {/* 팔로우 버튼 */}
-              {u._id !== currentUserId && (
-                <button
-                  onClick={() => toggleListFollow(u)}
-                  className="text-xs px-3 py-1.5 rounded-xl font-semibold shrink-0"
-                  style={{
-                    background: u.isFollowedByMe ? "var(--muted)" : "var(--primary)",
-                    color: u.isFollowedByMe ? "var(--muted-foreground)" : "white",
-                  }}
-                >
-                  {u.isFollowedByMe ? "팔로잉" : "팔로우"}
-                </button>
-              )}
-            </div>
+              avatarSrc={resolveAssetUrl(u.avatar)}
+              fallbackSrc={defaultAvatar}
+              name={u.nickname}
+              secondaryText={u.studentId}
+              onPress={() => {
+                setUserListModal(null);
+                setViewingNestedUser(u);
+                setShowAvatarZoom(true);
+              }}
+              trailing={
+                u._id !== currentUserId && (
+                  <Chip selected={!u.isFollowedByMe} onClick={() => toggleListFollow(u)} className="shrink-0">
+                    {u.isFollowedByMe ? "팔로잉" : "팔로우"}
+                  </Chip>
+                )
+              }
+            />
           ))
       )}
     </div>
@@ -857,7 +803,7 @@ export function OtherUserProfile({
           >
             <X size={20} color="white" />
           </button>
-          <div className="w-72 h-72 rounded-full overflow-hidden shadow-2xl" style={{ border: "4px solid var(--primary)" }}>
+          <div className="w-72 h-72 rounded-full overflow-hidden shadow-2xl" style={{ border: "4px solid var(--blue-deep)" }}>
             <img
               src={canViewFull ? (resolveAssetUrl(author.avatar) || defaultAvatar) : defaultAvatar}
               alt="프로필 사진 크게 보기"
@@ -981,15 +927,15 @@ export function CommunityScreen({
     setReportingComment(comment);
   };
   const reportCommentModal = reportingComment && (
-  <div className="absolute inset-0 z-[60] flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
-    <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
+  <div className="absolute inset-0 z-[60] flex items-center justify-center px-6" style={{ background: "rgba(15,23,42,0.45)" }}>
+    <div className="w-full rounded-[var(--r-lg)] px-4 py-6 flex flex-col gap-3" style={{ background: "var(--bg-card)", boxShadow: "0 12px 32px rgba(15,23,42,0.16)" }}>
       <div className="flex items-center justify-between mb-2">
-        <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>댓글 신고</h3>
-        <button onClick={() => setReportingComment(null)}>
-          <X size={20} style={{ color: "var(--foreground)" }} />
-        </button>
+        <h3 className="font-semibold" style={{ color: "var(--text-strong)" }}>댓글 신고</h3>
+        <IconButton aria-label="닫기" onClick={() => setReportingComment(null)} className="h-9 w-9">
+          <X size={16} />
+        </IconButton>
       </div>
-      <p className="text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>
+      <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
         {reportingComment.author.nickname}님의 댓글을 신고하는 이유를 선택해주세요
       </p>
       {["스팸/도배", "욕설/비방", "음란물", "허위 정보", "기타"].map((reason) => (
@@ -1021,8 +967,8 @@ export function CommunityScreen({
             setReportingComment(null);
             showAlert(`신고가 접수되었습니다: ${reason}`);
           }}
-          className="w-full px-4 py-3 rounded-xl text-left text-sm"
-          style={{ background: "var(--card)", color: "var(--foreground)" }}
+          className="w-full px-4 py-3 rounded-[var(--r-md)] text-left text-sm"
+          style={{ background: "var(--bg-input)", color: "var(--text-body)" }}
         >
           {reason}
         </button>
@@ -1034,24 +980,24 @@ export function CommunityScreen({
 // 공강모임 채팅방 멤버 신고 모달. groupReportTarget이 함께 있으면 evidenceMessages에
 // 담긴 메시지 내용도 신고 사유와 함께 접수한다.
 const reportGroupMemberModal = reportingGroupMember && (
-  <div className="absolute inset-0 z-[60] flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
-    <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
+  <div className="absolute inset-0 z-[60] flex items-center justify-center px-6" style={{ background: "rgba(15,23,42,0.45)" }}>
+    <div className="w-full rounded-[var(--r-lg)] px-4 py-6 flex flex-col gap-3" style={{ background: "var(--bg-card)", boxShadow: "0 12px 32px rgba(15,23,42,0.16)" }}>
       <div className="flex items-center justify-between mb-2">
-        <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>사용자 신고</h3>
-        <button onClick={() => { setReportingGroupMember(null); setReportingGroupMemberEvidence([]); }}>
-          <X size={20} style={{ color: "var(--foreground)" }} />
-        </button>
+        <h3 className="font-semibold" style={{ color: "var(--text-strong)" }}>사용자 신고</h3>
+        <IconButton aria-label="닫기" onClick={() => { setReportingGroupMember(null); setReportingGroupMemberEvidence([]); }} className="h-9 w-9">
+          <X size={16} />
+        </IconButton>
       </div>
-      <p className="text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>
+      <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
         {reportingGroupMember.nickname}님을 신고하는 이유를 선택해주세요
       </p>
       {reportingGroupMemberEvidence.length > 0 && (
-        <div className="flex flex-col gap-1.5 p-3 rounded-xl" style={{ background: "var(--muted)" }}>
-          <p className="text-[11px] font-semibold" style={{ color: "var(--muted-foreground)" }}>
+        <div className="flex flex-col gap-1.5 p-3 rounded-[var(--r-md)]" style={{ background: "var(--blue-soft)" }}>
+          <p className="text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
             첨부된 메시지 ({reportingGroupMemberEvidence.length}개)
           </p>
           {reportingGroupMemberEvidence.map((m, i) => (
-            <p key={i} className="text-xs" style={{ color: "var(--foreground)" }}>
+            <p key={i} className="text-xs" style={{ color: "var(--text-strong)" }}>
               "{m.content}"
             </p>
           ))}
@@ -1092,8 +1038,8 @@ const reportGroupMemberModal = reportingGroupMember && (
             setSelectedGroupMsgIds([]);
             showAlert(`신고가 접수되었습니다: ${reason}`);
           }}
-          className="w-full px-4 py-3 rounded-xl text-left text-sm"
-          style={{ background: "var(--card)", color: "var(--foreground)" }}
+          className="w-full px-4 py-3 rounded-[var(--r-md)] text-left text-sm"
+          style={{ background: "var(--bg-input)", color: "var(--text-body)" }}
         >
           {reason}
         </button>
@@ -1279,7 +1225,7 @@ useEffect(() => {
         <button
           onClick={onEditStart}
           className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-          style={{ color: "var(--foreground)" }}
+          style={{ color: "var(--text-body)" }}
         >
           <Edit2 size={14} /> 수정
         </button>
@@ -1295,7 +1241,7 @@ useEffect(() => {
             });
           }}
           className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-          style={{ color: "#d4183d" }}
+          style={{ color: "var(--danger)" }}
         >
           <Trash2 size={14} /> 삭제
         </button>
@@ -1314,7 +1260,7 @@ useEffect(() => {
             });
           }}
           className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-          style={{ color: "#d4183d" }}
+          style={{ color: "var(--danger)" }}
         >
           <Trash2 size={14} /> 삭제 (관리자)
         </button>
@@ -1324,7 +1270,7 @@ useEffect(() => {
             setShowAdminAction({ type: "warn", postId: targetPost._id, authorId: targetPost.author._id, authorName: targetPost.author.nickname });
           }}
           className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-          style={{ color: "var(--foreground)" }}
+          style={{ color: "var(--text-body)" }}
         >
           <AlertTriangle size={14} /> 유저 경고
         </button>
@@ -1334,7 +1280,7 @@ useEffect(() => {
             setShowAdminAction({ type: "ban", postId: targetPost._id, authorId: targetPost.author._id, authorName: targetPost.author.nickname });
           }}
           className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-          style={{ color: "var(--foreground)" }}
+          style={{ color: "var(--text-body)" }}
         >
           <Ban size={14} /> 앱 차단
         </button>
@@ -1344,7 +1290,7 @@ useEffect(() => {
             setShowAdminAction({ type: "restrictComments", postId: targetPost._id, authorId: targetPost.author._id, authorName: targetPost.author.nickname });
           }}
           className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-          style={{ color: "var(--foreground)" }}
+          style={{ color: "var(--text-body)" }}
         >
           <MessageSquareOff size={14} /> 댓글 제한
         </button>
@@ -1356,7 +1302,7 @@ useEffect(() => {
           setShowMoreMenu(null);
         }}
         className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left hover:opacity-70"
-        style={{ color: "#d4183d" }}
+        style={{ color: "var(--danger)" }}
       >
         <AlertTriangle size={14} /> 신고
       </button>
@@ -1438,9 +1384,6 @@ const LECTURE_GRADES = Object.keys(LECTURE_GROUPS);
   const [newLectureRating, setNewLectureRating] = useState(0); // 0.5 단위
   const [newLectureContent, setNewLectureContent] = useState("");
   const [professorList, setProfessorList] = useState<string[]>([]);
-  const [showGradeDropdown, setShowGradeDropdown] = useState(false);
-  const [showLectureNameDropdown, setShowLectureNameDropdown] = useState(false);
-  const [showProfessorDropdown, setShowProfessorDropdown] = useState(false);
 
   // 글쓰기 모달에서 게시판을 "전공 강의평가"로 선택하면 서버에서 교수님 목록을 불러온다.
   // 교수님 목록: User 모델(server/models/User.js)의 professor enum과 동일하게 고정 목록 사용
@@ -1453,15 +1396,6 @@ const LECTURE_GRADES = Object.keys(LECTURE_GROUPS);
   const [newMeetingTime, setNewMeetingTime] = useState("");
   const [newMeetingPlace, setNewMeetingPlace] = useState("");
   const [newMeetingCount, setNewMeetingCount] = useState<number | null>(null);
-  const [showMeetingTimeDropdown, setShowMeetingTimeDropdown] = useState(false);
-  const [showMeetingCountDropdown, setShowMeetingCountDropdown] = useState(false);
-  // 게시판을 바꾸면 열려있던 드롭다운은 닫는다.
-  useEffect(() => {
-    setShowGradeDropdown(false);
-    setShowProfessorDropdown(false);
-    setShowMeetingTimeDropdown(false);
-    setShowMeetingCountDropdown(false);
-  }, [newBoard]);
 
   // 별점 입력 UI: 별 5개, 절반 단위(0.5)로 클릭 가능. 각 별을 왼쪽/오른쪽 절반으로
   // 나눠 각각 버튼으로 두고, 실제 채워진 별은 위에 겹쳐 clip해서 반개를 표현한다.
@@ -1471,9 +1405,9 @@ const LECTURE_GRADES = Object.keys(LECTURE_GROUPS);
         const filledRatio = Math.max(0, Math.min(1, newLectureRating - i));
         return (
           <div key={i} className="relative w-6 h-6 shrink-0">
-            <Star size={24} color="var(--muted-foreground)" />
+            <Star size={24} color="var(--text-muted)" />
             <div className="absolute inset-0 overflow-hidden" style={{ width: `${filledRatio * 100}%` }}>
-              <Star size={24} fill="#ffc107" color="#ffc107" />
+              <Star size={24} fill="var(--tag-lecture-fg)" color="var(--tag-lecture-fg)" />
             </div>
             <button
               type="button"
@@ -1490,7 +1424,7 @@ const LECTURE_GRADES = Object.keys(LECTURE_GROUPS);
           </div>
         );
       })}
-      <span className="ml-2 text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+      <span className="ml-2 text-sm font-semibold" style={{ color: "var(--text-strong)" }}>
         {newLectureRating.toFixed(1)}
       </span>
     </div>
@@ -1924,19 +1858,6 @@ const hiddenMessageIdsRef = useRef<Set<string>>(new Set());
 const [showReportConfirm, setShowReportConfirm] = useState(false);
 const [viewingImage, setViewingImage] = useState<string | null>(null);
 const [fullscreenPostImage, setFullscreenPostImage] = useState<string | null>(null);
-// 행사공지(event) 게시물 상세를 인스타그램 스타일로 보여주기 위한 상태
-const [eventImageIndex, setEventImageIndex] = useState(0);
-// 피드 카드(상세화면 밖)에서 게시물별로 몇 번째 이미지를 보고 있는지 저장.
-// 게시물마다 따로 넘길 수 있어야 하므로 postId를 key로 하는 맵으로 관리한다.
-const [feedImageIndices, setFeedImageIndices] = useState<Record<string, number>>({});
-const getFeedImageIndex = (postId: string) => feedImageIndices[postId] ?? 0;
-const stepFeedImage = (postId: string, delta: number, maxIndex: number) => {
-  setFeedImageIndices((prev) => {
-    const current = prev[postId] ?? 0;
-    const next = Math.max(0, Math.min(maxIndex, current + delta));
-    return { ...prev, [postId]: next };
-  });
-};
 const [eventFollowingIds, setEventFollowingIds] = useState<string[]>([]);
 const toggleEventFollow = async (authorId: string) => {
   const isFollowing = eventFollowingIds.includes(authorId);
@@ -1948,9 +1869,9 @@ const toggleEventFollow = async (authorId: string) => {
     setEventFollowingIds((prev) => isFollowing ? [...prev, authorId] : prev.filter((id) => id !== authorId));
   }
 };
-// 게시물이 바뀔 때마다 인스타그램 스타일 이미지 캐러셀 인덱스를 처음으로 되돌린다.
+// 게시물이 바뀔 때마다 답글 대상 초기화. 이미지 캐러셀 위치는 ImageCarousel에
+// key={selectedPost._id}를 줘서 게시물이 바뀌면 컴포넌트가 새로 마운트되며 처음으로 돌아간다.
 useEffect(() => {
-  setEventImageIndex(0);
   setReplyTarget(null);
 }, [selectedPostId]);
 
@@ -2294,88 +2215,26 @@ const closeConfirm = () => setConfirmState(null);
 const alertAndConfirmModals = (
   <>
     {/* 커스텀 알림 팝업 (확인 1개) */}
-{alertMessage && (
-  <div
-    className="absolute inset-0 z-[70] flex items-center justify-center px-6 pointer-events-auto"
-    style={{ background: "rgba(0,0,0,0.6)" }}
-  >
-    <div
-      className="w-full rounded-2xl overflow-hidden shadow-2xl pointer-events-auto"
-      style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
-    >
-      <div
-        className="flex items-center justify-between px-5 py-4 text-base font-semibold"
-        style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
-      >
-        Code
-        <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
-          <X size={18} />
-        </button>
-      </div>
-
-      <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-        {alertMessage}
-      </div>
-
-      <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-        <button
-          className="w-full py-3 text-sm font-medium"
-          style={{ color: "var(--foreground)" }}
-          onClick={closeAlert}
-        >
-          확인
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
+    <Modal open={!!alertMessage} title="알림" onClose={closeAlert}>
+      {alertMessage}
+    </Modal>
 
     {/* 커스텀 확인 팝업 (확인/취소 2개) */}
-    {confirmState && (
-      <div
-        className="absolute inset-0 z-[70] flex items-center justify-center px-6"
-        style={{ background: "rgba(0,0,0,0.6)" }}
-      >
-        <div
-          className="w-full rounded-2xl overflow-hidden shadow-2xl"
-          style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
-        >
-          <div
-            className="flex items-center justify-between px-5 py-4 text-base font-semibold"
-            style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
-          >
-            Code
-            <button onClick={closeConfirm} style={{ color: "var(--muted-foreground)" }}>
-              <X size={18} />
-            </button>
-          </div>
-          <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-            {confirmState.message}
-          </div>
-          <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-            <button
-              className="flex-1 py-3 text-sm font-medium"
-              style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
-              onClick={() => {
-                const action = confirmState.onConfirm;
-                setConfirmState(null);
-                action();
-              }}
-            >
-              확인
-            </button>
-            <button
-              className="flex-1 py-3 text-sm font-medium"
-              style={{ color: "var(--foreground)" }}
-              onClick={closeConfirm}
-            >
-              취소
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
+    <Modal
+      open={!!confirmState}
+      title="확인"
+      onClose={closeConfirm}
+      cancelText="취소"
+      onCancel={closeConfirm}
+      onConfirm={() => {
+        if (!confirmState) return;
+        const action = confirmState.onConfirm;
+        setConfirmState(null);
+        action();
+      }}
+    >
+      {confirmState?.message}
+    </Modal>
   </>
 );
 
@@ -2409,26 +2268,22 @@ const fullscreenImageViewer = fullscreenPostImage && (
 // 채팅방 사진 모아보기 모달. 단체 채팅과 1:1 채팅 화면 둘 다에서 열 수 있으므로,
 // alertAndConfirmModals와 같은 이유로 공용 변수로 뽑아 각 채팅 화면에서 렌더링한다.
 const photoGalleryModal = showPhotoGallery && (
-  <div className="absolute inset-0 z-[75] flex flex-col" style={{ background: "var(--background)" }}>
-    <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-      <button
-        onClick={() => {
-          setShowPhotoGallery(false);
-          setGalleryViewingImage(null);
-          // 단체 채팅방 설정에서 열었던 경우(즉 지금 단체 채팅방에 들어와 있는 경우)엔
-          // 채팅창이 아니라 설정 패널이 열려있던 상태로 되돌아간다.
-          if (activeGroupChat) setShowChatSettings(true);
-        }}
-        className="text-lg"
-        style={{ color: "var(--foreground)" }}
-      >←</button>
-      <p className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>사진 모아보기</p>
-    </div>
+  <div className="absolute inset-0 z-[75] flex flex-col" style={{ background: "var(--bg-base)" }}>
+    <ScreenHeader
+      title="사진 모아보기"
+      onBack={() => {
+        setShowPhotoGallery(false);
+        setGalleryViewingImage(null);
+        // 단체 채팅방 설정에서 열었던 경우(즉 지금 단체 채팅방에 들어와 있는 경우)엔
+        // 채팅창이 아니라 설정 패널이 열려있던 상태로 되돌아간다.
+        if (activeGroupChat) setShowChatSettings(true);
+      }}
+    />
     <div className="flex-1 overflow-y-auto p-1">
       {chatPhotosLoading ? (
-        <p className="text-center text-xs py-10" style={{ color: "var(--muted-foreground)" }}>불러오는 중...</p>
+        <p className="text-center text-xs py-10" style={{ color: "var(--text-muted)" }}>불러오는 중...</p>
       ) : chatPhotos.length === 0 ? (
-        <p className="text-center text-xs py-10" style={{ color: "var(--muted-foreground)" }}>아직 채팅방에 올라온 사진이 없습니다.</p>
+        <p className="text-center text-xs py-10" style={{ color: "var(--text-muted)" }}>아직 채팅방에 올라온 사진이 없습니다.</p>
       ) : (
         <div className="grid grid-cols-3 gap-1">
           {chatPhotos.map((photo, i) => (
@@ -2449,18 +2304,19 @@ const photoGalleryModal = showPhotoGallery && (
         style={{ background: "rgba(0,0,0,0.9)" }}
         onClick={() => setGalleryViewingImage(null)}
       >
-        <button
+        <IconButton
+          aria-label="닫기"
           onClick={() => setGalleryViewingImage(null)}
-          className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+          className="absolute top-4 right-4"
           style={{ background: "rgba(255,255,255,0.15)" }}
         >
           <X size={20} color="white" />
-        </button>
+        </IconButton>
         <img
           src={resolveAssetUrl(galleryViewingImage)}
           alt="사진 크게 보기"
           onClick={(e) => e.stopPropagation()}
-          className="max-w-full max-h-full rounded-xl object-contain"
+          className="max-w-full max-h-full rounded-[var(--r-lg)] object-contain"
         />
       </div>
     )}
@@ -2477,9 +2333,9 @@ const renderRatingStars = (rating: number, size: number = 14) => (
       const filledRatio = Math.max(0, Math.min(1, rating - i));
       return (
         <div key={i} className="relative shrink-0" style={{ width: size, height: size }}>
-          <Star size={size} color="var(--muted-foreground)" />
+          <Star size={size} color="var(--text-muted)" />
           <div className="absolute inset-0 overflow-hidden" style={{ width: `${filledRatio * 100}%` }}>
-            <Star size={size} fill="#ffc107" color="#ffc107" />
+            <Star size={size} fill="var(--tag-lecture-fg)" color="var(--tag-lecture-fg)" />
           </div>
         </div>
       );
@@ -2602,34 +2458,18 @@ const renderRatingStars = (rating: number, size: number = 14) => (
    const totalVotes = poll.options.reduce((sum, o) => sum + o.votes.length, 0);
    const myVoteIndex = currentUser ? poll.options.findIndex((o) => o.votes.includes(currentUser._id)) : -1;
    return (
-     <div
-       className="mt-2 p-3 rounded-2xl flex flex-col gap-2"
-       style={{ background: "var(--muted)" }}
-       onClick={(e) => e.stopPropagation()}
-     >
-       <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>🗳️ {poll.question}</p>
-       {poll.options.map((opt, idx) => {
-         const percent = totalVotes === 0 ? 0 : Math.round((opt.votes.length / totalVotes) * 100);
-         const isMine = idx === myVoteIndex;
-         return (
-           <button
-             key={idx}
-             onClick={() => handleVote(post, idx)}
-             className="relative w-full text-left px-3 py-2 rounded-xl text-xs overflow-hidden"
-             style={{ background: "var(--card)", border: isMine ? "1.5px solid var(--primary)" : "1.5px solid var(--border)" }}
-           >
-             <div
-               className="absolute inset-y-0 left-0"
-               style={{ width: `${percent}%`, background: "var(--secondary)" }}
-             />
-             <div className="relative flex items-center justify-between" style={{ color: "var(--foreground)" }}>
-               <span>{opt.text}{isMine ? " ✓" : ""}</span>
-               <span>{percent}%</span>
-             </div>
-           </button>
-         );
-       })}
-       <p className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>{totalVotes}명 참여</p>
+     <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+       <PollCard
+         bare
+         title={poll.question}
+         participantCount={totalVotes}
+         selectedIndex={myVoteIndex >= 0 ? myVoteIndex : undefined}
+         onSelect={(idx) => handleVote(post, idx)}
+         options={poll.options.map((opt) => ({
+           label: opt.text,
+           percent: totalVotes === 0 ? 0 : Math.round((opt.votes.length / totalVotes) * 100),
+         }))}
+       />
      </div>
    );
  };
@@ -2788,51 +2628,43 @@ const handleDeleteSelectedChats = () => {
     if (showGroupChatMembers) {
       return (
         <div className="flex flex-col flex-1 overflow-hidden relative">
-          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-            <button onClick={() => { setShowGroupChatMembers(false); setShowChatSettings(true); }} className="text-lg" style={{ color: "var(--foreground)" }}>←</button>
-            <p className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>
-              멤버 {activeGroupChat.members.length}
-            </p>
-          </div>
+          <ScreenHeader
+            title={`멤버 ${activeGroupChat.members.length}`}
+            onBack={() => { setShowGroupChatMembers(false); setShowChatSettings(true); }}
+          />
           <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1">
             {activeGroupChat.members.map((m) => (
-              <div key={m._id} className="flex items-center justify-between gap-2 py-2">
-                <button
-                  onClick={() => {
-                    if (currentUser && m._id === currentUser._id) {
-                      onViewOwnProfile();
-                    } else {
-                      setViewingGroupMember(m);
-                    }
-                  }}
-                  className="flex items-center gap-3 text-left flex-1 min-w-0"
-                >
-                  <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
-                    <img src={resolveAssetUrl(m.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                  </div>
-                  <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>
-                    {m.nickname}{m._id === activeGroupChat.host._id ? " (방장)" : ""}
-                  </p>
-                </button>
-                {currentUser && m._id !== currentUser._id && (
-                  <button
-                    onClick={() => {
-                      setGroupReportTarget(m);
-                      setSelectedGroupMsgIds([]);
-                      setShowGroupChatMembers(false);
-                    }}
-                    className="shrink-0"
-                    style={{ color: "var(--muted-foreground)" }}
-                    aria-label="사용자 신고"
-                  >
-                    <AlertTriangle size={14} />
-                  </button>
-                )}
-              </div>
+              <UserRow
+                key={m._id}
+                avatarSrc={resolveAssetUrl(m.avatar)}
+                fallbackSrc={defaultAvatar}
+                name={`${m.nickname}${m._id === activeGroupChat.host._id ? " (방장)" : ""}`}
+                onPress={() => {
+                  if (currentUser && m._id === currentUser._id) {
+                    onViewOwnProfile();
+                  } else {
+                    setViewingGroupMember(m);
+                  }
+                }}
+                trailing={
+                  currentUser && m._id !== currentUser._id && (
+                    <IconButton
+                      aria-label="사용자 신고"
+                      onClick={() => {
+                        setGroupReportTarget(m);
+                        setSelectedGroupMsgIds([]);
+                        setShowGroupChatMembers(false);
+                      }}
+                    >
+                      <AlertTriangle size={16} />
+                    </IconButton>
+                  )
+                }
+              />
             ))}
           </div>
           {viewingGroupMember && (
-            <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+            <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--bg-base)" }}>
               <OtherUserProfile
                 author={viewingGroupMember}
                 posts={allPosts}
@@ -2863,42 +2695,32 @@ const handleDeleteSelectedChats = () => {
     return (
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
         {/* 헤더 */}
-        <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => { setActiveGroupChat(null); setShowGroupChatMembers(false); setActiveGroupChatDeleted(false); }} className="text-lg">←</button>
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-sm truncate" style={{ color: "var(--foreground)" }}>
-              {activeGroupChat.name || activeGroupChat.post?.title ||
-                activeGroupChat.members.filter((m) => m._id !== currentUser?._id).map((m) => m.nickname).join(", ")}
-            </p>
-            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-              {activeGroupChat.post ? "공강모임 채팅방" : "단체 채팅방"}
-            </p>
-          </div>
-          <button
-            onClick={handleOpenChatSettings}
-            className="flex items-center justify-center w-8 h-8 rounded-full shrink-0"
-            style={{ background: "var(--secondary)", color: "var(--primary)" }}
-            aria-label="채팅 설정"
-          >
-            <Settings size={15} />
-          </button>
-        </div>
+        <ScreenHeader
+          title={activeGroupChat.name || activeGroupChat.post?.title ||
+            activeGroupChat.members.filter((m) => m._id !== currentUser?._id).map((m) => m.nickname).join(", ")}
+          onBack={() => { setActiveGroupChat(null); setShowGroupChatMembers(false); setActiveGroupChatDeleted(false); }}
+          action={
+            <IconButton aria-label="채팅 설정" onClick={handleOpenChatSettings}>
+              <Settings size={16} />
+            </IconButton>
+          }
+        />
 
         {/* 메시지 선택으로 신고하기 안내 바 */}
         {groupReportTarget && (
-          <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b shrink-0" style={{ background: "var(--muted)", borderColor: "var(--border)" }}>
-            <p className="text-xs" style={{ color: "var(--foreground)" }}>
+          <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b shrink-0" style={{ background: "var(--blue-soft)", borderColor: "var(--border-subtle)" }}>
+            <p className="text-xs" style={{ color: "var(--text-strong)" }}>
               <span className="font-semibold">{groupReportTarget.nickname}</span>님의 메시지를 선택하세요 ({selectedGroupMsgIds.length}/{MAX_REPORT_EVIDENCE})
             </p>
             <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => { setGroupReportTarget(null); setSelectedGroupMsgIds([]); }}
                 className="text-xs font-semibold px-2 py-1"
-                style={{ color: "var(--muted-foreground)" }}
+                style={{ color: "var(--text-muted)" }}
               >
                 취소
               </button>
-              <button
+              <Chip
                 onClick={() => {
                   const evidence = messages
                     .filter((m) => selectedGroupMsgIds.includes(m._id))
@@ -2907,14 +2729,11 @@ const handleDeleteSelectedChats = () => {
                   setReportingGroupMember(groupReportTarget);
                 }}
                 disabled={selectedGroupMsgIds.length === 0}
-                className="text-xs font-semibold px-3 py-1.5 rounded-xl"
-                style={{
-                  background: selectedGroupMsgIds.length === 0 ? "var(--card)" : "#d4183d",
-                  color: selectedGroupMsgIds.length === 0 ? "var(--muted-foreground)" : "white",
-                }}
+                selected={selectedGroupMsgIds.length > 0}
+                className={selectedGroupMsgIds.length > 0 ? "!bg-[var(--danger)] !text-white" : undefined}
               >
                 신고하기
-              </button>
+              </Chip>
             </div>
           </div>
         )}
@@ -2933,10 +2752,10 @@ const handleDeleteSelectedChats = () => {
             if (isAtBottom) setNewGroupMsgToast(null);
           }}
         >
-          {messages.map((msg) => {
+          {messages.map((msg, idx, arr) => {
             if (msg.type === "system") {
               return (
-                <p key={msg._id} className="text-center text-[11px] my-1" style={{ color: "var(--muted-foreground)" }}>
+                <p key={msg._id} className="text-center text-[11px] my-1" style={{ color: "var(--text-muted)" }}>
                   {msg.content}
                 </p>
               );
@@ -2955,82 +2774,50 @@ const handleDeleteSelectedChats = () => {
                 return [...prev, msg._id];
               });
             };
+            // 연속 메시지 클러스터링: 1:1 채팅과 동일하게 같은 사람이 5분 이내에 연달아
+            // 보낸 메시지는 하나로 묶어서 마지막 메시지에만 아바타/이름을 보여준다.
+            const prev = arr[idx - 1];
+            const next = arr[idx + 1];
+            const isFirstInCluster =
+              !prev || prev.type === "system" || prev.sender._id !== msg.sender._id ||
+              new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() > 5 * 60 * 1000;
+            const isLastInCluster =
+              !next || next.type === "system" || next.sender._id !== msg.sender._id ||
+              new Date(next.createdAt).getTime() - new Date(msg.createdAt).getTime() > 5 * 60 * 1000;
             return (
-              <div key={msg._id} className={`flex items-end gap-2 ${mine ? "justify-end" : "justify-start"}`}>
-                {isReportable && (
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={toggleSelectForReport}
-                    className="w-4 h-4 accent-orange-400 shrink-0"
-                  />
-                )}
-                {!mine && (
-  <button
-    onClick={() => setViewingGroupMember(msg.sender)}
-    className="w-7 h-7 rounded-full overflow-hidden shrink-0 self-start mt-5"
-  >
-    <img src={resolveAssetUrl(msg.sender.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-  </button>
-)}
-<div className={`max-w-[70%] flex flex-col gap-1 ${mine ? "items-end" : "items-start"}`}>
-  {!mine && (
-    <button
-      onClick={() => setViewingGroupMember(msg.sender)}
-      className="text-[11px] font-semibold"
-      style={{ color: "var(--muted-foreground)" }}
-    >
-      {msg.sender.nickname}
-    </button>
-  )}
-                  {msg.content && (
-                    <div className="relative">
-                      <div
-                        onClick={isReportable ? toggleSelectForReport : undefined}
-                        onDoubleClick={() => !isReportable && handleToggleGroupMessageLike(msg._id)}
-                        className="px-3 py-2 rounded-2xl text-sm select-none"
-                        style={{
-                          background: mine ? "var(--primary)" : "var(--card)",
-                          color: mine ? "white" : "var(--foreground)",
-                          cursor: isReportable ? "pointer" : "default",
-                          outline: isSelected ? "2px solid #d4183d" : "none",
-                        }}
-                      >
-                        <p>{msg.content}</p>
-                      </div>
-                      {msg.liked && (
-                        <span
-                          className="absolute -bottom-2 flex items-center justify-center w-5 h-5 rounded-full"
-                          style={mine ? { background: "var(--background)", left: -4 } : { background: "var(--background)", right: -4 }}
-                        >
-                          <Heart size={12} fill="#d4183d" color="#d4183d" />
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {msg.image && (
-                    <div className="relative">
-                      <img
-                        src={resolveAssetUrl(msg.image)}
-                        alt="사진"
-                        onClick={() => (isReportable ? toggleSelectForReport() : setViewingImage(msg.image!))}
-                        onDoubleClick={() => !isReportable && handleToggleGroupMessageLike(msg._id)}
-                        className="rounded-xl max-w-full cursor-pointer"
-                        style={{ maxHeight: "200px", outline: isSelected ? "2px solid #d4183d" : "none" }}
-                      />
-                      {msg.liked && (
-                        <span
-                          className="absolute -bottom-2 flex items-center justify-center w-5 h-5 rounded-full"
-                          style={mine ? { background: "var(--background)", left: -4 } : { background: "var(--background)", right: -4 }}
-                        >
-                          <Heart size={12} fill="#d4183d" color="#d4183d" />
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  <p className="text-[10px] opacity-70" style={{ color: "var(--muted-foreground)" }}>{formatMessageTime(msg.createdAt, nowTick)}</p>
-                </div>
-              </div>
+              <MessageBubble
+                key={msg._id}
+                isMine={mine}
+                isFirstInCluster={isFirstInCluster}
+                isLastInCluster={isLastInCluster}
+                content={msg.content}
+                imageSrc={msg.image ? resolveAssetUrl(msg.image) ?? undefined : undefined}
+                onImageClick={() => (isReportable ? toggleSelectForReport() : setViewingImage(msg.image!))}
+                avatarSrc={resolveAssetUrl(msg.sender.avatar)}
+                fallbackSrc={defaultAvatar}
+                onAvatarClick={() => setViewingGroupMember(msg.sender)}
+                senderName={!mine ? msg.sender.nickname : undefined}
+                liked={msg.liked}
+                onToggleLike={() => !isReportable && handleToggleGroupMessageLike(msg._id)}
+                onToggleTime={
+                  isReportable
+                    ? toggleSelectForReport
+                    : () => setRevealedTimeId((id) => (id === msg._id ? null : msg._id))
+                }
+                revealedText={revealedTimeId === msg._id ? formatMessageTime(msg.createdAt, nowTick) : undefined}
+                selected={isSelected}
+                selectedTone="danger"
+                leading={
+                  isReportable && (
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={toggleSelectForReport}
+                      className="w-4 h-4 accent-[var(--blue-primary)] shrink-0"
+                    />
+                  )
+                }
+              />
             );
           })}
           <div ref={groupChatBottomRef} />
@@ -3042,12 +2829,10 @@ const handleDeleteSelectedChats = () => {
               groupChatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
               setNewGroupMsgToast(null);
             }}
-            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 pl-1.5 pr-3 py-1.5 rounded-full shadow-lg text-xs font-semibold"
-            style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 pl-1.5 pr-3 py-1.5 rounded-full text-xs font-semibold"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 4px 12px rgba(15,23,42,0.08)", color: "var(--text-strong)" }}
           >
-            <span className="w-6 h-6 rounded-full overflow-hidden shrink-0">
-              <img src={resolveAssetUrl(newGroupMsgToast.avatar) || defaultAvatar} alt="" className="w-full h-full object-cover" />
-            </span>
+            <Avatar src={resolveAssetUrl(newGroupMsgToast.avatar)} fallbackSrc={defaultAvatar} size="sm" className="h-6 w-6" />
             <span className="truncate max-w-[120px]">{newGroupMsgToast.nickname}</span>
             <ChevronDown size={14} />
           </button>
@@ -3055,16 +2840,16 @@ const handleDeleteSelectedChats = () => {
 
        {/* 입력창 */}
         {activeGroupChatDeleted ? (
-          <div className="flex items-center justify-center px-3 py-4 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
-            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>호스트가 채팅방을 삭제했습니다</p>
+          <div className="flex items-center justify-center px-3 py-4 border-t shrink-0" style={{ borderColor: "var(--border-subtle)" }}>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>호스트가 채팅방을 삭제했습니다</p>
           </div>
         ) : (
-        <div className="flex items-center gap-2 px-3 py-2.5 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-2 px-3 py-2.5 border-t shrink-0" style={{ borderColor: "var(--border-subtle)" }}>
           <label
             className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 cursor-pointer"
-            style={{ background: "var(--muted)" }}
+            style={{ background: "var(--blue-soft)" }}
           >
-            <Image size={17} style={{ color: "var(--foreground)" }} />
+            <Image size={17} style={{ color: "var(--blue-deep)" }} />
             <input
               type="file"
               accept="image/*"
@@ -3090,14 +2875,14 @@ const handleDeleteSelectedChats = () => {
             onChange={(e) => setGroupChatInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleSendGroupMessage(); }}
             placeholder="메시지 입력..."
-            className="flex-1 px-4 py-2.5 rounded-full text-sm outline-none"
-            style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+            className="flex-1 px-4 py-2.5 rounded-full text-sm outline-none transition-colors focus:bg-[var(--blue-soft)] focus:ring-2 focus:ring-[var(--blue-primary)]/30"
+            style={{ background: "var(--bg-input)", color: "var(--text-body)", border: "1px solid var(--border-subtle)" }}
           />
           {groupChatInput.trim() ? (
             <button
               onClick={handleSendGroupMessage}
               className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: "var(--primary)" }}
+              style={{ background: "var(--blue-deep)" }}
             >
               <Send size={15} color="white" />
             </button>
@@ -3105,16 +2890,16 @@ const handleDeleteSelectedChats = () => {
             <button
               onClick={sendGroupHeartMessage}
               className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: "var(--muted)" }}
+              style={{ background: "var(--blue-soft)" }}
               aria-label="하트 보내기"
             >
-              <Heart size={17} color="#d4183d" />
+              <Heart size={17} color="var(--danger)" />
             </button>
           )}
         </div>
         )}
         {viewingGroupMember && (
-          <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
+          <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--bg-base)" }}>
             <OtherUserProfile
               author={viewingGroupMember}
               posts={allPosts}
@@ -3138,18 +2923,18 @@ const handleDeleteSelectedChats = () => {
         {showChatSettings && (
           <div
             className="absolute inset-0 z-50 flex items-start justify-end"
-            style={{ background: "rgba(0,0,0,0.3)" }}
+            style={{ background: "rgba(15,23,42,0.3)" }}
             onClick={() => setShowChatSettings(false)}
           >
             <div
-              className="mt-16 mr-3 w-[260px] rounded-2xl shadow-lg overflow-hidden"
-              style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+              className="mt-16 mr-3 w-[260px] rounded-[var(--r-lg)] overflow-hidden"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }}
               onClick={(e) => e.stopPropagation()}
             >
               {chatSettingsView === "menu" ? (
                 <>
                   {/* 대표 사진 + 이름 */}
-                  <div className="flex flex-col items-center gap-2 px-4 pt-5 pb-4 border-b" style={{ borderColor: "var(--border)" }}>
+                  <div className="flex flex-col items-center gap-2 px-4 pt-5 pb-4 border-b" style={{ borderColor: "var(--border-subtle)" }}>
                     <label className="relative w-16 h-16 rounded-full overflow-hidden cursor-pointer shrink-0">
                       <img
                         src={resolveAssetUrl(activeGroupChat.avatar) || defaultAvatar}
@@ -3159,7 +2944,7 @@ const handleDeleteSelectedChats = () => {
                       />
                       <span
                         className="absolute bottom-0 right-0 w-5 h-5 rounded-full flex items-center justify-center"
-                        style={{ background: "var(--primary)" }}
+                        style={{ background: "var(--blue-deep)" }}
                       >
                         <Camera size={11} color="white" />
                       </span>
@@ -3175,81 +2960,69 @@ const handleDeleteSelectedChats = () => {
                         }}
                       />
                     </label>
-                    <p className="text-sm font-semibold text-center truncate max-w-full" style={{ color: "var(--foreground)" }}>
+                    <p className="text-sm font-semibold text-center truncate max-w-full" style={{ color: "var(--text-strong)" }}>
                       {activeGroupChat.name || activeGroupChat.post?.title ||
                         activeGroupChat.members.filter((m) => m._id !== currentUser?._id).map((m) => m.nickname).join(", ")}
                     </p>
                   </div>
 
-                  <button
-                    onClick={() => { setRenameInput(activeGroupChat.name || ""); setChatSettingsView("rename"); }}
-                    className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm text-left"
-                    style={{ color: "var(--foreground)" }}
-                  >
-                    <span className="flex items-center gap-2"><Edit2 size={14} /> 채팅방 이름 변경</span>
-                    <ChevronRight size={14} style={{ color: "var(--muted-foreground)" }} />
-                  </button>
-                  <button
-                    onClick={() => { setShowChatSettings(false); setShowGroupChatMembers(true); }}
-                    className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm text-left"
-                    style={{ color: "var(--foreground)" }}
-                  >
-                    <span className="flex items-center gap-2"><Users size={14} /> 멤버 목록</span>
-                    <span className="flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
-                      {activeGroupChat.members.length} <ChevronRight size={14} />
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => { setShowChatSettings(false); setInviteGroupChatMemberIds([]); setShowInviteToGroupChat(true); }}
-                    className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm text-left"
-                    style={{ color: "var(--foreground)" }}
-                  >
-                    <span className="flex items-center gap-2"><UserPlus size={14} /> 친구 초대</span>
-                    <ChevronRight size={14} style={{ color: "var(--muted-foreground)" }} />
-                  </button>
-                  <button
-                    onClick={() => { setShowChatSettings(false); openPhotoGallery(); }}
-                    className="w-full flex items-center justify-between gap-2 px-4 py-3 text-sm text-left"
-                    style={{ color: "var(--foreground)" }}
-                  >
-                    <span className="flex items-center gap-2"><Images size={14} /> 사진 모아보기</span>
-                    <ChevronRight size={14} style={{ color: "var(--muted-foreground)" }} />
-                  </button>
-                  <button
-                    onClick={handleLeaveGroupChat}
-                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left border-t"
-                    style={{ color: "#d4183d", borderColor: "var(--border)" }}
-                  >
-                    <LogOut size={14} /> 채팅방 나가기
-                  </button>
+                  <List>
+                    <ListItem
+                      icon={<Edit2 size={14} style={{ color: "var(--text-muted)" }} />}
+                      label="채팅방 이름 변경"
+                      onPress={() => { setRenameInput(activeGroupChat.name || ""); setChatSettingsView("rename"); }}
+                    />
+                    <ListItem
+                      icon={<Users size={14} style={{ color: "var(--text-muted)" }} />}
+                      label="멤버 목록"
+                      onPress={() => { setShowChatSettings(false); setShowGroupChatMembers(true); }}
+                      trailing={
+                        <span className="flex items-center gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                          {activeGroupChat.members.length} <ChevronRight size={14} />
+                        </span>
+                      }
+                    />
+                    <ListItem
+                      icon={<UserPlus size={14} style={{ color: "var(--text-muted)" }} />}
+                      label="친구 초대"
+                      onPress={() => { setShowChatSettings(false); setInviteGroupChatMemberIds([]); setShowInviteToGroupChat(true); }}
+                    />
+                    <ListItem
+                      icon={<Images size={14} style={{ color: "var(--text-muted)" }} />}
+                      label="사진 모아보기"
+                      onPress={() => { setShowChatSettings(false); openPhotoGallery(); }}
+                    />
+                    <ListItem
+                      icon={<LogOut size={14} />}
+                      label="채팅방 나가기"
+                      onPress={handleLeaveGroupChat}
+                      danger
+                      last
+                    />
+                  </List>
                 </>
               ) : (
                 <div className="px-4 py-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <button onClick={() => setChatSettingsView("menu")} className="text-sm" style={{ color: "var(--muted-foreground)" }}>←</button>
-                    <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>채팅방 이름 변경</p>
+                    <IconButton aria-label="뒤로" onClick={() => setChatSettingsView("menu")} className="h-7 w-7">
+                      <ArrowLeft size={14} />
+                    </IconButton>
+                    <p className="text-sm font-semibold" style={{ color: "var(--text-strong)" }}>채팅방 이름 변경</p>
                   </div>
-                  <input
+                  <Input
+                    label="채팅방 이름"
+                    hideLabel
                     value={renameInput}
                     onChange={(e) => setRenameInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && handleRenameGroupChat()}
                     maxLength={30}
                     placeholder="채팅방 이름"
-                    className="w-full px-3 py-2 rounded-xl text-sm outline-none mb-3"
-                    style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                    className="mb-3"
                     autoFocus
                   />
-                  <button
-                    onClick={handleRenameGroupChat}
-                    disabled={!renameInput.trim()}
-                    className="w-full py-2.5 rounded-xl text-sm font-semibold"
-                    style={{
-                      background: renameInput.trim() ? "var(--primary)" : "var(--muted)",
-                      color: renameInput.trim() ? "white" : "var(--muted-foreground)",
-                    }}
-                  >
+                  <Button fullWidth onClick={handleRenameGroupChat} disabled={!renameInput.trim()}>
                     저장
-                  </button>
+                  </Button>
                 </div>
               )}
             </div>
@@ -3257,28 +3030,28 @@ const handleDeleteSelectedChats = () => {
         )}
         {/* 친구 초대 패널 */}
         {showInviteToGroupChat && (
-          <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-              <button onClick={() => { setShowInviteToGroupChat(false); setInviteGroupChatMemberIds([]); }}>
-                <X size={20} style={{ color: "var(--foreground)" }} />
-              </button>
-              <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>친구 초대</h2>
-              <button
-                onClick={handleInviteToGroupChat}
-                disabled={inviteGroupChatMemberIds.length === 0 || isInvitingToGroupChat}
-                className="text-sm font-semibold px-2"
-                style={{ color: inviteGroupChatMemberIds.length === 0 || isInvitingToGroupChat ? "var(--muted-foreground)" : "var(--primary)" }}
-              >
-                {isInvitingToGroupChat ? "초대 중..." : "초대"}
-              </button>
-            </div>
+          <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--bg-base)" }}>
+            <ScreenHeader
+              title="친구 초대"
+              onBack={() => { setShowInviteToGroupChat(false); setInviteGroupChatMemberIds([]); }}
+              action={
+                <button
+                  onClick={handleInviteToGroupChat}
+                  disabled={inviteGroupChatMemberIds.length === 0 || isInvitingToGroupChat}
+                  className="text-sm font-semibold px-2"
+                  style={{ color: inviteGroupChatMemberIds.length === 0 || isInvitingToGroupChat ? "var(--text-muted)" : "var(--blue-primary)" }}
+                >
+                  {isInvitingToGroupChat ? "초대 중..." : "초대"}
+                </button>
+              }
+            />
             <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar">
               {(() => {
                 const currentMemberIds = new Set(activeGroupChat.members.map((m) => m._id));
                 const inviteCandidates = friends.filter((f) => !currentMemberIds.has(f._id));
                 if (inviteCandidates.length === 0) {
                   return (
-                    <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+                    <p className="text-sm text-center mt-10" style={{ color: "var(--text-muted)" }}>
                       초대할 수 있는 친구가 없습니다.
                     </p>
                   );
@@ -3286,27 +3059,19 @@ const handleDeleteSelectedChats = () => {
                 return inviteCandidates.map((friend) => {
                   const checked = inviteGroupChatMemberIds.includes(friend._id);
                   return (
-                    <button
+                    <UserRow
                       key={friend._id}
-                      onClick={() =>
+                      avatarSrc={resolveAssetUrl(friend.avatar)}
+                      fallbackSrc={defaultAvatar}
+                      name={friend.nickname}
+                      selectable
+                      selected={checked}
+                      onPress={() =>
                         setInviteGroupChatMemberIds((prev) =>
                           prev.includes(friend._id) ? prev.filter((id) => id !== friend._id) : [...prev, friend._id]
                         )
                       }
-                      className="flex items-center gap-3 p-2.5 rounded-xl text-left"
-                      style={{ background: "var(--card)", outline: checked ? "2px solid var(--primary)" : "none" }}
-                    >
-                      <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                        <img src={resolveAssetUrl(friend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                      </div>
-                      <p className="flex-1 min-w-0 text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{friend.nickname}</p>
-                      <div
-                        className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
-                        style={{ background: checked ? "var(--primary)" : "var(--muted)", border: "1.5px solid var(--border)" }}
-                      >
-                        {checked && <span className="text-white text-[10px] font-bold">✓</span>}
-                      </div>
-                    </button>
+                    />
                   );
                 });
               })()}
@@ -3320,18 +3085,19 @@ const handleDeleteSelectedChats = () => {
             style={{ background: "rgba(0,0,0,0.9)" }}
             onClick={() => setViewingImage(null)}
           >
-            <button
+            <IconButton
+              aria-label="닫기"
               onClick={() => setViewingImage(null)}
-              className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+              className="absolute top-4 right-4"
               style={{ background: "rgba(255,255,255,0.15)" }}
             >
               <X size={20} color="white" />
-            </button>
+            </IconButton>
             <img
               src={resolveAssetUrl(viewingImage)}
               alt="사진 크게 보기"
               onClick={(e) => e.stopPropagation()}
-              className="max-w-full max-h-full rounded-xl object-contain"
+              className="max-w-full max-h-full rounded-[var(--r-lg)] object-contain"
             />
           </div>
         )}
@@ -3347,21 +3113,20 @@ const handleDeleteSelectedChats = () => {
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
 
         {/* 헤더 */}
-        <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border-subtle)" }}>
           {selectMode ? (
-            <button onClick={() => { setSelectMode(false); setSelectedMsgs([]); }} className="text-sm font-semibold" style={{ color: "var(--primary)" }}>취소</button>
+            <button onClick={() => { setSelectMode(false); setSelectedMsgs([]); }} className="text-sm font-semibold" style={{ color: "var(--blue-primary)" }}>취소</button>
           ) : (
-            <button onClick={() => setActiveFriend(null)} className="text-lg">←</button>
+            <IconButton aria-label="뒤로 가기" onClick={() => setActiveFriend(null)}>
+              <ArrowLeft size={16} />
+            </IconButton>
           )}
-          <button
-            onClick={openFriendProfileFromChat}
-            className="relative w-9 h-9 rounded-full overflow-hidden shrink-0"
-          >
-            <img src={resolveAssetUrl(activeFriend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+          <button onClick={openFriendProfileFromChat} className="relative shrink-0">
+            <Avatar src={resolveAssetUrl(activeFriend.avatar)} fallbackSrc={defaultAvatar} />
             {onlineUserIds.includes(activeFriend._id) && (
               <span
                 className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full"
-                style={{ background: "#42d354", border: "2px solid var(--background)" }}
+                style={{ background: "#42d354", border: "2px solid var(--bg-base)" }}
               />
             )}
           </button>
@@ -3369,14 +3134,14 @@ const handleDeleteSelectedChats = () => {
             onClick={openFriendProfileFromChat}
             className="flex-1 text-left"
           >
-            <p className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>{activeFriend.nickname}</p>
-            <p className="text-xs" style={{ color: onlineUserIds.includes(activeFriend._id) ? "#42d354" : "var(--muted-foreground)" }}>
+            <p className="font-semibold text-sm" style={{ color: "var(--text-strong)" }}>{activeFriend.nickname}</p>
+            <p className="text-xs" style={{ color: onlineUserIds.includes(activeFriend._id) ? "#42d354" : "var(--text-muted)" }}>
               {onlineUserIds.includes(activeFriend._id) ? "활동 중" : ""}
             </p>
           </button>
           {selectMode ? (
             <div className="flex gap-2">
-              <button
+              <Chip
                 onClick={() => {
                   selectedMsgs.forEach((id) => hiddenMessageIdsRef.current.add(id));
                   setChatMessages((prev) => ({
@@ -3386,41 +3151,38 @@ const handleDeleteSelectedChats = () => {
                   setSelectedMsgs([]);
                   setSelectMode(false);
                 }}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-                style={{ background: "#d4183d", color: "white" }}
+                className="!bg-[var(--danger)] !text-white"
               >
                 🗑️ 삭제 ({selectedMsgs.length})
-              </button>
-              <button
-                onClick={() => setShowReportConfirm(true)}
-                className="px-3 py-1.5 rounded-xl text-xs font-semibold"
-                style={{ background: "var(--muted)", color: "#d4183d" }}
-              >
+              </Chip>
+              <Chip onClick={() => setShowReportConfirm(true)} className="!text-[var(--danger)]">
                 🚨 신고
-              </button>
+              </Chip>
             </div>
           ) : (
-            <button onClick={() => setShowChatMenu((v) => !v)} className="p-1 text-xl">⋮</button>
+            <IconButton aria-label="더보기" onClick={() => setShowChatMenu((v) => !v)}>
+              <MoreVertical size={16} />
+            </IconButton>
           )}
         </div>
 
         {/* ⋮ 드롭다운 */}
         {showChatMenu && (
           <div
-            className="absolute right-4 top-16 z-50 rounded-xl shadow-lg overflow-hidden"
-            style={{ background: "var(--card)", border: "1px solid var(--border)", minWidth: "160px" }}
+            className="absolute right-4 top-16 z-50 rounded-[var(--r-md)] overflow-hidden"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 4px 12px rgba(15,23,42,0.08)", minWidth: "160px" }}
           >
             <button
               onClick={() => { setShowChatMenu(false); setSelectMode(true); }}
               className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left"
-              style={{ color: "var(--foreground)" }}
+              style={{ color: "var(--text-body)" }}
             >
               ☑️ 메시지 선택
             </button>
             <button
               onClick={() => { setShowChatMenu(false); openPhotoGallery(); }}
               className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left"
-              style={{ color: "var(--foreground)" }}
+              style={{ color: "var(--text-body)" }}
             >
               <Images size={14} /> 사진 모아보기
             </button>
@@ -3462,7 +3224,7 @@ const handleDeleteSelectedChats = () => {
             }}
             className="w-full flex items-center gap-2 px-4 py-3 text-sm text-left"
             style={{
-              color: "#d4183d"
+              color: "var(--danger)"
             }}
           >
             🚫 차단
@@ -3472,59 +3234,53 @@ const handleDeleteSelectedChats = () => {
 
     {chatToast && (
           <div
-            className="absolute top-4 left-4 right-4 z-[70] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-lg"
-            style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+            className="absolute top-4 left-4 right-4 z-[70] flex items-center gap-3 px-4 py-3 rounded-[var(--r-lg)]"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }}
             onClick={() => setChatToast(null)}
           >
-            <div className="w-8 h-8 rounded-full shrink-0" style={{ background: "var(--muted)" }}>
-              <img src={defaultAvatar} alt="프로필" className="w-full h-full object-cover rounded-full" />
-            </div>
+            <Avatar src={null} fallbackSrc={defaultAvatar} size="sm" className="h-8 w-8" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>{chatToast.nickname}</p>
-              <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{chatToast.content}</p>
+              <p className="text-xs font-semibold" style={{ color: "var(--text-strong)" }}>{chatToast.nickname}</p>
+              <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{chatToast.content}</p>
             </div>
           </div>
         )}
         {/* 신고 팝업 */}
-        {showReportConfirm && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(0,0,0,0.4)" }}>
-            <div className="rounded-2xl p-5 mx-6 w-full" style={{ background: "var(--card)" }}>
-              <p className="font-semibold text-sm text-center mb-1" style={{ color: "var(--foreground)" }}>신고</p>
-              <p className="text-xs text-center mb-3" style={{ color: "var(--muted-foreground)" }}>신고 이유를 선택해주세요</p>
-              <div className="flex flex-col gap-2 mb-4">
-                {["욕설/비방", "스팸/광고", "음란물", "개인정보 침해", "기타"].map((reason) => (
-                  <button
-                    key={reason}
-                    onClick={async () => {
-                      if (!activeFriend) return;
-                      try {
-                        await api.post("/reports", { targetType: "user", targetId: activeFriend._id, reason });
-                      } catch {
-                        showAlert("신고 접수에 실패했습니다.");
-                        return;
-                      }
-                      setShowReportConfirm(false);
-                      setSelectMode(false);
-                      setSelectedMsgs([]);
-                      showAlert(`"${reason}" 사유로 신고가 접수되었습니다.`);
-                    }}
-                    className="w-full py-2.5 rounded-xl text-sm text-left px-4"
-                    style={{ background: "var(--muted)", color: "var(--foreground)" }}
-                  >
-                    {reason}
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={() => setShowReportConfirm(false)}
-                className="w-full py-2.5 rounded-xl text-sm font-semibold"
-                style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
-              >
-                취소
-              </button>
+        <Modal
+          open={showReportConfirm}
+          title="신고"
+          onClose={() => setShowReportConfirm(false)}
+          confirmText="취소"
+          onConfirm={() => setShowReportConfirm(false)}
+        >
+          <div className="flex flex-col gap-3">
+            <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>신고 이유를 선택해주세요</p>
+            <div className="flex flex-col gap-2">
+              {["욕설/비방", "스팸/광고", "음란물", "개인정보 침해", "기타"].map((reason) => (
+                <button
+                  key={reason}
+                  onClick={async () => {
+                    if (!activeFriend) return;
+                    try {
+                      await api.post("/reports", { targetType: "user", targetId: activeFriend._id, reason });
+                    } catch {
+                      showAlert("신고 접수에 실패했습니다.");
+                      return;
+                    }
+                    setShowReportConfirm(false);
+                    setSelectMode(false);
+                    setSelectedMsgs([]);
+                    showAlert(`"${reason}" 사유로 신고가 접수되었습니다.`);
+                  }}
+                  className="w-full py-2.5 rounded-[var(--r-md)] text-sm text-left px-4"
+                  style={{ background: "var(--bg-input)", color: "var(--text-body)" }}
+                >
+                  {reason}
+                </button>
+              ))}
             </div>
           </div>
-        )}
+        </Modal>
 
         {/* 메시지 목록 */}
         <div
@@ -3550,113 +3306,49 @@ const handleDeleteSelectedChats = () => {
               !next || next.mine !== msg.mine ||
               new Date(next.createdAt).getTime() - new Date(msg.createdAt).getTime() > 5 * 60 * 1000;
             const isVeryLast = idx === arr.length - 1;
-            // 인스타처럼 같은 사람이 연달아 보낸 버블은 이어지는 쪽 모서리를 좁혀서 "쌓인" 느낌을 준다.
-            const tightCorner = "6px";
-            const roundCorner = "20px";
-            const bubbleRadius = msg.mine
-              ? {
-                  borderTopRightRadius: isFirstInCluster ? roundCorner : tightCorner,
-                  borderBottomRightRadius: isLastInCluster ? roundCorner : tightCorner,
-                  borderTopLeftRadius: roundCorner,
-                  borderBottomLeftRadius: roundCorner,
-                }
-              : {
-                  borderTopLeftRadius: isFirstInCluster ? roundCorner : tightCorner,
-                  borderBottomLeftRadius: isLastInCluster ? roundCorner : tightCorner,
-                  borderTopRightRadius: roundCorner,
-                  borderBottomRightRadius: roundCorner,
-                };
+            const showTime = revealedTimeId === msg._id || (isLastInCluster && isVeryLast && msg.mine && msg.read);
+            const revealedText = showTime
+              ? `${revealedTimeId === msg._id ? formatMessageTime(msg.createdAt, nowTick) : ""}${
+                  isVeryLast && msg.mine && msg.read ? (revealedTimeId === msg._id ? " · 읽음" : "읽음") : ""
+                }`
+              : undefined;
             return (
             <div key={msg._id}>
               {showDivider && (
-                <p className="text-center text-[11px] my-3" style={{ color: "var(--muted-foreground)" }}>
+                <p className="text-center text-[11px] my-3" style={{ color: "var(--text-muted)" }}>
                   {formatDividerTime(msg.createdAt)}
                 </p>
               )}
-              <div className={`flex items-end gap-2 ${msg.mine ? "justify-end" : "justify-start"} ${isLastInCluster ? "mb-2.5" : "mb-0.5"}`}>
-                {selectMode && msg.mine && (
-                  <input
-                    type="checkbox"
-                    checked={selectedMsgs.includes(msg._id)}
-                    onChange={() => {
-                      setSelectedMsgs((prev) =>
-                        prev.includes(msg._id) ? prev.filter((id) => id !== msg._id) : [...prev, msg._id]
-                      );
-                    }}
-                    className="w-4 h-4 accent-orange-400"
-                  />
-                )}
-                {!msg.mine && (
-  isLastInCluster ? (
-    <button
-      onClick={openFriendProfileFromChat}
-      className="w-6 h-6 rounded-full overflow-hidden shrink-0"
-    >
-      <img src={resolveAssetUrl(activeFriend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-    </button>
-  ) : (
-    <div className="w-6 shrink-0" />
-  )
-)}
-                <div className={`max-w-[70%] flex flex-col gap-1 ${msg.mine ? "items-end" : "items-start"}`}>
-                  {msg.content && (
-                    <div
-                      className="relative"
-                      onClick={() => setRevealedTimeId((id) => (id === msg._id ? null : msg._id))}
-                      onDoubleClick={() => handleToggleMessageLike(msg._id)}
-                    >
-                      <div
-                        className="px-3.5 py-2 text-[14px] leading-snug select-none cursor-pointer"
-                        style={{
-                          background: msg.mine ? "var(--primary)" : "var(--card)",
-                          color: msg.mine ? "white" : "var(--foreground)",
-                          outline: selectedMsgs.includes(msg._id) ? "2px solid var(--primary)" : "none",
-                          ...bubbleRadius,
-                        }}
-                      >
-                        <p>{msg.content}</p>
-                      </div>
-                      {msg.liked && (
-                        <span
-                          className="absolute -bottom-2 flex items-center justify-center w-5 h-5 rounded-full"
-                          style={msg.mine ? { background: "var(--background)", left: -4 } : { background: "var(--background)", right: -4 }}
-                        >
-                          <Heart size={12} fill="#d4183d" color="#d4183d" />
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {msg.image && (
-                    <div className="relative">
-                      <img
-                        src={resolveAssetUrl(msg.image)}
-                        alt="사진"
-                        onClick={() => setViewingImage(msg.image!)}
-                        onDoubleClick={() => handleToggleMessageLike(msg._id)}
-                        className="rounded-2xl max-w-full cursor-pointer"
-                        style={{
-                          maxHeight: "200px",
-                          outline: selectedMsgs.includes(msg._id) ? "2px solid var(--primary)" : "none",
-                        }}
-                      />
-                      {msg.liked && (
-                        <span
-                          className="absolute -bottom-2 flex items-center justify-center w-5 h-5 rounded-full"
-                          style={msg.mine ? { background: "var(--background)", left: -4 } : { background: "var(--background)", right: -4 }}
-                        >
-                          <Heart size={12} fill="#d4183d" color="#d4183d" />
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {(revealedTimeId === msg._id || (isLastInCluster && isVeryLast && msg.mine && msg.read)) && (
-                    <p className="text-[10px] opacity-70" style={{ color: "var(--muted-foreground)" }}>
-                      {revealedTimeId === msg._id ? formatMessageTime(msg.createdAt, nowTick) : ""}
-                      {isVeryLast && msg.mine && msg.read ? (revealedTimeId === msg._id ? " · 읽음" : "읽음") : ""}
-                    </p>
-                  )}
-                </div>
-              </div>
+              <MessageBubble
+                isMine={msg.mine}
+                isFirstInCluster={isFirstInCluster}
+                isLastInCluster={isLastInCluster}
+                content={msg.content}
+                imageSrc={msg.image ? resolveAssetUrl(msg.image) ?? undefined : undefined}
+                onImageClick={() => setViewingImage(msg.image!)}
+                avatarSrc={resolveAssetUrl(activeFriend.avatar)}
+                fallbackSrc={defaultAvatar}
+                onAvatarClick={openFriendProfileFromChat}
+                liked={msg.liked}
+                onToggleLike={() => handleToggleMessageLike(msg._id)}
+                onToggleTime={() => setRevealedTimeId((id) => (id === msg._id ? null : msg._id))}
+                revealedText={revealedText}
+                selected={selectedMsgs.includes(msg._id)}
+                leading={
+                  selectMode && msg.mine && (
+                    <input
+                      type="checkbox"
+                      checked={selectedMsgs.includes(msg._id)}
+                      onChange={() => {
+                        setSelectedMsgs((prev) =>
+                          prev.includes(msg._id) ? prev.filter((id) => id !== msg._id) : [...prev, msg._id]
+                        );
+                      }}
+                      className="w-4 h-4 accent-[var(--blue-primary)]"
+                    />
+                  )
+                }
+              />
             </div>
             );
           })}
@@ -3669,28 +3361,26 @@ const handleDeleteSelectedChats = () => {
               chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
               setNewMsgToast(null);
             }}
-            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 pl-1.5 pr-3 py-1.5 rounded-full shadow-lg text-xs font-semibold"
-            style={{ background: "var(--card)", border: "1px solid var(--border)", color: "var(--foreground)" }}
+            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1.5 pl-1.5 pr-3 py-1.5 rounded-full text-xs font-semibold"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 4px 12px rgba(15,23,42,0.08)", color: "var(--text-strong)" }}
           >
-            <span className="w-6 h-6 rounded-full overflow-hidden shrink-0">
-              <img src={resolveAssetUrl(newMsgToast.avatar) || defaultAvatar} alt="" className="w-full h-full object-cover" />
-            </span>
+            <Avatar src={resolveAssetUrl(newMsgToast.avatar)} fallbackSrc={defaultAvatar} size="sm" className="h-6 w-6" />
             <span className="truncate max-w-[120px]">{newMsgToast.nickname}</span>
             <ChevronDown size={14} />
           </button>
         )}
         {/* 입력창 */}
         {activeFriendTheyLeft ? (
-          <div className="flex items-center justify-center px-3 py-4 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
-            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>상대방이 나갔습니다</p>
+          <div className="flex items-center justify-center px-3 py-4 border-t shrink-0" style={{ borderColor: "var(--border-subtle)" }}>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>상대방이 나갔습니다</p>
           </div>
         ) : (
-        <div className="flex items-center gap-2 px-3 py-2.5 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-2 px-3 py-2.5 border-t shrink-0" style={{ borderColor: "var(--border-subtle)" }}>
           <label
             className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 cursor-pointer"
-            style={{ background: "var(--muted)" }}
+            style={{ background: "var(--blue-soft)" }}
           >
-            <Image size={17} style={{ color: "var(--foreground)" }} />
+            <Image size={17} style={{ color: "var(--blue-deep)" }} />
             <input
               type="file"
               accept="image/*"
@@ -3720,14 +3410,14 @@ const handleDeleteSelectedChats = () => {
             onChange={(e) => setChatInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
             placeholder="메시지 입력..."
-            className="flex-1 px-4 py-2.5 rounded-full text-sm outline-none"
-            style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+            className="flex-1 px-4 py-2.5 rounded-full text-sm outline-none transition-colors focus:bg-[var(--blue-soft)] focus:ring-2 focus:ring-[var(--blue-primary)]/30"
+            style={{ background: "var(--bg-input)", color: "var(--text-body)", border: "1px solid var(--border-subtle)" }}
           />
           {chatInput.trim() ? (
             <button
               onClick={sendMessage}
               className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: "var(--primary)" }}
+              style={{ background: "var(--blue-deep)" }}
             >
               <Send size={15} color="white" />
             </button>
@@ -3735,10 +3425,10 @@ const handleDeleteSelectedChats = () => {
             <button
               onClick={sendHeartMessage}
               className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: "var(--muted)" }}
+              style={{ background: "var(--blue-soft)" }}
               aria-label="하트 보내기"
             >
-              <Heart size={17} color="#d4183d" />
+              <Heart size={17} color="var(--danger)" />
             </button>
           )}
         </div>
@@ -3751,18 +3441,19 @@ const handleDeleteSelectedChats = () => {
             style={{ background: "rgba(0,0,0,0.9)" }}
             onClick={() => setViewingImage(null)}
           >
-            <button
+            <IconButton
+              aria-label="닫기"
               onClick={() => setViewingImage(null)}
-              className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+              className="absolute top-4 right-4"
               style={{ background: "rgba(255,255,255,0.15)" }}
             >
               <X size={20} color="white" />
-            </button>
+            </IconButton>
             <img
               src={viewingImage}
               alt="사진 크게 보기"
               onClick={(e) => e.stopPropagation()}
-              className="max-w-full max-h-full rounded-xl object-contain"
+              className="max-w-full max-h-full rounded-[var(--r-lg)] object-contain"
             />
           </div>
         )}
@@ -3806,13 +3497,16 @@ const handleDeleteSelectedChats = () => {
  if (selectedPost) {
   const renderCommentItem = (c: PostComment, isReply: boolean) => (
     <div key={c._id} className="flex gap-2 items-start relative" style={isReply ? { marginLeft: 28 } : undefined}>
-      <div className={`${isReply ? "w-6 h-6" : "w-7 h-7"} rounded-full flex items-center justify-center text-sm cursor-pointer overflow-hidden shrink-0`}
-        style={{ background: "var(--muted)" }}
-        onClick={() => openAuthor(c.author)}>
-        <img src={getAuthorAvatarUrl(c.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-      </div>
+      <button onClick={() => openAuthor(c.author)} className="shrink-0">
+        <Avatar
+          src={getAuthorAvatarUrl(c.author)}
+          fallbackSrc={defaultAvatar}
+          size="sm"
+          className={isReply ? "h-6 w-6" : undefined}
+        />
+      </button>
       <div className="flex-1 px-3 py-2 rounded-xl text-xs flex items-start justify-between gap-2"
-        style={{ color: "var(--foreground)" }}>
+        style={{ color: "var(--text-body)" }}>
         <div>
           <span
             className="block font-semibold cursor-pointer"
@@ -3820,8 +3514,8 @@ const handleDeleteSelectedChats = () => {
           >
             {c.author.nickname}
           </span>
-          <span style={{ color: "var(--muted-foreground)" }}>{renderLinkifiedText(c.content)}</span>
-          <div className="flex items-center gap-3 mt-1" style={{ color: "var(--muted-foreground)" }}>
+          <span style={{ color: "var(--text-muted)" }}>{renderLinkifiedText(c.content)}</span>
+          <div className="flex items-center gap-3 mt-1" style={{ color: "var(--text-muted)" }}>
             <span className="text-[11px]">{getDisplayTime(c, nowTick)}</span>
             {!isReply && (
               <button
@@ -3831,7 +3525,7 @@ const handleDeleteSelectedChats = () => {
                   commentInputRef.current?.focus();
                 }}
                 className="text-[11px] font-semibold"
-                style={{ color: "var(--muted-foreground)" }}
+                style={{ color: "var(--text-muted)" }}
               >
                 답글 달기
               </button>
@@ -3841,21 +3535,21 @@ const handleDeleteSelectedChats = () => {
         <div className="relative shrink-0">
           <button
             onClick={() => setOpenCommentMenu(openCommentMenu === c._id ? null : c._id)}
-            style={{ color: "var(--muted-foreground)" }}
+            style={{ color: "var(--text-muted)" }}
             aria-label="댓글 더보기"
           >
             <MoreVertical size={14} />
           </button>
           {openCommentMenu === c._id && (
             <div
-              className="absolute right-0 top-6 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
-              style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+              className="absolute right-0 top-6 z-20 rounded-[var(--r-md)] py-1 min-w-[90px]"
+              style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }}
             >
               {currentUser && (c.author._id === currentUser._id || isAdmin) ? (
                 <button
                   onClick={() => handleDeleteComment(selectedPost._id, c._id)}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
-                  style={{ color: "#d4183d" }}
+                  style={{ color: "var(--danger)" }}
                 >
                   <Trash2 size={13} /> 삭제
                 </button>
@@ -3866,7 +3560,7 @@ const handleDeleteSelectedChats = () => {
                     handleReportCommentAuthor(c);
                   }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs text-left hover:opacity-70"
-                  style={{ color: "#d4183d" }}
+                  style={{ color: "var(--danger)" }}
                 >
                   <AlertTriangle size={13} /> 신고
                 </button>
@@ -3880,7 +3574,7 @@ const handleDeleteSelectedChats = () => {
 
   const commentsList = (
     <>
-      <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+      <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
         댓글 {getCommentCount(selectedPost)}개
       </p>
       {selectedPost.comments.filter((c) => !c.parentComment).map((c) => {
@@ -3893,9 +3587,9 @@ const handleDeleteSelectedChats = () => {
               <button
                 onClick={() => setExpandedReplies((prev) => ({ ...prev, [c._id]: !prev[c._id] }))}
                 className="flex items-center gap-2 text-[11px] font-semibold"
-                style={{ color: "var(--muted-foreground)", marginLeft: 40 }}
+                style={{ color: "var(--text-muted)", marginLeft: 40 }}
               >
-                <span style={{ width: 20, height: 1, background: "var(--border)" }} />
+                <span style={{ width: 20, height: 1, background: "var(--border-subtle)" }} />
                 {isExpanded ? "답글 숨기기" : `답글 ${replies.length}개 보기`}
               </button>
             )}
@@ -3906,24 +3600,20 @@ const handleDeleteSelectedChats = () => {
     </>
   );
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
-      <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-        <button onClick={() => setSelectedPostId(null)} className="text-lg">
-          ←
-        </button>
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative" style={{ background: "var(--bg-base)" }}>
+      <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border-subtle)" }}>
+        <IconButton aria-label="뒤로 가기" onClick={() => setSelectedPostId(null)}>
+          <ArrowLeft size={16} />
+        </IconButton>
         {selectedPost.board === "event" || selectedPost.board === "qna" ? (
   <>
-    <button
-      onClick={() => openAuthor(selectedPost.author)}
-      className="w-7 h-7 rounded-full flex items-center justify-center overflow-hidden shrink-0"
-      style={{ background: "var(--muted)" }}
-    >
-      <img src={getAuthorAvatarUrl(selectedPost.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+    <button onClick={() => openAuthor(selectedPost.author)} className="shrink-0">
+      <Avatar src={getAuthorAvatarUrl(selectedPost.author)} fallbackSrc={defaultAvatar} size="sm" />
     </button>
             <button
               onClick={() => openAuthor(selectedPost.author)}
               className="font-semibold text-sm flex-1 text-left truncate"
-              style={{ color: "var(--foreground)" }}
+              style={{ color: "var(--text-strong)" }}
             >
               {selectedPost.author.nickname}
             </button>
@@ -3931,23 +3621,22 @@ const handleDeleteSelectedChats = () => {
               <button
                 onClick={() => toggleEventFollow(selectedPost.author._id)}
                 className="text-xs font-semibold px-1 shrink-0"
-                style={{ color: eventFollowingIds.includes(selectedPost.author._id) ? "var(--muted-foreground)" : "var(--primary)" }}
+                style={{ color: eventFollowingIds.includes(selectedPost.author._id) ? "var(--text-muted)" : "var(--blue-primary)" }}
               >
                 {eventFollowingIds.includes(selectedPost.author._id) ? "팔로잉" : "팔로우"}
               </button>
             )}
             <div className="relative shrink-0">
-              <button
-                onClick={() => setShowMoreMenu(showMoreMenu === selectedPost._id ? null : selectedPost._id)}
-                style={{ color: "var(--foreground)" }}
+              <IconButton
                 aria-label="더보기"
+                onClick={() => setShowMoreMenu(showMoreMenu === selectedPost._id ? null : selectedPost._id)}
               >
-                <MoreHorizontal size={20} />
-              </button>
+                <MoreHorizontal size={16} />
+              </IconButton>
               {showMoreMenu === selectedPost._id && (
                 <div
-                  className="absolute right-0 top-7 z-50 rounded-xl shadow-lg overflow-hidden min-w-[130px]"
-                  style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                  className="absolute right-0 top-11 z-50 rounded-[var(--r-md)] overflow-hidden min-w-[130px]"
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }}
                 >
                   {renderPostMoreMenu(
                     selectedPost,
@@ -3974,18 +3663,18 @@ const handleDeleteSelectedChats = () => {
           </>
         ) : (
           <>
-          <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
+          <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--text-strong)" }}>게시물</h2>
           <div className="relative">
-            <button
+            <IconButton
+              aria-label="더보기"
               onClick={() => setShowMoreMenu(showMoreMenu === selectedPost._id ? null : selectedPost._id)}
-              style={{ color: "var(--foreground)" }}
             >
-              <MoreVertical size={20} />
-            </button>
+              <MoreVertical size={16} />
+            </IconButton>
             {showMoreMenu === selectedPost._id && (
               <div
-                className="absolute right-0 top-7 z-50 rounded-xl shadow-lg overflow-hidden"
-                style={{ background: "var(--card)", border: "1px solid var(--border)", minWidth: "130px" }}
+                className="absolute right-0 top-11 z-50 rounded-[var(--r-md)] overflow-hidden min-w-[130px]"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }}
               >
                 {renderPostMoreMenu(
                   selectedPost,
@@ -4011,7 +3700,7 @@ const handleDeleteSelectedChats = () => {
           </div>
           </>
         )}
-        
+
       </div>
       <div className="flex-1 min-h-0 flex flex-col">
         {selectedPost.board === "event" || selectedPost.board === "qna" ? (
@@ -4020,49 +3709,18 @@ const handleDeleteSelectedChats = () => {
      영역으로 묶어 댓글을 작성하면 항상 목록에서 확인할 수 있게 한다. */
           <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-4 no-scrollbar">
             <div className="pb-3">
-              <div className="rounded-2xl overflow-hidden shadow-sm" style={{ background: "var(--card)" }}>
+              <div
+                className="rounded-[var(--r-lg)] overflow-hidden border border-[var(--border-subtle)]"
+                style={{ background: "var(--bg-card)", boxShadow: "var(--shadow-card)" }}
+              >
                 {/* 인스타그램 스타일 이미지 영역 */}
                 {selectedPost.images.length > 0 && (
-                  <div className="relative w-full aspect-square" style={{ background: "var(--muted)" }}>
-                    <img
-                      src={resolveAssetUrl(selectedPost.images[eventImageIndex] || selectedPost.images[0])}
-                      alt="첨부 이미지"
-                      className="w-full h-full object-cover cursor-pointer"
-                      onClick={() => setFullscreenPostImage(resolveAssetUrl(selectedPost.images[eventImageIndex] || selectedPost.images[0]) || null)}
-                    />
-                    {selectedPost.images.length > 1 && (
-                      <>
-                        <span
-                          className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-xs font-semibold"
-                          style={{ background: "rgba(0,0,0,0.55)", color: "white" }}
-                        >
-                          {eventImageIndex + 1}/{selectedPost.images.length}
-                        </span>
-                        <button
-                          className="absolute inset-y-0 left-0 w-1/3"
-                          onClick={() => setEventImageIndex((i) => Math.max(0, i - 1))}
-                          aria-label="이전 이미지"
-                        />
-                        <button
-                          className="absolute inset-y-0 right-0 w-1/3"
-                          onClick={() => setEventImageIndex((i) => Math.min(selectedPost.images.length - 1, i + 1))}
-                          aria-label="다음 이미지"
-                        />
-                        <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-1">
-                          {selectedPost.images.map((_, i) => (
-                            <span
-                              key={i}
-                              className="rounded-full"
-                              style={{
-                                width: 5, height: 5,
-                                background: i === eventImageIndex ? "white" : "rgba(255,255,255,0.5)",
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
+                  <ImageCarousel
+                    key={selectedPost._id}
+                    images={selectedPost.images.map((img) => resolveAssetUrl(img) ?? img)}
+                    aspect="square"
+                    onImageClick={(src) => setFullscreenPostImage(src)}
+                  />
                 )}
 
                 <div className="p-4">
@@ -4070,8 +3728,8 @@ const handleDeleteSelectedChats = () => {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
                       <button onClick={() => handleLike(selectedPost)}>
-                        <Heart size={22} fill={isLiked(selectedPost) ? "#3b82f6" : "none"}
-                          color={isLiked(selectedPost) ? "#3b82f6" : "var(--foreground)"} />
+                        <Heart size={22} fill={isLiked(selectedPost) ? "var(--blue-primary)" : "none"}
+                          color={isLiked(selectedPost) ? "var(--blue-primary)" : "var(--text-strong)"} />
                       </button>
                       <button
                         onClick={() => {
@@ -4079,18 +3737,18 @@ const handleDeleteSelectedChats = () => {
                           commentInputRef.current?.focus();
                         }}
                       >
-                        <MessageCircle size={22} style={{ color: "var(--foreground)" }} />
+                        <MessageCircle size={22} style={{ color: "var(--text-strong)" }} />
                       </button>
                     </div>
                     <button onClick={() => toggleSave(selectedPost._id)}>
-                      <Bookmark size={22} fill={savedPosts[selectedPost._id] ? "var(--primary)" : "none"}
-                        color={savedPosts[selectedPost._id] ? "var(--primary)" : "var(--foreground)"} />
+                      <Bookmark size={22} fill={savedPosts[selectedPost._id] ? "var(--blue-primary)" : "none"}
+                        color={savedPosts[selectedPost._id] ? "var(--blue-primary)" : "var(--text-strong)"} />
                     </button>
                   </div>
 
                   <p
                     className="text-sm font-semibold mb-1 cursor-pointer w-fit"
-                    style={{ color: "var(--foreground)" }}
+                    style={{ color: "var(--text-strong)" }}
                     onClick={() => openReactionList(selectedPost._id, "likes")}
                   >
                     좋아요 {selectedPost.likes.length}개
@@ -4099,7 +3757,7 @@ const handleDeleteSelectedChats = () => {
                   <p
   className="text-sm leading-relaxed"
   style={{
-    color: "var(--foreground)",
+    color: "var(--text-body)",
     wordBreak: "break-all",
     whiteSpace: "pre-wrap",
     overflowWrap: "break-word",
@@ -4118,10 +3776,7 @@ const handleDeleteSelectedChats = () => {
                   {selectedPost.tags && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {selectedPost.tags.map((tag, i) => (
-                        <span key={i} className="text-xs px-2 py-0.5 rounded-full"
-                          style={{ background: "var(--secondary)", color: "var(--primary)" }}>
-                          #{tag}
-                        </span>
+                        <Badge key={i} tone="info">#{tag}</Badge>
                       ))}
                     </div>
                   )}
@@ -4129,57 +3784,53 @@ const handleDeleteSelectedChats = () => {
               </div>
             </div>
 
-            <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+            <Card className="flex flex-col gap-3">
               {commentsList}
-            </div>
+            </Card>
           </div>
        ) : (
   <div className="flex-1 min-h-0 overflow-y-auto px-4 pt-4 pb-4 no-scrollbar">
     {/* 게시물 카드: 내용이 아무리 길어도 위 스크롤 영역 안에서 자연스럽게 스크롤된다 */}
     <div className="pb-3">
-      <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
+      <Card>
         <div className="flex items-center gap-2 mb-3">
           <button
             onClick={() => {
               openAuthor(selectedPost.author);
             }}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
-            style={{ background: "var(--muted)" }}
+            className="shrink-0"
           >
-            <img src={getAuthorAvatarUrl(selectedPost.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+            <Avatar src={getAuthorAvatarUrl(selectedPost.author)} fallbackSrc={defaultAvatar} />
           </button>
           <div className="flex-1 cursor-pointer" onClick={() => openAuthor(selectedPost.author)}>
-            <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+            <p className="text-sm font-semibold" style={{ color: "var(--text-strong)" }}>
               {selectedPost.author.nickname}
             </p>
-            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
               {getDisplayTime(selectedPost, nowTick)}
             </p>
           </div>
-          {selectedPost.price && (
-            <span className="px-2 py-1 rounded-xl text-xs font-bold"
-              style={{ background: "var(--accent)", color: "var(--foreground)" }}>
-              {selectedPost.price}원
-            </span>
-          )}
+          {selectedPost.price && <Badge tone="info">{selectedPost.price}원</Badge>}
         </div>
 
-        <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{selectedPost.title}</h3>
+        <h3 className="font-semibold mb-1" style={{ color: "var(--text-strong)" }}>{selectedPost.title}</h3>
 
         {selectedPost.board === "meeting" && selectedPost.tags && selectedPost.tags.length >= 2 && (
-          <p className="text-xs mb-1.5 mt-2" style={{ color: "var(--muted-foreground)" }}>
-            ⏰ {selectedPost.tags[0]} · 📍 {selectedPost.tags[1]}
-          </p>
+          <div className="flex items-center gap-1.5 mb-1.5 mt-2 flex-wrap">
+            <Badge tone="meeting">⏰ {selectedPost.tags[0]}</Badge>
+            <Badge tone="meeting">📍 {selectedPost.tags[1]}</Badge>
+          </div>
         )}
         {selectedPost.board === "lecture" && selectedPost.tags && selectedPost.tags.length >= 2 && (
-          <p className="text-xs mb-1.5 mt-2" style={{ color: "var(--muted-foreground)" }}>
-            {selectedPost.tags[0]} · {selectedPost.tags[1]} 교수님
-          </p>
+          <div className="flex items-center gap-1.5 mb-1.5 mt-2 flex-wrap">
+            <Badge tone="lecture">{selectedPost.tags[0]}</Badge>
+            <Badge tone="lecture">{selectedPost.tags[1]} 교수님</Badge>
+          </div>
         )}
         {selectedPost.rating && (
           <div className="flex items-center gap-1 mb-1.5">
             {renderRatingStars(selectedPost.rating, 14)}
-            <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
+            <span className="text-xs ml-1 font-semibold" style={{ color: "var(--text-strong)" }}>
               {selectedPost.rating.toFixed(1)}
             </span>
           </div>
@@ -4188,7 +3839,7 @@ const handleDeleteSelectedChats = () => {
         <p
           className="text-sm leading-relaxed mt-1"
           style={{
-            color: "var(--muted-foreground)",
+            color: "var(--text-muted)",
             wordBreak: "break-all",
             whiteSpace: "pre-wrap",
             overflowWrap: "break-word",
@@ -4198,83 +3849,42 @@ const handleDeleteSelectedChats = () => {
         </p>
 
         {selectedPost.images.length > 0 && (
-          <div className="relative w-full mt-2 rounded-xl overflow-hidden" style={{ background: "var(--muted)" }}>
-            <img
-              src={resolveAssetUrl(selectedPost.images[eventImageIndex] || selectedPost.images[0])}
-              alt="첨부 이미지"
-              className="w-full max-h-72 object-cover cursor-pointer"
-              onClick={() => setFullscreenPostImage(resolveAssetUrl(selectedPost.images[eventImageIndex] || selectedPost.images[0]) || null)}
+          <div className="mt-2">
+            <ImageCarousel
+              key={selectedPost._id}
+              images={selectedPost.images.map((img) => resolveAssetUrl(img) ?? img)}
+              aspect="auto"
+              onImageClick={(src) => setFullscreenPostImage(src)}
             />
-            {selectedPost.images.length > 1 && (
-              <>
-                <span
-                  className="absolute top-3 right-3 px-2 py-0.5 rounded-full text-xs font-semibold"
-                  style={{ background: "rgba(0,0,0,0.55)", color: "white" }}
-                >
-                  {eventImageIndex + 1}/{selectedPost.images.length}
-                </span>
-                <button
-                  className="absolute inset-y-0 left-0 w-1/3"
-                  onClick={() => setEventImageIndex((i) => Math.max(0, i - 1))}
-                  aria-label="이전 이미지"
-                />
-                <button
-                  className="absolute inset-y-0 right-0 w-1/3"
-                  onClick={() => setEventImageIndex((i) => Math.min(selectedPost.images.length - 1, i + 1))}
-                  aria-label="다음 이미지"
-                />
-                <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-1">
-                  {selectedPost.images.map((_, i) => (
-                    <span
-                      key={i}
-                      className="rounded-full"
-                      style={{
-                        width: 5, height: 5,
-                        background: i === eventImageIndex ? "white" : "rgba(255,255,255,0.5)",
-                      }}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
           </div>
         )}
         {selectedPost.tags && selectedPost.board !== "lecture" && selectedPost.board !== "meeting" && (
           <div className="flex flex-wrap gap-1.5 mt-2">
             {selectedPost.tags.map((tag, i) => (
-              <span key={i} className="text-xs px-2 py-0.5 rounded-full"
-                style={{ background: "var(--secondary)", color: "var(--primary)" }}>
-                #{tag}
-              </span>
+              <Badge key={i} tone="info">#{tag}</Badge>
             ))}
           </div>
         )}
         {selectedPost.maxParticipants && (
           <div className="mt-2">
-            <span
-              className="text-xs px-2 py-1 rounded-full font-medium"
-              style={{
-                background: selectedPost.currentParticipants === selectedPost.maxParticipants ? "#5cb85c22" : "var(--secondary)",
-                color: selectedPost.currentParticipants === selectedPost.maxParticipants ? "#5cb85c" : "var(--primary)",
-              }}
-            >
+            <Badge tone={selectedPost.currentParticipants === selectedPost.maxParticipants ? "success" : "info"}>
               {selectedPost.currentParticipants}/{selectedPost.maxParticipants}명
               {selectedPost.currentParticipants === selectedPost.maxParticipants ? " 모집완료" : " 모집중"}
-            </span>
+            </Badge>
           </div>
         )}
 
         {renderPoll(selectedPost)}
 
-        <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-3 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border-subtle)" }}>
           <div className="flex items-center gap-1.5">
             <button onClick={() => handleLike(selectedPost)}>
-              <Heart size={16} fill={isLiked(selectedPost) ? "#3b82f6" : "none"}
-                color={isLiked(selectedPost) ? "#3b82f6" : "var(--muted-foreground)"} />
+              <Heart size={16} fill={isLiked(selectedPost) ? "var(--blue-primary)" : "none"}
+                color={isLiked(selectedPost) ? "var(--blue-primary)" : "var(--text-muted)"} />
             </button>
             <span
               className="text-xs cursor-pointer"
-              style={{ color: isLiked(selectedPost) ? "var(--primary)" : "var(--muted-foreground)" }}
+              style={{ color: isLiked(selectedPost) ? "var(--blue-deep)" : "var(--text-muted)" }}
               onClick={() => openReactionList(selectedPost._id, "likes")}
             >
               {selectedPost.likes.length}
@@ -4283,12 +3893,12 @@ const handleDeleteSelectedChats = () => {
           {selectedPost.board === "lecture" && (
             <div className="flex items-center gap-1.5">
               <button onClick={() => handleDislike(selectedPost)}>
-                <ThumbsDown size={16} fill={isDisliked(selectedPost) ? "#d4183d" : "none"}
-                  color={isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)"} />
+                <ThumbsDown size={16} fill={isDisliked(selectedPost) ? "var(--danger)" : "none"}
+                  color={isDisliked(selectedPost) ? "var(--danger)" : "var(--text-muted)"} />
               </button>
               <span
                 className="text-xs cursor-pointer"
-                style={{ color: isDisliked(selectedPost) ? "#d4183d" : "var(--muted-foreground)" }}
+                style={{ color: isDisliked(selectedPost) ? "var(--danger)" : "var(--text-muted)" }}
                 onClick={() => openReactionList(selectedPost._id, "dislikes")}
               >
                 {selectedPost.dislikes.length}
@@ -4300,60 +3910,52 @@ const handleDeleteSelectedChats = () => {
               commentInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
               commentInputRef.current?.focus();
             }}>
-            <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
-            <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(selectedPost)}</span>
+            <MessageCircle size={16} style={{ color: "var(--text-muted)" }} />
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>{getCommentCount(selectedPost)}</span>
           </button>
           <button className="flex items-center gap-1.5"
             onClick={() => toggleSave(selectedPost._id)}>
-            <Bookmark size={16} fill={savedPosts[selectedPost._id] ? "var(--primary)" : "none"}
-              color={savedPosts[selectedPost._id] ? "var(--primary)" : "var(--muted-foreground)"} />
+            <Bookmark size={16} fill={savedPosts[selectedPost._id] ? "var(--blue-primary)" : "none"}
+              color={savedPosts[selectedPost._id] ? "var(--blue-primary)" : "var(--text-muted)"} />
           </button>
 
           {selectedPost.board === "meeting" && currentUser && hasJoinedMeeting(selectedPost) && (
-            <button
-              onClick={() => openGroupChatForPost(selectedPost._id)}
-              className="ml-auto px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1"
-              style={{ background: "var(--secondary)", color: "var(--primary)" }}
-            >
-              <MessageCircle size={13} /> 채팅방
-            </button>
+            <Chip selected className="ml-auto" onClick={() => openGroupChatForPost(selectedPost._id)}>
+              <MessageCircle size={13} className="mr-1" /> 채팅방
+            </Chip>
           )}
           {selectedPost.board === "meeting" && currentUser && selectedPost.author._id !== currentUser._id && (
-            <button
+            <Chip
+              selected={!hasJoinedMeeting(selectedPost) && !isMeetingFull(selectedPost)}
+              className={hasJoinedMeeting(selectedPost) ? "" : "ml-auto"}
               onClick={() => handleMeetingButtonClick(selectedPost)}
               disabled={!hasJoinedMeeting(selectedPost) && isMeetingFull(selectedPost)}
-              className={`${hasJoinedMeeting(selectedPost) ? "" : "ml-auto"} px-3 py-1.5 rounded-xl text-xs font-semibold`}
-              style={{
-                background: hasJoinedMeeting(selectedPost) || isMeetingFull(selectedPost) ? "var(--muted)" : "var(--primary)",
-                color: hasJoinedMeeting(selectedPost) || isMeetingFull(selectedPost) ? "var(--muted-foreground)" : "white",
-                cursor: !hasJoinedMeeting(selectedPost) && isMeetingFull(selectedPost) ? "not-allowed" : "pointer",
-              }}
             >
               {hasJoinedMeeting(selectedPost) ? "참여중" : isMeetingFull(selectedPost) ? "모집완료" : "참여"}
-            </button>
+            </Chip>
           )}
         </div>
-      </div>
+      </Card>
     </div>
     {/* 댓글 목록: 이제 위 게시물 카드와 같은 스크롤 영역 안에 있어서, 게시물 내용이 아무리
         길어도 화면 밖으로 잘리지 않고 함께 스크롤된다 */}
-    <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3">
+    <Card className="flex flex-col gap-3">
       {commentsList}
-    </div>
+    </Card>
   </div>
 )}
       </div>
 
       {/* 댓글 입력 */}
       {replyTarget && (
-        <div className="flex items-center justify-between px-4 py-1.5 text-xs shrink-0" style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}>
+        <div className="flex items-center justify-between px-4 py-1.5 text-xs shrink-0" style={{ background: "var(--blue-soft)", color: "var(--text-muted)" }}>
           <span><span className="font-semibold">{replyTarget.author.nickname}</span>님에게 답글 남기는 중</span>
           <button onClick={() => setReplyTarget(null)} aria-label="답글 취소">
             <X size={14} />
           </button>
         </div>
       )}
-      <div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border)" }}>
+      <div className="flex gap-2 px-4 py-3 border-t shrink-0" style={{ borderColor: "var(--border-subtle)" }}>
         <input
           ref={commentInputRef}
           value={commentInput}
@@ -4362,37 +3964,29 @@ const handleDeleteSelectedChats = () => {
             if (e.key === "Enter") handleAddComment();
           }}
           placeholder={replyTarget ? `${replyTarget.author.nickname}님에게 답글 남기기...` : "댓글 입력..."}
-          className="flex-1 px-3 py-2 rounded-xl text-xs outline-none"
-          style={{ background: "var(--input-background)", color: "white", border: "1.5px solid var(--border)" }}
+          className="flex-1 h-11 px-4 rounded-[var(--r-md)] text-sm outline-none transition-colors focus:bg-[var(--blue-soft)] focus:border-[var(--blue-primary)] focus:ring-2 focus:ring-[var(--blue-primary)]/30"
+          style={{ background: "var(--bg-input)", color: "var(--text-body)", border: "1px solid var(--border-subtle)" }}
         />
-        <button
+        <Button
           onClick={handleAddComment}
           disabled={!commentInput.trim()}
-          className="px-3 py-2 rounded-xl text-xs font-semibold"
-          style={{
-            background: commentInput.trim() ? "var(--primary)" : "var(--muted)",
-            color: commentInput.trim() ? "white" : "var(--muted-foreground)",
-            cursor: commentInput.trim() ? "pointer" : "not-allowed",
-          }}
+          className="px-4"
         >
           등록
-        </button>
+        </Button>
       </div>
 
       {/* 좋아요/싫어요 누른 사람 목록 */}
       {reactionListModal && (
-        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-            <button onClick={() => setReactionListModal(null)}>
-              <X size={20} style={{ color: "var(--foreground)" }} />
-            </button>
-            <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>
-              {reactionListModal.type === "likes" ? "좋아요" : "싫어요"}
-            </h2>
-          </div>
+        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--bg-base)" }}>
+          <ScreenHeader
+            title={reactionListModal.type === "likes" ? "좋아요" : "싫어요"}
+            icon="close"
+            onBack={() => setReactionListModal(null)}
+          />
 <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar pointer-events-auto">
             {reactionListUsers.length === 0 ? (
-              <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+              <p className="text-sm text-center mt-10" style={{ color: "var(--text-muted)" }}>
                 {reactionListModal.type === "likes" ? "아직 좋아요를 누른 사람이 없습니다." : "아직 싫어요를 누른 사람이 없습니다."}
               </p>
             ) : (
@@ -4400,16 +3994,14 @@ const handleDeleteSelectedChats = () => {
                 <button
                   key={u._id}
                   onClick={() => { setReactionListModal(null); openAuthor(u); }}
-                  className="flex items-center gap-3 p-2.5 rounded-xl text-left"
-                  style={{ background: "var(--card)" }}
+                  className="flex items-center gap-3 p-2.5 rounded-[var(--r-lg)] text-left"
+                  style={{ background: "var(--bg-card)" }}
                 >
-                  <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                    <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                  </div>
+                  <Avatar src={resolveAssetUrl(u.avatar)} fallbackSrc={defaultAvatar} className="h-10 w-10" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
+                    <p className="text-sm font-medium truncate" style={{ color: "var(--text-strong)" }}>{u.nickname}</p>
                     {u.studentId && (
-                      <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{u.studentId}</p>
+                      <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{u.studentId}</p>
                     )}
                   </div>
                 </button>
@@ -4419,48 +4011,46 @@ const handleDeleteSelectedChats = () => {
         </div>
       )}
 {editingPost && (
-        <div className="absolute inset-0 z-[60] flex flex-col" style={{ background: "var(--background)" }}>
-          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-            <button onClick={() => setEditingPost(null)} className="text-lg">←</button>
-            <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물 수정</h2>
-            <button
-              onClick={async () => {
-                try {
-                  const res = await api.patch(`/posts/${editingPost._id}`, {
-                    title: editTitle,
-                    content: editContent,
-                  });
-                  setPosts((prev) => prev.map((p) => p._id === editingPost._id ? res.data : p));
-                  setEditingPost(null);
-                  showAlert("게시물이 수정되었습니다.");
-                } catch {
-                  showAlert("수정에 실패했습니다.");
-                }
-              }}
-              style={{ color: "var(--primary)" }}
-              className="text-sm font-semibold"
-            >
-              완료
-            </button>
-          </div>
+        <div className="absolute inset-0 z-[60] flex flex-col" style={{ background: "var(--bg-base)" }}>
+          <ScreenHeader
+            title="게시물 수정"
+            onBack={() => setEditingPost(null)}
+            action={
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await api.patch(`/posts/${editingPost._id}`, {
+                      title: editTitle,
+                      content: editContent,
+                    });
+                    setPosts((prev) => prev.map((p) => p._id === editingPost._id ? res.data : p));
+                    setEditingPost(null);
+                    showAlert("게시물이 수정되었습니다.");
+                  } catch {
+                    showAlert("수정에 실패했습니다.");
+                  }
+                }}
+                style={{ color: "var(--blue-primary)" }}
+                className="text-sm font-semibold"
+              >
+                완료
+              </button>
+            }
+          />
           <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4">
-            <div>
-              <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>제목</label>
-              <input
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-              />
-            </div>
-            <div>
-              <label className="text-xs font-semibold mb-1 block" style={{ color: "var(--muted-foreground)" }}>내용</label>
+            <Input
+              label="제목"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+            />
+            <div className="flex flex-col gap-1">
+              <label className="text-[13px] font-medium" style={{ color: "var(--text-body)" }}>내용</label>
               <textarea
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
                 rows={8}
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
-                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                className="w-full px-4 py-3 rounded-[var(--r-md)] text-sm outline-none resize-none transition-colors focus:bg-[var(--blue-soft)] focus:border-[var(--blue-primary)] focus:ring-2 focus:ring-[var(--blue-primary)]/30"
+                style={{ background: "var(--bg-input)", color: "var(--text-body)", border: "1px solid var(--border-subtle)" }}
               />
             </div>
           </div>
@@ -4478,36 +4068,30 @@ const handleDeleteSelectedChats = () => {
     const getBoardLabel = (board?: BoardType) => BOARDS.find((b) => b.id === board)?.label ?? "";
 
     return (
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1 overflow-hidden" style={{ background: "var(--bg-base)" }}>
         {/* 헤더 */}
-        <div
-          className="flex items-center gap-2 px-4 py-4 border-b shrink-0"
-          style={{ borderColor: "var(--border)" }}
-        >
-          <button
-            onClick={() => { setShowSearch(false); setSearchQuery(""); }}
-            className="text-lg shrink-0"
-            style={{ color: "var(--foreground)" }}
-          >
-            ←
-          </button>
+        <div className="flex items-center gap-2 px-4 py-4 shrink-0">
+          <IconButton aria-label="뒤로 가기" onClick={() => { setShowSearch(false); setSearchQuery(""); }}>
+            <ArrowLeft size={16} />
+          </IconButton>
           <div className="flex-1 relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "var(--muted-foreground)" }} />
-            <input
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 z-10" style={{ color: "var(--text-muted)" }} />
+            <Input
+              label="게시물, 계정 검색"
+              hideLabel
               type="text"
               autoFocus
               placeholder="게시물, 계정 검색..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") addRecentSearch(searchQuery); }}
-              className="w-full pl-9 pr-8 py-2.5 rounded-xl text-sm outline-none"
-              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+              className="pl-9 pr-8"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2"
-                style={{ color: "var(--muted-foreground)" }}
+                style={{ color: "var(--text-muted)" }}
               >
                 <X size={16} />
               </button>
@@ -4519,60 +4103,54 @@ const handleDeleteSelectedChats = () => {
         <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3 no-scrollbar">
           {!searchQuery.trim() && (
             recentSearches.length === 0 ? (
-              <p className="text-center text-sm py-10" style={{ color: "var(--muted-foreground)" }}>
+              <p className="text-center text-sm py-10" style={{ color: "var(--text-muted)" }}>
                 검색어를 입력해주세요.
               </p>
             ) : (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>최근 검색어</span>
+                  <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>최근 검색어</span>
                   <button
                     onClick={() => { setRecentSearches([]); saveRecentSearches([]); }}
                     className="text-xs"
-                    style={{ color: "var(--muted-foreground)" }}
+                    style={{ color: "var(--text-muted)" }}
                   >
                     전체삭제
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {recentSearches.map((q) => (
-                    <span
-                      key={q}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs"
-                      style={{ background: "var(--muted)", color: "var(--foreground)" }}
-                    >
+                    <Badge key={q} tone="muted" className="gap-1.5 py-1.5">
                       <button onClick={() => setSearchQuery(q)}>{q}</button>
                       <button onClick={() => removeRecentSearch(q)}>
-                        <X size={12} style={{ color: "var(--muted-foreground)" }} />
+                        <X size={12} style={{ color: "var(--text-muted)" }} />
                       </button>
-                    </span>
+                    </Badge>
                   ))}
                 </div>
               </div>
             )
           )}
           {searchQuery.trim() && visiblePosts.length === 0 && searchUserResults.length === 0 && (
-            <p className="text-center text-sm py-10" style={{ color: "var(--muted-foreground)" }}>
+            <p className="text-center text-sm py-10" style={{ color: "var(--text-muted)" }}>
               검색 결과가 없어요.
             </p>
           )}
           {searchQuery.trim() && searchUserResults.length > 0 && (
             <div className="flex flex-col gap-1">
-              <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>계정</span>
+              <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>계정</span>
               {searchUserResults.map((u) => (
                 <button
                   key={u._id}
                   onClick={() => { addRecentSearch(searchQuery); openAuthor(u); }}
-                  className="flex items-center gap-3 p-2.5 rounded-xl text-left"
-                  style={{ background: "var(--card)" }}
+                  className="flex items-center gap-3 p-2.5 rounded-[var(--r-lg)] text-left"
+                  style={{ background: "var(--bg-card)" }}
                 >
-                  <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                    <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                  </div>
+                  <Avatar src={resolveAssetUrl(u.avatar)} fallbackSrc={defaultAvatar} className="h-10 w-10" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
+                    <p className="text-sm font-medium truncate" style={{ color: "var(--text-strong)" }}>{u.nickname}</p>
                     {u.studentId && (
-                      <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>{u.studentId}</p>
+                      <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>{u.studentId}</p>
                     )}
                   </div>
                 </button>
@@ -4580,28 +4158,27 @@ const handleDeleteSelectedChats = () => {
             </div>
           )}
           {searchQuery.trim() && visiblePosts.length > 0 && searchUserResults.length > 0 && (
-            <span className="text-xs font-semibold mt-1" style={{ color: "var(--muted-foreground)" }}>게시물</span>
+            <span className="text-xs font-semibold mt-1" style={{ color: "var(--text-muted)" }}>게시물</span>
           )}
           {searchQuery.trim() && visiblePosts.map((post) => (
-            <div
+            <Card
               key={post._id}
               onClick={() => {
                 addRecentSearch(searchQuery);
                 setSelectedPostId(post._id);
               }}
-              className="p-4 rounded-2xl cursor-pointer"
-              style={{ background: "var(--card)" }}
+              className="cursor-pointer"
             >
-              <p className="text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>
+              <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>
                 {getBoardLabel(post.board)}
               </p>
-              <h3 className="font-semibold text-sm mb-1" style={{ color: "var(--foreground)" }}>
+              <h3 className="font-semibold text-sm mb-1" style={{ color: "var(--text-strong)" }}>
                 {post.title}
               </h3>
               <p
   className="text-xs leading-relaxed mb-2"
   style={{
-    color: "var(--muted-foreground)",
+    color: "var(--text-muted)",
     wordBreak: "break-all",
     whiteSpace: "pre-wrap",
     overflowWrap: "break-word",
@@ -4615,17 +4192,17 @@ const handleDeleteSelectedChats = () => {
   {renderLinkifiedText(post.content)}
 </p>
               <div className="flex items-center gap-3">
-                <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
+                <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
                   <Heart size={12} /> {post.likes.length}
                 </span>
-                <span className="text-xs flex items-center gap-1" style={{ color: "var(--muted-foreground)" }}>
+                <span className="text-xs flex items-center gap-1" style={{ color: "var(--text-muted)" }}>
                   <MessageCircle size={12} /> {getCommentCount(post)}
                 </span>
-                <span className="text-xs ml-auto" style={{ color: "var(--muted-foreground)" }}>
+                <span className="text-xs ml-auto" style={{ color: "var(--text-muted)" }}>
                   {getDisplayTime(post, nowTick)}
                 </span>
               </div>
-            </div>
+            </Card>
           ))}
         </div>
 
@@ -4638,63 +4215,47 @@ const handleDeleteSelectedChats = () => {
 
 
   return (
-  <div className="flex flex-col flex-1 overflow-hidden relative">
+  <div className="flex flex-col flex-1 overflow-hidden relative" style={{ background: "var(--bg-base)" }}>
 
     {/* Header */}
     <div className="px-4 pt-5 pb-3 shrink-0">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
-          <img src={bigRoadingIcon} alt="Big Roading" className="w-14 h-14 object-cover" />
-          <div>
-            <h1
-              className="text-2xl"
-              style={{
-                color: "var(--foreground)",
-                fontFamily: "'Brush Script MT', cursive",
-              }}
-            >
-              Big Ding
-            </h1>
-          </div>
+          <img src={bigRoadingIcon} alt="Big Ding" className="w-10 h-10 rounded-[var(--r-md)] object-cover" />
+          <h1 className="notranslate text-[26px] leading-none" translate="no" style={{ color: "var(--text-strong)", fontFamily: "var(--font-logo)" }}>
+            Big Ding
+          </h1>
         </div>
 
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowSearch(!showSearch)}
-              className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
-              style={{ background: showSearch ? "var(--primary)" : "var(--muted)" }}
-            >
-              <Search size={18} color={showSearch ? "white" : "var(--foreground)"} />
-            </button>
-            <button
-              onClick={openNotifications}
-              className="relative w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
-              style={{ background: "var(--muted)" }}
-            >
-              <Bell size={18} color="var(--foreground)" />
-              {unreadNotifCount > 0 && (
-                <span
-                  className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold text-white flex items-center justify-center"
-                  style={{ background: "#d4183d", lineHeight: 1 }}
-                >
-                  {unreadNotifCount > 99 ? "99+" : unreadNotifCount}
-                </span>
-              )}
-            </button>
+        <div className="flex gap-2">
+          <IconButton aria-label="검색" active={showSearch} onClick={() => setShowSearch(!showSearch)}>
+            <Search size={18} />
+          </IconButton>
+          <div className="relative">
+            <IconButton aria-label="알림" onClick={openNotifications}>
+              <Bell size={18} />
+            </IconButton>
+            {unreadNotifCount > 0 && (
+              <span
+                className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full text-[10px] font-bold text-white flex items-center justify-center"
+                style={{ background: "var(--danger)", lineHeight: 1 }}
+              >
+                {unreadNotifCount > 99 ? "99+" : unreadNotifCount}
+              </span>
+            )}
           </div>
         </div>
-        
       </div>
 
       {/* Board tabs */}
       {!showSearch && (
-        <div className="flex items-center px-4 pb-4 overflow-x-auto no-scrollbar shrink-0">
+        <div className="flex items-center overflow-x-auto no-scrollbar shrink-0 pb-4">
           {BOARDS.map(({ id, label, emoji }, idx) => (
             <div key={id} className="flex items-center shrink-0">
               {idx > 0 && (
                 <span
                   className="mx-3 text-base font-semibold select-none"
-                  style={{ color: "var(--muted-foreground)", opacity: 0.5 }}
+                  style={{ color: "var(--text-muted)", opacity: 0.5 }}
                 >
                   |
                 </span>
@@ -4705,15 +4266,15 @@ const handleDeleteSelectedChats = () => {
                 style={{
                   color:
                     activeBoard === id
-                      ? "var(--primary)"
+                      ? "var(--blue-deep)"
                       : id === "free"
-                      ? "white"
-                      : "var(--muted-foreground)",
+                      ? "var(--text-strong)"
+                      : "var(--text-muted)",
                   fontWeight: activeBoard === id ? 700 : 500,
                 }}
               >
-                <span className="text-lg">{emoji}</span>
-                <span>{label}</span>
+                <span>{emoji}</span>
+                {label}
               </button>
             </div>
           ))}
@@ -4722,118 +4283,40 @@ const handleDeleteSelectedChats = () => {
 
       {/* 정렬(모든 게시판) + 꿀팁 게시판 카테고리 필터 */}
       {!showSearch && (
-        <div className="relative flex justify-end items-center gap-2 px-4 pb-3 shrink-0">
+        <div className="flex justify-end items-center gap-2 pb-1 shrink-0">
           {activeBoard === "contest" && (
-            <div className="relative">
-              <button
-                onClick={() => setShowContestFilterMenu((v) => !v)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap"
-                style={{
-                  background: activeContestFilter ? "var(--primary)" : "var(--muted)",
-                  color: activeContestFilter ? "white" : "var(--muted-foreground)",
-                }}
-              >
-                {activeContestFilter ?? "필터"}
-                {showContestFilterMenu ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </button>
-
-              {showContestFilterMenu && (
-                <div
-                  className="absolute right-0 top-full mt-1 z-20 rounded-xl shadow-lg py-1 min-w-[110px]"
-                  style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                >
-                  <button
-                    onClick={() => {
-                      setActiveContestFilter(null);
-                      setShowContestFilterMenu(false);
-                    }}
-                    className="w-full px-3 py-2 text-xs text-left"
-                    style={{ color: activeContestFilter === null ? "var(--primary)" : "var(--foreground)" }}
-                  >
-                    전체
-                  </button>
-                  {CONTEST_FILTERS.map((filter) => (
-                    <button
-                      key={filter}
-                      onClick={() => {
-                        setActiveContestFilter(filter);
-                        setShowContestFilterMenu(false);
-                      }}
-                      className="w-full px-3 py-2 text-xs text-left"
-                      style={{ color: activeContestFilter === filter ? "var(--primary)" : "var(--foreground)" }}
-                    >
-                      {filter}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <Dropdown
+              value={activeContestFilter ?? "all"}
+              onChange={(v) => setActiveContestFilter(v === "all" ? null : v)}
+              options={[{ value: "all", label: "전체" }, ...CONTEST_FILTERS.map((f) => ({ value: f, label: f }))]}
+            />
           )}
 
-                 {/* 최신순/인기순 정렬 또는 강의평가 교과군 필터 */}
-          <div className="relative">
-            <button
-              onClick={() => setShowSortDropdown((v) => !v)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap"
-              style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
-            >
-              {activeBoard === "lecture"
-                ? lectureGroupFilter
-                : sortOrder === "latest" ? "최신순" : "인기순"}
-              {showSortDropdown ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
-
-            {showSortDropdown && (
-              <div
-                className="absolute right-0 top-full mt-1 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
-                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-              >
-                {activeBoard === "lecture" ? (
-                  ["전체", "기초교과군", "심화교과군", "응용교과군", "핵심교과군"].map((group) => (
-                    <button
-                      key={group}
-                      onClick={() => { setLectureGroupFilter(group); setShowSortDropdown(false); }}
-                      className="w-full px-3 py-2 text-xs text-left"
-                      style={{ color: lectureGroupFilter === group ? "var(--primary)" : "var(--foreground)" }}
-                    >
-                      {group}
-                    </button>
-                  ))
-                ) : (
-                  <>
-                    <button
-                      onClick={() => { setSortOrder("latest"); setShowSortDropdown(false); }}
-                      className="w-full px-3 py-2 text-xs text-left"
-                      style={{ color: sortOrder === "latest" ? "var(--primary)" : "var(--foreground)" }}
-                    >
-                      최신순
-                    </button>
-                    <button
-                      onClick={() => { setSortOrder("popular"); setShowSortDropdown(false); }}
-                      className="w-full px-3 py-2 text-xs text-left"
-                      style={{ color: sortOrder === "popular" ? "var(--primary)" : "var(--foreground)" }}
-                    >
-                      인기순
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+          {/* 최신순/인기순 정렬 또는 강의평가 교과군 필터 */}
+          <Dropdown
+            value={activeBoard === "lecture" ? lectureGroupFilter : sortOrder}
+            onChange={(v) => (activeBoard === "lecture" ? setLectureGroupFilter(v) : setSortOrder(v as "latest" | "popular"))}
+            options={
+              activeBoard === "lecture"
+                ? ["전체", "기초교과군", "심화교과군", "응용교과군", "핵심교과군"].map((g) => ({ value: g, label: g }))
+                : [
+                    { value: "latest", label: "최신순" },
+                    { value: "popular", label: "인기순" },
+                  ]
+            }
+          />
         </div>
-      )}   
+      )}
 
-      {/* 더보기 메뉴 / 꿀팁 필터 메뉴 / 정렬 메뉴 외부 클릭 닫기 */}
-      {(showMoreMenu !== null || showContestFilterMenu || showSortDropdown) && (
+      {/* 더보기 메뉴 외부 클릭 닫기 */}
+      {showMoreMenu !== null && (
         <div
           className="absolute inset-0 z-10"
-          onClick={() => {
-            setShowMoreMenu(null);
-            setShowContestFilterMenu(false);
-            setShowSortDropdown(false);
-          }}
+          onClick={() => setShowMoreMenu(null)}
         />
       )}
+    </div>
+
       {/* Posts */}
 <div
   ref={feedScrollRef}
@@ -4841,24 +4324,24 @@ const handleDeleteSelectedChats = () => {
   className="flex-1 overflow-y-auto px-4 pb-20 flex flex-col gap-3 no-scrollbar"
 >
         {postsLoading && sortedVisiblePosts.length === 0 && (
-          <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
+          <p className="text-center text-sm py-8" style={{ color: "var(--text-muted)" }}>
             게시물을 불러오는 중...
           </p>
         )}
         {!postsLoading && sortedVisiblePosts.length === 0 && (
-          <p className="text-center text-sm py-8" style={{ color: "var(--muted-foreground)" }}>
+          <p className="text-center text-sm py-8" style={{ color: "var(--text-muted)" }}>
             아직 게시물이 없어요.
           </p>
         )}
         {sortedVisiblePosts.map((post) => (
-         <div
+         <Card
   key={post._id}
   onClick={() => setSelectedPostId(post._id)}
-  className="rounded-2xl p-4 shadow-sm relative flex flex-col shrink-0 cursor-pointer"
+  className="relative flex flex-col shrink-0 cursor-pointer"
   style={
   post.board === "event" || post.board === "qna"
-    ? { background: "var(--card)", borderLeft: `3px solid ${BOARD_ACCENTS[post.board]}` }
-    : { background: "var(--card)", minHeight: "184px", borderLeft: `3px solid ${BOARD_ACCENTS[post.board]}` }
+    ? { borderLeftWidth: 3, borderLeftColor: `var(--tag-${post.board}-dot)` }
+    : { minHeight: "184px", borderLeftWidth: 3, borderLeftColor: `var(--tag-${post.board}-dot)` }
 }
 >
             {/* Author */}
@@ -4869,19 +4352,18 @@ const handleDeleteSelectedChats = () => {
         e.stopPropagation();
         openAuthor(post.author);
       }}
-      className="w-9 h-9 rounded-full flex items-center justify-center overflow-hidden shrink-0"
-      style={{ background: "var(--muted)" }}
+      className="shrink-0"
     >
-      <img src={getAuthorAvatarUrl(post.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+      <Avatar src={getAuthorAvatarUrl(post.author)} fallbackSrc={defaultAvatar} />
     </button>
     <button
   onClick={(e) => { e.stopPropagation(); openAuthor(post.author); }}
   className="flex-1 min-w-0 text-left"
 >
-  <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
+  <p className="text-sm font-semibold truncate" style={{ color: "var(--text-strong)" }}>
     {post.author.nickname}
   </p>
-  <p className="text-[11px] uppercase tracking-wide" style={{ color: "var(--muted-foreground)" }}>
+  <p className="text-[11px] uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
     {getDisplayTime(post, nowTick)}
   </p>
 </button>
@@ -4893,29 +4375,22 @@ const handleDeleteSelectedChats = () => {
         e.stopPropagation();
         openAuthor(post.author);
       }}
-      className="w-9 h-9 rounded-full flex items-center justify-center text-xl shrink-0 overflow-hidden"
-      style={{ background: "var(--muted)" }}
+      className="shrink-0"
     >
-      <img src={getAuthorAvatarUrl(post.author) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+      <Avatar src={getAuthorAvatarUrl(post.author)} fallbackSrc={defaultAvatar} />
     </button>
     <div className="flex-1">
-      <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{post.author.nickname}</p>
-      <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(post, nowTick)}</p>
+      <p className="text-sm font-semibold" style={{ color: "var(--text-strong)" }}>{post.author.nickname}</p>
+      <p className="text-xs" style={{ color: "var(--text-muted)" }}>{getDisplayTime(post, nowTick)}</p>
     </div>
     {post.price && (
-      <span className="px-2 py-1 rounded-xl text-xs font-bold"
-        style={{ background: "var(--accent)", color: "var(--foreground)" }}>
-        {post.price}원
-      </span>
+      <Badge tone="info">{post.price}원</Badge>
     )}
     {post.board === "lecture" && post.rating && (
-      <span
-        className="flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-bold shrink-0"
-        style={{ background: "#fbbf2422", color: "#fbbf24" }}
-      >
-        <Star size={12} fill="#fbbf24" color="#fbbf24" />
+      <Badge tone="lecture" className="shrink-0 gap-1">
+        <Star size={12} fill="var(--tag-lecture-fg)" color="var(--tag-lecture-fg)" />
         {post.rating.toFixed(1)}
-      </span>
+      </Badge>
     )}
   </div>
 )}
@@ -4928,14 +4403,14 @@ const handleDeleteSelectedChats = () => {
                   setShowMoreMenu(showMoreMenu === post._id ? null : post._id);
                 }}
                 className="w-8 h-8 rounded-full flex items-center justify-center"
-                style={{ color: "var(--muted-foreground)" }}
+                style={{ color: "var(--text-muted)" }}
               >
                 <MoreVertical size={18} />
               </button>
               {showMoreMenu === post._id && (
                 <div
-                  className="absolute right-0 top-9 z-20 rounded-xl shadow-lg py-1 min-w-[110px]"
-                  style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                  className="absolute right-0 top-9 z-20 rounded-[var(--r-md)] py-1 min-w-[110px]"
+                  style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }}
                 >
                   {renderPostMoreMenu(
                     post,
@@ -4963,78 +4438,32 @@ const handleDeleteSelectedChats = () => {
   <>
     {/* 인스타그램 피드 스타일: 이미지, 좋아요/댓글/공유/저장, 캡션 */}
     {post.images[0] && (
-      <div
-        className="relative w-full aspect-square rounded-xl overflow-hidden mb-2"
-        style={{ background: "var(--muted)" }}
-      >
-        <img
-          src={resolveAssetUrl(post.images[getFeedImageIndex(post._id)] || post.images[0])}
-          alt="첨부 이미지"
-          className="w-full h-full object-cover"
-        />
-        {post.images.length > 1 && (
-          <>
-            <span
-              className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-semibold"
-              style={{ background: "rgba(0,0,0,0.55)", color: "white" }}
-            >
-              {getFeedImageIndex(post._id) + 1}/{post.images.length}
-            </span>
-            <button
-              className="absolute inset-y-0 left-0 w-1/3"
-              onClick={(e) => {
-                e.stopPropagation();
-                stepFeedImage(post._id, -1, post.images.length - 1);
-              }}
-              aria-label="이전 이미지"
-            />
-            <button
-              className="absolute inset-y-0 right-0 w-1/3"
-              onClick={(e) => {
-                e.stopPropagation();
-                stepFeedImage(post._id, 1, post.images.length - 1);
-              }}
-              aria-label="다음 이미지"
-            />
-            <div className="absolute bottom-2 left-0 right-0 flex items-center justify-center gap-1">
-              {post.images.map((_, i) => (
-                <span
-                  key={i}
-                  className="rounded-full"
-                  style={{
-                    width: 5,
-                    height: 5,
-                    background: i === getFeedImageIndex(post._id) ? "white" : "rgba(255,255,255,0.5)",
-                  }}
-                />
-              ))}
-            </div>
-          </>
-        )}
+      <div className="mb-2">
+        <ImageCarousel images={post.images.map((img) => resolveAssetUrl(img) ?? img)} aspect="square" />
       </div>
     )}
 
     <div className="flex items-center justify-between mb-1.5">
       <div className="flex items-center gap-3">
         <button onClick={(e) => { e.stopPropagation(); handleLike(post); }}>
-          <Heart size={20} fill={isLiked(post) ? "#3b82f6" : "none"}
-            color={isLiked(post) ? "#3b82f6" : "var(--foreground)"} />
+          <Heart size={20} fill={isLiked(post) ? "var(--blue-primary)" : "none"}
+            color={isLiked(post) ? "var(--blue-primary)" : "var(--text-strong)"} />
         </button>
         <button onClick={(e) => { e.stopPropagation(); setSelectedPostId(post._id); }}>
-  <MessageCircle size={20} style={{ color: "var(--foreground)" }} />
+  <MessageCircle size={20} style={{ color: "var(--text-strong)" }} />
 </button>
       </div>
       <button onClick={(e) => { e.stopPropagation(); toggleSave(post._id); }}>
-        <Bookmark size={20} fill={savedPosts[post._id] ? "var(--primary)" : "none"}
-          color={savedPosts[post._id] ? "var(--primary)" : "var(--foreground)"} />
+        <Bookmark size={20} fill={savedPosts[post._id] ? "var(--blue-primary)" : "none"}
+          color={savedPosts[post._id] ? "var(--blue-primary)" : "var(--text-strong)"} />
       </button>
     </div>
 
-    <p className="text-sm font-semibold mb-1" style={{ color: "var(--foreground)" }}>
+    <p className="text-sm font-semibold mb-1" style={{ color: "var(--text-strong)" }}>
       좋아요 {post.likes.length}개
     </p>
 
-    <div className="text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
+    <div className="text-sm leading-relaxed" style={{ color: "var(--text-body)" }}>
   <span
     className="font-semibold mr-1.5 cursor-pointer"
     onClick={(e) => { e.stopPropagation(); openAuthor(post.author); }}
@@ -5050,60 +4479,34 @@ const handleDeleteSelectedChats = () => {
     {/* 클릭하면 상세화면으로 이동. 사진이 있으면 오른쪽에 정사각형 썸네일로 붙인다. */}
     <div onClick={() => setSelectedPostId(post._id)} className="cursor-pointer flex gap-3 items-start">
       <div className="flex-1 min-w-0">
-        <h3 className="font-semibold mb-1 truncate" style={{ color: "var(--foreground)" }}>{post.title}</h3>
+        <h3 className="font-semibold mb-1 truncate" style={{ color: "var(--text-strong)" }}>{post.title}</h3>
 
         {post.board === "meeting" && post.tags && post.tags.length >= 2 && (
           <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-            <span
-              className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
-              style={{ background: "#fb923c22", color: "#fb923c" }}
-            >
-              ⏰ {post.tags[0]}
-            </span>
-            <span
-              className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
-              style={{ background: "#fb923c22", color: "#fb923c" }}
-            >
-              📍 {post.tags[1]}
-            </span>
+            <Badge tone="meeting">⏰ {post.tags[0]}</Badge>
+            <Badge tone="meeting">📍 {post.tags[1]}</Badge>
           </div>
         )}
         {post.board === "lecture" && post.tags && post.tags.length >= 2 && (
           <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-            <span
-              className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
-              style={{ background: "#fbbf2422", color: "#fbbf24" }}
-            >
-              {post.tags[0]}
-            </span>
-            <span
-              className="px-2 py-0.5 rounded-full text-[11px] font-semibold"
-              style={{ background: "#fbbf2422", color: "#fbbf24" }}
-            >
-              {post.tags[1]} 교수님
-            </span>
+            <Badge tone="lecture">{post.tags[0]}</Badge>
+            <Badge tone="lecture">{post.tags[1]} 교수님</Badge>
           </div>
         )}
         {post.rating && post.board !== "lecture" && (
           <div className="flex items-center gap-1 mb-1.5">
             {renderRatingStars(post.rating, 14)}
-            <span className="text-xs ml-1 font-semibold" style={{ color: "var(--foreground)" }}>
+            <span className="text-xs ml-1 font-semibold" style={{ color: "var(--text-strong)" }}>
               {post.rating.toFixed(1)}
             </span>
           </div>
         )}
         {post.maxParticipants && (
           <div className="mt-2">
-            <span
-              className="text-xs px-2 py-1 rounded-full font-medium"
-              style={{
-                background: post.currentParticipants === post.maxParticipants ? "#5cb85c22" : "var(--secondary)",
-                color: post.currentParticipants === post.maxParticipants ? "#5cb85c" : "var(--primary)",
-              }}
-            >
+            <Badge tone={post.currentParticipants === post.maxParticipants ? "success" : "info"}>
               {post.currentParticipants}/{post.maxParticipants}명
               {post.currentParticipants === post.maxParticipants ? " 모집완료" : " 모집중"}
-            </span>
+            </Badge>
           </div>
         )}
 
@@ -5111,7 +4514,7 @@ const handleDeleteSelectedChats = () => {
           style={{
             wordBreak: "break-all",
             whiteSpace: "pre-wrap",
-            color: "var(--muted-foreground)",
+            color: "var(--text-muted)",
             display: "-webkit-box",
             WebkitLineClamp: 2,
             WebkitBoxOrient: "vertical",
@@ -5129,7 +4532,7 @@ const handleDeleteSelectedChats = () => {
           <img
             src={resolveAssetUrl(post.images[0])}
             alt="첨부 이미지"
-            className="w-16 h-16 object-cover rounded-xl"
+            className="w-16 h-16 object-cover rounded-[var(--r-md)]"
             onClick={(e) => {
               e.stopPropagation();
               setFullscreenPostImage(resolveAssetUrl(post.images[0]) || null);
@@ -5138,7 +4541,7 @@ const handleDeleteSelectedChats = () => {
           {post.images.length > 1 && (
             <span
               className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded-full text-[10px] leading-none font-semibold"
-              style={{ background: "rgba(0,0,0,0.6)", color: "white" }}
+              style={{ background: "rgba(15,23,42,0.6)", color: "white" }}
             >
               1/{post.images.length}
             </span>
@@ -5150,67 +4553,63 @@ const handleDeleteSelectedChats = () => {
     {renderPoll(post)}
 
     {/* Actions: 카드 높이가 짧아도 항상 카드 맨 아래에 붙도록 mt-auto로 고정 */}
-    <div className="flex items-center gap-3 mt-auto pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+    <div className="flex items-center gap-3 mt-auto pt-2.5 border-t" style={{ borderColor: "var(--border-subtle)" }}>
       {/* 카드 전체가 상세화면 이동 핸들러를 갖고 있으므로, 액션 버튼은 전파를 막아야 한다 */}
       <button className="flex items-center gap-1.5" onClick={(e) => { e.stopPropagation(); handleLike(post); }}>
-        <Heart size={16} fill={isLiked(post) ? "#3b82f6" : "none"}
-          color={isLiked(post) ? "#3b82f6" : "var(--muted-foreground)"} />
-        <span className="text-xs" style={{ color: isLiked(post) ? "var(--primary)" : "var(--muted-foreground)" }}>
+        <Heart size={16} fill={isLiked(post) ? "var(--blue-primary)" : "none"}
+          color={isLiked(post) ? "var(--blue-primary)" : "var(--text-muted)"} />
+        <span className="text-xs" style={{ color: isLiked(post) ? "var(--blue-deep)" : "var(--text-muted)" }}>
           {post.likes.length}
         </span>
       </button>
       {post.board === "lecture" && (
         <button className="flex items-center gap-1.5" onClick={(e) => { e.stopPropagation(); handleDislike(post); }}>
-          <ThumbsDown size={16} fill={isDisliked(post) ? "#d4183d" : "none"}
-            color={isDisliked(post) ? "#d4183d" : "var(--muted-foreground)"} />
-          <span className="text-xs" style={{ color: isDisliked(post) ? "#d4183d" : "var(--muted-foreground)" }}>
+          <ThumbsDown size={16} fill={isDisliked(post) ? "var(--danger)" : "none"}
+            color={isDisliked(post) ? "var(--danger)" : "var(--text-muted)"} />
+          <span className="text-xs" style={{ color: isDisliked(post) ? "var(--danger)" : "var(--text-muted)" }}>
             {post.dislikes.length}
           </span>
         </button>
       )}
       <button className="flex items-center gap-1.5" onClick={(e) => { e.stopPropagation(); setSelectedPostId(post._id); }}>
-        <MessageCircle size={16} style={{ color: "var(--muted-foreground)" }} />
-        <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getCommentCount(post)}</span>
+        <MessageCircle size={16} style={{ color: "var(--text-muted)" }} />
+        <span className="text-xs" style={{ color: "var(--text-muted)" }}>{getCommentCount(post)}</span>
       </button>
       <button className="flex items-center gap-1.5"
         onClick={(e) => { e.stopPropagation(); toggleSave(post._id); }}>
-        <Bookmark size={16} fill={savedPosts[post._id] ? "var(--primary)" : "none"}
-          color={savedPosts[post._id] ? "var(--primary)" : "var(--muted-foreground)"} />
+        <Bookmark size={16} fill={savedPosts[post._id] ? "var(--blue-primary)" : "none"}
+          color={savedPosts[post._id] ? "var(--blue-primary)" : "var(--text-muted)"} />
       </button>
 
       {post.board === "meeting" && currentUser && hasJoinedMeeting(post) && (
-        <button
+        <Chip
+          selected
+          className="ml-auto"
           onClick={(e) => {
             e.stopPropagation();
             openGroupChatForPost(post._id);
           }}
-          className="ml-auto px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1"
-          style={{ background: "var(--secondary)", color: "var(--primary)" }}
         >
-          <MessageCircle size={13} /> 채팅방
-        </button>
+          <MessageCircle size={13} className="mr-1" /> 채팅방
+        </Chip>
       )}
       {post.board === "meeting" && currentUser && post.author._id !== currentUser._id && (
-        <button
+        <Chip
+          selected={!hasJoinedMeeting(post) && !isMeetingFull(post)}
+          className={hasJoinedMeeting(post) ? "" : "ml-auto"}
           onClick={(e) => {
             e.stopPropagation();
             handleMeetingButtonClick(post);
           }}
           disabled={!hasJoinedMeeting(post) && isMeetingFull(post)}
-          className={`${hasJoinedMeeting(post) ? "" : "ml-auto"} px-3 py-1.5 rounded-xl text-xs font-semibold`}
-          style={{
-            background: hasJoinedMeeting(post) ? "var(--muted)" : isMeetingFull(post) ? "var(--muted)" : "var(--primary)",
-            color: hasJoinedMeeting(post) ? "var(--muted-foreground)" : isMeetingFull(post) ? "var(--muted-foreground)" : "white",
-            cursor: !hasJoinedMeeting(post) && isMeetingFull(post) ? "not-allowed" : "pointer",
-          }}
         >
           {hasJoinedMeeting(post) ? "참여중" : isMeetingFull(post) ? "모집완료" : "참여"}
-        </button>
+        </Chip>
       )}
     </div>
   </>
 )}
-          </div>
+          </Card>
         ))}
       </div>
 
@@ -5222,49 +4621,36 @@ const handleDeleteSelectedChats = () => {
 
        
         <div className="px-4 py-3 h-170 overflow-y-auto flex flex-col gap-2 no-scrollbar"
-          style={{ background: "var(--background)", borderTop: "1px solid var(--border)" }}>
+          style={{ background: "var(--bg-base)", borderTop: "1px solid var(--border-subtle)" }}>
           <div className="flex items-center justify-between mb-1">
-  <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>채팅 목록</span>
+  <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>채팅 목록</span>
   {!isFriendSelectMode ? (
     <div className="flex items-center gap-2">
-      <button
-        onClick={() => setShowCreateGroupChat(true)}
-        className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
-        style={{ background: "var(--secondary)", color: "var(--primary)" }}
-      >
+      <Chip onClick={() => setShowCreateGroupChat(true)} className="h-7 px-2 gap-1">
         <Users size={12} /> 단체채팅
-      </button>
-      <button
+      </Chip>
+      <Chip
         onClick={() => {
           api.post("/chat/read-all").catch(() => showAlert("처리에 실패했습니다."));
         }}
-        className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
-        style={{ background: "var(--secondary)", color: "var(--primary)" }}
+        className="h-7 px-2"
       >
         모두 읽음
-      </button>
-      <button
-        onClick={toggleFriendSelectMode}
-        className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
-        style={{ background: "var(--secondary)", color: "#d4183d" }}
-      >
+      </Chip>
+      <Chip onClick={toggleFriendSelectMode} className="h-7 px-2 gap-1 !text-[var(--danger)]">
         <Trash2 size={12} /> 채팅삭제
-      </button>
+      </Chip>
     </div>
   ) : (
-    <button
-      onClick={toggleFriendSelectMode}
-      className="text-xs px-2 py-1 rounded-lg font-medium"
-      style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
-    >
+    <Chip onClick={toggleFriendSelectMode} className="h-7 px-2">
       취소
-    </button>
+    </Chip>
   )}
 </div>
 
 {groupChatList.length > 0 && (
   <div className="flex flex-col gap-1.5 mb-2">
-    <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>단체채팅</span>
+    <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>단체채팅</span>
     {groupChatList.map((chat) => {
       const title = chat.name || chat.post?.title ||
         chat.members.filter((m) => m._id !== currentUser?._id).map((m) => m.nickname).join(", ");
@@ -5284,30 +4670,30 @@ const handleDeleteSelectedChats = () => {
               openGroupChat(chat);
             }
           }}
-          className="flex items-center gap-3 p-2.5 rounded-xl text-left"
+          className="flex items-center gap-3 p-2.5 rounded-[var(--r-lg)] text-left"
           style={{
-            background: "var(--card)",
+            background: "var(--bg-card)",
             opacity: isFriendSelectMode && !isHost ? 0.5 : 1,
-            outline: isSelected ? "2px solid var(--primary)" : "none",
+            outline: isSelected ? "2px solid var(--blue-primary)" : "none",
           }}
         >
           {isSelectable && (
             <div
               className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
               style={{
-                background: isSelected ? "var(--primary)" : "var(--muted)",
-                border: "1.5px solid var(--border)",
+                background: isSelected ? "var(--blue-deep)" : "var(--blue-soft)",
+                border: "1.5px solid var(--border-subtle)",
               }}
             >
               {isSelected && <span className="text-white text-[10px] font-bold">✓</span>}
             </div>
           )}
-          <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--secondary)" }}>
-            <Users size={18} style={{ color: "var(--primary)" }} />
+          <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: "var(--blue-soft)" }}>
+            <Users size={18} style={{ color: "var(--blue-primary)" }} />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>{title}</p>
-            <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
+            <p className="text-sm font-semibold truncate" style={{ color: "var(--text-strong)" }}>{title}</p>
+            <p className="text-xs truncate" style={{ color: "var(--text-muted)" }}>
               {isFriendSelectMode && !isHost ? "방장만 삭제할 수 있어요" : preview}
             </p>
           </div>
@@ -5318,23 +4704,19 @@ const handleDeleteSelectedChats = () => {
 )}
 
 {friends.length === 0 && (
-  <p className="text-sm text-center mt-4" style={{ color: "var(--muted-foreground)" }}>
+  <p className="text-sm text-center mt-4" style={{ color: "var(--text-muted)" }}>
     아직 대화한 상대가 없습니다. 팔로우한 사람의 프로필에서 메시지를 보내보세요.
   </p>
 )}
 
 {friends.length > 0 && (
-  <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>개인채팅</span>
+  <span className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>개인채팅</span>
 )}
 
 {isFriendSelectMode && (selectedFriendIds.length > 0 || selectedGroupChatIds.length > 0) && (
-  <button
-    onClick={handleDeleteSelectedChats}
-    className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold"
-    style={{ background: "#d4183d", color: "white" }}
-  >
+  <Button variant="primary" className="w-full !bg-[var(--danger)]" onClick={handleDeleteSelectedChats}>
     {selectedFriendIds.length + selectedGroupChatIds.length}개 채팅 삭제
-  </button>
+  </Button>
 )}
 
          {sortedFriends.map((friend) => {
@@ -5349,11 +4731,11 @@ const handleDeleteSelectedChats = () => {
         openFriendChat(friend);
       }
     }}
-    className="flex items-center gap-3 p-2.5 rounded-xl text-left"
+    className="flex items-center gap-3 p-2.5 rounded-[var(--r-lg)] text-left"
     style={{
-      background: "var(--card)",
+      background: "var(--bg-card)",
       outline: isFriendSelectMode && selectedFriendIds.includes(friend._id)
-        ? "2px solid var(--primary)"
+        ? "2px solid var(--blue-primary)"
         : "none",
     }}
   >
@@ -5361,8 +4743,8 @@ const handleDeleteSelectedChats = () => {
       <div
         className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
         style={{
-          background: selectedFriendIds.includes(friend._id) ? "var(--primary)" : "var(--muted)",
-          border: "1.5px solid var(--border)",
+          background: selectedFriendIds.includes(friend._id) ? "var(--blue-deep)" : "var(--blue-soft)",
+          border: "1.5px solid var(--border-subtle)",
         }}
       >
         {selectedFriendIds.includes(friend._id) && (
@@ -5370,32 +4752,29 @@ const handleDeleteSelectedChats = () => {
         )}
       </div>
     )}
-    <div className="relative w-10 h-10 rounded-full overflow-hidden shrink-0">
-      <img src={resolveAssetUrl(friend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
+    <div className="relative shrink-0">
+      <Avatar src={resolveAssetUrl(friend.avatar)} fallbackSrc={defaultAvatar} />
       {onlineUserIds.includes(friend._id) && (
         <span
           className="absolute bottom-0 right-0 w-3 h-3 rounded-full"
-          style={{ background: "#42d354", border: "2px solid var(--background)" }}
+          style={{ background: "#42d354", border: "2px solid var(--bg-base)" }}
         />
       )}
     </div>
     <div className="flex-1 min-w-0">
       <div className="flex items-center gap-1.5">
-        <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{friend.nickname}</p>
+        <p className="text-sm font-semibold" style={{ color: "var(--text-strong)" }}>{friend.nickname}</p>
         {unreadCount > 0 && (
-          <span
-            className="text-[10px] font-bold text-white rounded-full px-1.5 py-0.5 shrink-0"
-            style={{ background: "#d4183d", minWidth: "16px", textAlign: "center", lineHeight: 1.2 }}
-          >
+          <Badge tone="danger" className="px-1.5 py-0.5 text-[10px] min-w-[16px] justify-center">
             {unreadCount}
-          </span>
+          </Badge>
         )}
       </div>
       {text && (
         <p
           className="text-xs truncate mt-1"
           style={{
-            color: unreadCount > 0 ? "var(--foreground)" : "var(--muted-foreground)",
+            color: unreadCount > 0 ? "var(--text-strong)" : "var(--text-muted)",
             fontWeight: unreadCount > 0 ? 700 : 400,
           }}
         >
@@ -5404,7 +4783,7 @@ const handleDeleteSelectedChats = () => {
       )}
     </div>
     {time && (
-      <span className="text-[10px] shrink-0 self-start pt-1" style={{ color: "var(--muted-foreground)" }}>
+      <span className="text-[10px] shrink-0 self-start pt-1" style={{ color: "var(--text-muted)" }}>
         {time}
       </span>
     )}
@@ -5417,16 +4796,16 @@ const handleDeleteSelectedChats = () => {
 
       {/* 글쓰기 모달 */}
       {showWrite && (
-        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-          <div className="flex items-center gap-3 px-4 py-4 border-b" style={{ borderColor: "var(--border)" }}>
-            <button onClick={closeWriteModal}>
-              <X size={20} style={{ color: "var(--foreground)" }} />
-            </button>
-            <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>글쓰기</h2>
-            <button
-              disabled={isSubmittingPost}
-              className="px-4 py-1.5 rounded-xl text-sm font-semibold"
-              style={{ background: "var(--primary)", color: "white", opacity: isSubmittingPost ? 0.6 : 1 }}
+        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--bg-base)" }}>
+          <ScreenHeader
+            title="글쓰기"
+            icon="close"
+            onBack={closeWriteModal}
+            action={
+            <Button
+              size={44}
+              loading={isSubmittingPost}
+              className="px-4"
              onClick={async () => {
                 if (newBoard === "event" && !canPostEvents) {
                   showAlert("공지사항 게시판은 관리자만 작성할 수 있습니다.");
@@ -5535,131 +4914,69 @@ const handleDeleteSelectedChats = () => {
               }}
             >
               등록
-            </button>
-          </div>
-         <div
-            className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto no-scrollbar"
-            onClick={() => {
-              setShowGradeDropdown(false);
-              setShowProfessorDropdown(false);
-              setShowMeetingTimeDropdown(false);
-              setShowMeetingCountDropdown(false);
-            }}
-          >
+            </Button>
+            }
+          />
+         <div className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto no-scrollbar">
             <div>
-              <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
+              <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--text-muted)" }}>
                 게시판 선택
               </label>
                <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4">
                 {BOARDS.filter(({ id }) => id !== "event" || canPostEvents).map(({ id, label, emoji }) => (
-                  <button
-                    key={id}
-                    onClick={() => setNewBoard(id)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap shrink-0"
-                    style={{
-                      background: newBoard === id ? "var(--primary)" : "var(--muted)",
-                      color: newBoard === id ? "white" : "var(--muted-foreground)",
-                    }}
-                  >
+                  <Chip key={id} selected={newBoard === id} onClick={() => setNewBoard(id)} className="shrink-0">
                     {emoji} {label}
-                  </button>
+                  </Chip>
                 ))}
               </div>
             </div>
 
             {newBoard === "meeting" ? (
               <div className="flex flex-col gap-4">
-                <input
+                <Input
+                  label="제목"
+                  hideLabel
                   placeholder="제목을 입력하세요"
                   value={newMeetingTitle}
                   onChange={(e) => setNewMeetingTitle(e.target.value)}
-                  className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
-                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
                 />
 
                 <div className="flex gap-2">
                   {/* 시간: 1시간 단위 드롭다운 */}
                   <div className="flex-1">
-                    <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>시간</label>
-                    <div className="relative" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => setShowMeetingTimeDropdown((v) => !v)}
-                        className="w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm"
-                        style={{
-                          background: "var(--input-background)",
-                          color: newMeetingTime ? "var(--foreground)" : "var(--muted-foreground)",
-                          border: "1.5px solid var(--border)",
-                        }}
-                      >
-                        {newMeetingTime || "시간 선택"}
-                        {showMeetingTimeDropdown ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </button>
-                      {showMeetingTimeDropdown && (
-                        <div
-                          className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl shadow-lg py-1 max-h-48 overflow-y-auto no-scrollbar"
-                          style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                        >
-                          {MEETING_TIMES.map((t) => (
-                            <button
-                              key={t}
-                              onClick={() => { setNewMeetingTime(t); setShowMeetingTimeDropdown(false); }}
-                              className="w-full px-4 py-2.5 text-sm text-left"
-                              style={{ color: newMeetingTime === t ? "var(--primary)" : "var(--foreground)" }}
-                            >
-                              {t}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--text-muted)" }}>시간</label>
+                    <Dropdown
+                      variant="field"
+                      placeholder="시간 선택"
+                      value={newMeetingTime}
+                      onChange={setNewMeetingTime}
+                      options={MEETING_TIMES.map((t) => ({ value: t, label: t }))}
+                    />
                   </div>
 
                   {/* 장소: 직접 입력 */}
                   <div className="flex-1">
-                    <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>장소</label>
-                    <input
+                    <Input
+                      label="장소"
+                      hideLabel
                       placeholder="장소를 입력하세요"
                       value={newMeetingPlace}
                       onChange={(e) => setNewMeetingPlace(e.target.value)}
-                      className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
-                      style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
                     />
                   </div>
                 </div>
 
                 {/* 인원: 2명~10명(본인 포함) 드롭다운 */}
                 <div>
-                  <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>인원 (본인 포함)</label>
-                  <div className="relative" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => setShowMeetingCountDropdown((v) => !v)}
-                      className="w-40 flex items-center justify-between px-4 py-3 rounded-2xl text-sm"
-                      style={{
-                        background: "var(--input-background)",
-                        color: newMeetingCount ? "var(--foreground)" : "var(--muted-foreground)",
-                        border: "1.5px solid var(--border)",
-                      }}
-                    >
-                      {newMeetingCount ? `${newMeetingCount}명` : "인원 선택"}
-                      {showMeetingCountDropdown ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </button>
-                    {showMeetingCountDropdown && (
-                      <div
-                        className="absolute left-0 top-full mt-1 z-20 w-40 rounded-xl shadow-lg py-1 max-h-48 overflow-y-auto no-scrollbar"
-                        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                      >
-                        {MEETING_COUNTS.map((c) => (
-                          <button
-                            key={c}
-                            onClick={() => { setNewMeetingCount(c); setShowMeetingCountDropdown(false); }}
-                            className="w-full px-4 py-2.5 text-sm text-left"
-                            style={{ color: newMeetingCount === c ? "var(--primary)" : "var(--foreground)" }}
-                          >
-                            {c}명
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                  <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--text-muted)" }}>인원 (본인 포함)</label>
+                  <div className="w-40">
+                    <Dropdown
+                      variant="field"
+                      placeholder="인원 선택"
+                      value={newMeetingCount != null ? String(newMeetingCount) : ""}
+                      onChange={(v) => setNewMeetingCount(Number(v))}
+                      options={MEETING_COUNTS.map((c) => ({ value: String(c), label: `${c}명` }))}
+                    />
                   </div>
                 </div>
 
@@ -5668,139 +4985,55 @@ const handleDeleteSelectedChats = () => {
                   value={newMeetingContent}
                   onChange={(e) => setNewMeetingContent(e.target.value)}
                   rows={8}
-                  className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
-                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                  className="w-full px-4 py-3 rounded-[var(--r-lg)] text-sm outline-none resize-none no-scrollbar transition-colors focus:bg-[var(--blue-soft)] focus:border-[var(--blue-primary)] focus:ring-2 focus:ring-[var(--blue-primary)]/30"
+                  style={{ background: "var(--bg-input)", color: "var(--text-body)", border: "1px solid var(--border-subtle)" }}
                 />
               </div>
             ) : newBoard === "lecture" ? (
               <div className="flex flex-col gap-4">
                 {/* 학년 드롭다운 */}
-                <div>
-                  <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>학년</label>
-                  <div className="relative" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => setShowGradeDropdown((v) => !v)}
-                      className="w-40 flex items-center justify-between px-4 py-3 rounded-2xl text-sm"
-                      style={{
-                        background: "var(--input-background)",
-                        color: newLectureGrade ? "var(--foreground)" : "var(--muted-foreground)",
-                        border: "1.5px solid var(--border)",
-                      }}
-                    >
-                      {newLectureGrade || "교과군 선택"}
-                      {showGradeDropdown ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </button>
-                    {showGradeDropdown && (
-                      <div
-                        className="absolute left-0 top-full mt-1 z-20 w-40 rounded-xl shadow-lg py-1"
-                        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                      >
-                        {LECTURE_GRADES.map((g) => (
-                          <button
-                            key={g}
-                            onClick={() => {
-                              setNewLectureGrade(g);
-                              setNewLectureName("");
-                              setNewLectureProfessor("");
-                              setShowGradeDropdown(false);
-                            }}
-                            className="w-full px-4 py-2.5 text-sm text-left"
-                            style={{ color: newLectureGrade === g ? "var(--primary)" : "var(--foreground)" }}
-                          >
-                            {g}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                <div className="w-40">
+                  <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--text-muted)" }}>학년</label>
+                  <Dropdown
+                    variant="field"
+                    placeholder="교과군 선택"
+                    value={newLectureGrade}
+                    onChange={(g) => {
+                      setNewLectureGrade(g);
+                      setNewLectureName("");
+                      setNewLectureProfessor("");
+                    }}
+                    options={LECTURE_GRADES.map((g) => ({ value: g, label: g }))}
+                  />
                 </div>
 
                 {/* 강의명 + 교수님 선택 */}
                 <div className="flex-1">
-                                     <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>강의명</label>
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowLectureNameDropdown(!showLectureNameDropdown)}
-                      disabled={!newLectureGrade}
-                      className="w-full px-4 py-3 rounded-2xl text-sm text-left flex items-center justify-between"
-                      style={{
-                        background: "var(--input-background)",
-                        color: newLectureName ? "var(--foreground)" : "var(--muted-foreground)",
-                        border: "1.5px solid var(--border)",
-                        opacity: newLectureGrade ? 1 : 0.5,
-                        cursor: newLectureGrade ? "pointer" : "not-allowed",
-                      }}
-                    >
-                      {newLectureName || (newLectureGrade ? "강의명을 선택하세요" : "교과군을 먼저 선택해주세요")}
-                      <ChevronDown size={16} />
-                    </button>
-                    {showLectureNameDropdown && newLectureGrade && (
-                      <div
-                        className="absolute left-0 top-full mt-1 z-20 w-full rounded-xl shadow-lg py-1"
-                        style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                      >
-                        {(LECTURE_GROUPS[newLectureGrade] ?? []).map((name) => (
-                          <button
-                            key={name}
-                            onClick={() => {
-                              setNewLectureName(name);
-                              setNewLectureProfessor("");
-                              setShowLectureNameDropdown(false);
-                            }}
-                            className="w-full px-4 py-2.5 text-sm text-left"
-                            style={{ color: newLectureName === name ? "var(--primary)" : "var(--foreground)" }}
-                          >
-                            {name}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>교수님 선택</label>
-                    <div className="relative" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => {
-                          if (!newLectureName.trim()) return;
-                          setShowProfessorDropdown((v) => !v);
-                        }}
-                        disabled={!newLectureName.trim()}
-                        className="w-full flex items-center justify-between px-4 py-3 rounded-2xl text-sm"
-                        style={{
-                          background: "var(--input-background)",
-                          color: newLectureProfessor ? "var(--foreground)" : "var(--muted-foreground)",
-                          border: "1.5px solid var(--border)",
-                          opacity: newLectureName.trim() ? 1 : 0.5,
-                          cursor: newLectureName.trim() ? "pointer" : "not-allowed",
-                        }}
-                      >
-                        {newLectureProfessor || (newLectureName.trim() ? "교수님 선택" : "강의명을 먼저 입력해주세요")}
-                        {showProfessorDropdown ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                      </button>
-                      {showProfessorDropdown && (
-                        <div
-                          className="absolute left-0 right-0 top-full mt-1 z-20 rounded-xl shadow-lg py-1 max-h-48 overflow-y-auto no-scrollbar"
-                          style={{ background: "var(--card)", border: "1px solid var(--border)" }}
-                        >
-                          {PROFESSOR_LIST.map((p) => (
-                            <button
-                              key={p}
-                              onClick={() => { setNewLectureProfessor(p); setShowProfessorDropdown(false); }}
-                              className="w-full px-4 py-2.5 text-sm text-left"
-                              style={{ color: newLectureProfessor === p ? "var(--primary)" : "var(--foreground)" }}
-                            >
-                              {p}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                  <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--text-muted)" }}>강의명</label>
+                  <Dropdown
+                    variant="field"
+                    placeholder={newLectureGrade ? "강의명을 선택하세요" : "교과군을 먼저 선택해주세요"}
+                    disabled={!newLectureGrade}
+                    value={newLectureName}
+                    onChange={(name) => { setNewLectureName(name); setNewLectureProfessor(""); }}
+                    options={(LECTURE_GROUPS[newLectureGrade] ?? []).map((name) => ({ value: name, label: name }))}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--text-muted)" }}>교수님 선택</label>
+                  <Dropdown
+                    variant="field"
+                    placeholder={newLectureName.trim() ? "교수님 선택" : "강의명을 먼저 입력해주세요"}
+                    disabled={!newLectureName.trim()}
+                    value={newLectureProfessor}
+                    onChange={setNewLectureProfessor}
+                    options={PROFESSOR_LIST.map((p) => ({ value: p, label: p }))}
+                  />
+                </div>
 
                 {/* 별점 */}
                 <div>
-                  <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>별점</label>
+                  <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--text-muted)" }}>별점</label>
                   {renderLectureRatingInput()}
                 </div>
 
@@ -5811,12 +5044,12 @@ const handleDeleteSelectedChats = () => {
                     value={newLectureContent}
                     onChange={(e) => setNewLectureContent(e.target.value)}
                     rows={6}
-                    className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
-                    style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                    className="w-full px-4 py-3 rounded-[var(--r-lg)] text-sm outline-none resize-none no-scrollbar transition-colors focus:bg-[var(--blue-soft)] focus:border-[var(--blue-primary)] focus:ring-2 focus:ring-[var(--blue-primary)]/30"
+                    style={{ background: "var(--bg-input)", color: "var(--text-body)", border: "1px solid var(--border-subtle)" }}
                   />
                   <p
                     className="text-xs mt-1"
-                    style={{ color: newLectureContent.trim().length < 20 ? "#d4183d" : "var(--muted-foreground)" }}
+                    style={{ color: newLectureContent.trim().length < 20 ? "var(--danger)" : "var(--text-muted)" }}
                   >
                     ※ 20자 이상 작성해주세요. ({newLectureContent.trim().length}/20)
                   </p>
@@ -5826,38 +5059,30 @@ const handleDeleteSelectedChats = () => {
               <>
                 {newBoard === "contest" && (
                   <div>
-                    <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>카테고리</label>
+                    <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--text-muted)" }}>카테고리</label>
                     <div className="flex gap-2">
                       {["전체", ...CONTEST_FILTERS].map((category) => (
-                        <button
-                          key={category}
-                          onClick={() => setNewContestCategory(category)}
-                          className="px-3 py-1.5 rounded-xl text-xs font-medium"
-                          style={{
-                            background: newContestCategory === category ? "var(--primary)" : "var(--muted)",
-                            color: newContestCategory === category ? "white" : "var(--muted-foreground)",
-                          }}
-                        >
+                        <Chip key={category} selected={newContestCategory === category} onClick={() => setNewContestCategory(category)}>
                           {category}
-                        </button>
+                        </Chip>
                       ))}
                     </div>
                   </div>
                 )}
-                <input
-  placeholder="제목을 입력하세요"
-  value={newTitle}
-  onChange={(e) => setNewTitle(e.target.value)}
-  className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
-  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-/>
+                <Input
+                  label="제목"
+                  hideLabel
+                  placeholder="제목을 입력하세요"
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                />
             <textarea
   placeholder="내용을 입력하세요"
   value={newContent}
   onChange={(e) => setNewContent(e.target.value)}
   rows={8}
-  className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
-  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+  className="w-full px-4 py-3 rounded-[var(--r-lg)] text-sm outline-none resize-none no-scrollbar transition-colors focus:bg-[var(--blue-soft)] focus:border-[var(--blue-primary)] focus:ring-2 focus:ring-[var(--blue-primary)]/30"
+  style={{ background: "var(--bg-input)", color: "var(--text-body)", border: "1px solid var(--border-subtle)" }}
 />
             <input
               id="image-upload"
@@ -5890,15 +5115,16 @@ const handleDeleteSelectedChats = () => {
             {(newImagePreviews.length > 0 || newImageFiles.length > 0) && (
               <div className="flex gap-2 overflow-x-auto no-scrollbar">
                 {newImagePreviews.map((preview, index) => (
-                  <div key={index} className="relative w-24 h-24 shrink-0 rounded-2xl overflow-hidden">
+                  <div key={index} className="relative w-24 h-24 shrink-0 rounded-[var(--r-lg)] overflow-hidden">
                     <img src={preview} alt="첨부 이미지" className="w-full h-full object-cover" />
                     <button
+                      aria-label="이미지 삭제"
                       onClick={() => {
                         setNewImageFiles((prev) => prev.filter((_, i) => i !== index));
                         setNewImagePreviews((prev) => prev.filter((_, i) => i !== index));
                       }}
                       className="absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center"
-                      style={{ background: "rgba(0,0,0,0.5)" }}
+                      style={{ background: "rgba(15,23,42,0.55)" }}
                     >
                       <X size={12} color="white" />
                     </button>
@@ -5907,8 +5133,8 @@ const handleDeleteSelectedChats = () => {
                 {newImageFiles.length < MAX_POST_IMAGES && (
                   <button
                     onClick={() => document.getElementById("image-upload")?.click()}
-                    className="w-24 h-24 shrink-0 rounded-2xl border border-dashed flex flex-col items-center justify-center gap-1"
-                    style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
+                    className="w-24 h-24 shrink-0 rounded-[var(--r-lg)] border border-dashed flex flex-col items-center justify-center gap-1"
+                    style={{ borderColor: "var(--blue-primary)", color: "var(--blue-primary)" }}
                   >
                     <Image size={18} />
                     <span className="text-xs">{newImageFiles.length}/{MAX_POST_IMAGES}</span>
@@ -5919,8 +5145,8 @@ const handleDeleteSelectedChats = () => {
             {newImageFiles.length === 0 && (
               <button
                 onClick={() => document.getElementById("image-upload")?.click()}
-                className="flex items-center gap-2 px-4 py-3 rounded-2xl border border-dashed"
-                style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
+                className="flex items-center gap-2 px-4 py-3 rounded-[var(--r-lg)] border border-dashed"
+                style={{ borderColor: "var(--blue-primary)", color: "var(--blue-primary)" }}
               >
                 <Image size={18} />
                 <span className="text-sm">사진 첨부</span>
@@ -5929,9 +5155,9 @@ const handleDeleteSelectedChats = () => {
 
             {/* 투표 추가 */}
             {newPollEnabled ? (
-              <div className="p-3 rounded-2xl flex flex-col gap-2.5" style={{ background: "var(--muted)" }}>
+              <div className="p-3 rounded-[var(--r-lg)] flex flex-col gap-2.5" style={{ background: "var(--blue-soft)" }}>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>🗳️ 투표 만들기</span>
+                  <span className="text-xs font-semibold" style={{ color: "var(--text-strong)" }}>🗳️ 투표 만들기</span>
                   <button
                     onClick={() => {
                       setNewPollEnabled(false);
@@ -5939,19 +5165,21 @@ const handleDeleteSelectedChats = () => {
                       setNewPollOptions(["", ""]);
                     }}
                   >
-                    <X size={16} style={{ color: "var(--muted-foreground)" }} />
+                    <X size={16} style={{ color: "var(--text-muted)" }} />
                   </button>
                 </div>
-                <input
-  placeholder="투표 질문을 입력하세요"
-  value={newPollQuestion}
-  onChange={(e) => setNewPollQuestion(e.target.value)}
-  className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
-  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-/>
+                <Input
+                  label="투표 질문"
+                  hideLabel
+                  placeholder="투표 질문을 입력하세요"
+                  value={newPollQuestion}
+                  onChange={(e) => setNewPollQuestion(e.target.value)}
+                />
                 {newPollOptions.map((opt, idx) => (
   <div key={idx} className="flex items-center gap-2">
-    <input
+    <Input
+      label={`옵션 ${idx + 1}`}
+      hideLabel
       placeholder={`옵션 ${idx + 1}`}
       value={opt}
       onChange={(e) => {
@@ -5959,43 +5187,35 @@ const handleDeleteSelectedChats = () => {
         next[idx] = e.target.value;
         setNewPollOptions(next);
       }}
-      className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
-      style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+      className="flex-1"
     />
     {newPollDeleteMode && newPollOptions.length > 2 && (
       <button onClick={() => setNewPollOptions(newPollOptions.filter((_, i) => i !== idx))}>
-        <X size={16} style={{ color: "#d4183d" }} />
+        <X size={16} style={{ color: "var(--danger)" }} />
       </button>
     )}
   </div>
 ))}
                 <div className="flex items-center gap-2">
                   {newPollOptions.length < 5 && (
-                    <button
-                      onClick={() => setNewPollOptions([...newPollOptions, ""])}
-                      className="text-xs font-medium px-3 py-1.5 rounded-xl"
-                      style={{ background: "var(--secondary)", color: "var(--primary)" }}
-                    >
+                    <Chip onClick={() => setNewPollOptions([...newPollOptions, ""])}>
                       + 옵션 추가
-                    </button>
+                    </Chip>
                   )}
-                  <button
+                  <Chip
+                    selected={newPollDeleteMode}
                     onClick={() => setNewPollDeleteMode((v) => !v)}
-                    className="text-xs font-medium px-3 py-1.5 rounded-xl"
-                    style={{
-                      background: newPollDeleteMode ? "#d4183d" : "var(--secondary)",
-                      color: newPollDeleteMode ? "white" : "var(--primary)",
-                    }}
+                    className={newPollDeleteMode ? "!bg-[var(--danger)] !text-white" : undefined}
                   >
                     {newPollDeleteMode ? "수정 완료" : "수정"}
-                  </button>
+                  </Chip>
                 </div>
               </div>
             ) : (
               <button
                 onClick={() => setNewPollEnabled(true)}
-                className="flex items-center gap-2 px-4 py-3 rounded-2xl border border-dashed"
-                style={{ borderColor: "var(--primary)", color: "var(--primary)" }}
+                className="flex items-center gap-2 px-4 py-3 rounded-[var(--r-lg)] border border-dashed"
+                style={{ borderColor: "var(--blue-primary)", color: "var(--blue-primary)" }}
               >
                 <Plus size={18} />
                 <span className="text-sm">투표 추가</span>
@@ -6009,16 +5229,15 @@ const handleDeleteSelectedChats = () => {
 
       {/* 수정 모달 */}
 {editingPost && (
-  <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-    <div className="flex items-center gap-3 px-4 py-4 border-b" style={{ borderColor: "var(--border)" }}>
-      <button onClick={() => setEditingPost(null)}>
-        <X size={20} style={{ color: "var(--foreground)" }} />
-      </button>
-      <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>게시물 수정</h2>
-      <button
-        className="px-4 py-1.5 rounded-xl text-sm font-semibold"
-        style={{ background: "var(--primary)", color: "white" }}
-        onClick={async () => {
+  <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--bg-base)" }}>
+    <ScreenHeader
+      title="게시물 수정"
+      onBack={() => setEditingPost(null)}
+      action={
+        <button
+          className="text-sm font-semibold px-2"
+          style={{ color: "var(--blue-primary)" }}
+          onClick={async () => {
           if (!editTitle.trim() || !editContent.trim()) {
             showAlert("제목과 내용을 입력해주세요.");
             return;
@@ -6047,45 +5266,48 @@ const handleDeleteSelectedChats = () => {
             showAlert(err?.response?.data?.message || "게시물 수정에 실패했습니다.");
           }
         }}
-      >
-        완료
-      </button>
-    </div>
+        >
+          완료
+        </button>
+      }
+    />
     <div className="flex-1 px-4 py-4 flex flex-col gap-4 overflow-y-auto no-scrollbar">
-      <input
-  placeholder="제목을 입력하세요"
-  value={editTitle}
-  onChange={(e) => setEditTitle(e.target.value)}
-  className="w-full px-4 py-3 rounded-2xl text-sm outline-none"
-  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-/>
+      <Input
+        label="제목"
+        hideLabel
+        placeholder="제목을 입력하세요"
+        value={editTitle}
+        onChange={(e) => setEditTitle(e.target.value)}
+      />
 <textarea
   placeholder="내용을 입력하세요"
   value={editContent}
   onChange={(e) => setEditContent(e.target.value)}
   rows={8}
-  className="w-full px-4 py-3 rounded-2xl text-sm outline-none resize-none no-scrollbar"
-  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+  className="w-full px-4 py-3 rounded-[var(--r-lg)] text-sm outline-none resize-none no-scrollbar transition-colors focus:bg-[var(--blue-soft)] focus:border-[var(--blue-primary)] focus:ring-2 focus:ring-[var(--blue-primary)]/30"
+  style={{ background: "var(--bg-input)", color: "var(--text-body)", border: "1px solid var(--border-subtle)" }}
 />
 
 {editingPost.poll && !editPollDeleted && (
-  <div className="p-3 rounded-2xl flex flex-col gap-2.5" style={{ background: "var(--muted)" }}>
+  <div className="p-3 rounded-[var(--r-lg)] flex flex-col gap-2.5" style={{ background: "var(--blue-soft)" }}>
     <div className="flex items-center justify-between">
-      <span className="text-xs font-semibold" style={{ color: "var(--foreground)" }}>🗳️ 투표 수정</span>
+      <span className="text-xs font-semibold" style={{ color: "var(--text-strong)" }}>🗳️ 투표 수정</span>
       <button onClick={() => setShowPollDeleteConfirm(true)} aria-label="투표 삭제">
-        <X size={16} style={{ color: "var(--muted-foreground)" }} />
+        <X size={16} style={{ color: "var(--text-muted)" }} />
       </button>
     </div>
-    <input
+    <Input
+      label="투표 질문"
+      hideLabel
       placeholder="투표 질문을 입력하세요"
       value={editPollQuestion}
       onChange={(e) => setEditPollQuestion(e.target.value)}
-      className="w-full px-3 py-2.5 rounded-xl text-sm outline-none"
-      style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
     />
     {editPollOptions.map((opt, idx) => (
       <div key={idx} className="flex items-center gap-2">
-        <input
+        <Input
+          label={`옵션 ${idx + 1}`}
+          hideLabel
           placeholder={`옵션 ${idx + 1}`}
           value={opt}
           onChange={(e) => {
@@ -6093,90 +5315,62 @@ const handleDeleteSelectedChats = () => {
             next[idx] = e.target.value;
             setEditPollOptions(next);
           }}
-          className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
-          style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+          className="flex-1"
         />
         {editPollDeleteMode && editPollOptions.length > 2 && (
           <button onClick={() => setEditPollOptions(editPollOptions.filter((_, i) => i !== idx))}>
-            <X size={16} style={{ color: "#d4183d" }} />
+            <X size={16} style={{ color: "var(--danger)" }} />
           </button>
         )}
       </div>
     ))}
     <div className="flex items-center gap-2">
       {editPollOptions.length < 5 && (
-        <button
-          onClick={() => setEditPollOptions([...editPollOptions, ""])}
-          className="text-xs font-medium px-3 py-1.5 rounded-xl"
-          style={{ background: "var(--secondary)", color: "var(--primary)" }}
-        >
+        <Chip onClick={() => setEditPollOptions([...editPollOptions, ""])}>
           + 옵션 추가
-        </button>
+        </Chip>
       )}
-      <button
+      <Chip
+        selected={editPollDeleteMode}
         onClick={() => setEditPollDeleteMode((v) => !v)}
-        className="text-xs font-medium px-3 py-1.5 rounded-xl"
-        style={{
-          background: editPollDeleteMode ? "#d4183d" : "var(--secondary)",
-          color: editPollDeleteMode ? "white" : "var(--primary)",
-        }}
+        className={editPollDeleteMode ? "!bg-[var(--danger)] !text-white" : undefined}
       >
         {editPollDeleteMode ? "수정 완료" : "수정"}
-      </button>
+      </Chip>
     </div>
-    <p className="text-[10px]" style={{ color: "var(--muted-foreground)" }}>
+    <p className="text-[10px]" style={{ color: "var(--text-muted)" }}>
       옵션 텍스트를 바꾸면 해당 옵션의 기존 투표 수는 유지되고, 새로 추가한 옵션은 0표로 시작합니다.
     </p>
   </div>
 )}
 
-{showPollDeleteConfirm && (
-  <div
-    className="absolute inset-0 z-[75] flex items-center justify-center px-6"
-    style={{ background: "rgba(0,0,0,0.6)" }}
-  >
-    <div
-      className="w-full rounded-2xl overflow-hidden shadow-2xl"
-      style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
-    >
-      <div className="px-5 py-6 text-sm leading-relaxed text-center" style={{ color: "var(--foreground)" }}>
-        정말 투표를 삭제하시겠습니까?
-      </div>
-      <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-        <button
-          onClick={() => {
-            setEditPollDeleted(true);
-            setShowPollDeleteConfirm(false);
-          }}
-          className="flex-1 py-3 text-sm font-medium"
-          style={{ color: "#d4183d", borderRight: "1px solid rgba(255,255,255,0.1)" }}
-        >
-          네
-        </button>
-        <button
-          onClick={() => setShowPollDeleteConfirm(false)}
-          className="flex-1 py-3 text-sm font-medium"
-          style={{ color: "var(--foreground)" }}
-        >
-          아니요
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+<Modal
+  open={showPollDeleteConfirm}
+  title="투표 삭제"
+  onClose={() => setShowPollDeleteConfirm(false)}
+  cancelText="아니요"
+  onCancel={() => setShowPollDeleteConfirm(false)}
+  confirmText="네"
+  onConfirm={() => {
+    setEditPollDeleted(true);
+    setShowPollDeleteConfirm(false);
+  }}
+>
+  정말 투표를 삭제하시겠습니까?
+</Modal>
     </div>
   </div>
 )}
 
       {/* 신고 모달 */}
       {showReport && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
-          <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
+        <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(15,23,42,0.45)" }}>
+          <div className="w-full rounded-[var(--r-lg)] px-4 py-6 flex flex-col gap-3" style={{ background: "var(--bg-card)", boxShadow: "0 12px 32px rgba(15,23,42,0.16)" }}>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>신고하기</h3>
-              <button onClick={() => setShowReport(null)}>
-                <X size={20} style={{ color: "var(--foreground)" }} />
-              </button>
+              <h3 className="font-semibold" style={{ color: "var(--text-strong)" }}>신고하기</h3>
+              <IconButton aria-label="닫기" onClick={() => setShowReport(null)} className="h-9 w-9">
+                <X size={16} />
+              </IconButton>
             </div>
             {["스팸/도배", "욕설/비방", "음란물", "허위 정보", "기타"].map((reason) => (
               <button
@@ -6203,8 +5397,8 @@ const handleDeleteSelectedChats = () => {
                   setShowReport(null);
                   showAlert(`신고가 접수되었습니다: ${reason}`);
                 }}
-                className="w-full px-4 py-3 rounded-xl text-left text-sm"
-                style={{ background: "var(--card)", color: "var(--foreground)" }}
+                className="w-full px-4 py-3 rounded-[var(--r-md)] text-left text-sm"
+                style={{ background: "var(--bg-input)", color: "var(--text-body)" }}
               >
                 {reason}
               </button>
@@ -6238,8 +5432,8 @@ const handleDeleteSelectedChats = () => {
                   showAlert("사용자가 차단되었습니다.");
                 });
               }}
-              className="w-full px-4 py-3 rounded-xl text-sm font-semibold"
-              style={{ background: "#d4183d22", color: "#d4183d" }}
+              className="w-full px-4 py-3 rounded-[var(--r-md)] text-sm font-semibold"
+              style={{ background: "var(--tag-danger-bg)", color: "var(--tag-danger-fg)" }}
             >
               사용자 차단
               </button>
@@ -6248,200 +5442,70 @@ const handleDeleteSelectedChats = () => {
       )}
 
       {/* 관리자 제재(경고/차단/댓글제한) 모달 */}
-      {showAdminAction && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
-          <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>
-                {showAdminAction.type === "warn" ? "유저 경고" : showAdminAction.type === "ban" ? "앱 차단" : "댓글 제한"}
-              </h3>
-              <button onClick={() => setShowAdminAction(null)}>
-                <X size={20} style={{ color: "var(--foreground)" }} />
-              </button>
+      <Modal
+        open={!!showAdminAction}
+        title={showAdminAction?.type === "warn" ? "유저 경고" : showAdminAction?.type === "ban" ? "앱 차단" : "댓글 제한"}
+        onClose={() => setShowAdminAction(null)}
+        confirmText={adminActionSubmitting ? "처리 중..." : "확인"}
+        confirmDisabled={!adminReasonInput.trim() || adminActionSubmitting}
+        onConfirm={submitAdminAction}
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>대상: {showAdminAction?.authorName}</p>
+
+          {showAdminAction?.type === "ban" && (
+            <div className="grid grid-cols-2 gap-2">
+              <Button variant={adminBanType === "temporary" ? "primary" : "secondary"} onClick={() => setAdminBanType("temporary")}>
+                기간 지정
+              </Button>
+              <Button variant={adminBanType === "permanent" ? "primary" : "secondary"} onClick={() => setAdminBanType("permanent")}>
+                영구 정지
+              </Button>
             </div>
-            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>대상: {showAdminAction.authorName}</p>
+          )}
 
-            {showAdminAction.type === "ban" && (
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={() => setAdminBanType("temporary")}
-                  className="py-2.5 rounded-xl text-xs font-semibold"
-                  style={{
-                    background: adminBanType === "temporary" ? "var(--primary)" : "var(--muted)",
-                    color: adminBanType === "temporary" ? "white" : "var(--muted-foreground)",
-                  }}
-                >
-                  기간 지정
-                </button>
-                <button
-                  onClick={() => setAdminBanType("permanent")}
-                  className="py-2.5 rounded-xl text-xs font-semibold"
-                  style={{
-                    background: adminBanType === "permanent" ? "var(--primary)" : "var(--muted)",
-                    color: adminBanType === "permanent" ? "white" : "var(--muted-foreground)",
-                  }}
-                >
-                  영구 정지
-                </button>
-              </div>
-            )}
+          {(showAdminAction?.type === "restrictComments" || (showAdminAction?.type === "ban" && adminBanType === "temporary")) && (
+            <div className="flex gap-2 items-center">
+              {[3, 7, 30].map((d) => (
+                <Chip key={d} selected={adminDurationDays === d} onClick={() => setAdminDurationDays(d)}>
+                  {d}일
+                </Chip>
+              ))}
+              <input
+                type="number"
+                min={1}
+                value={adminDurationDays}
+                onChange={(e) => setAdminDurationDays(Math.max(1, Number(e.target.value) || 1))}
+                className="w-16 rounded-[var(--r-sm)] border border-[var(--border-subtle)] bg-[var(--bg-input)] px-2 py-2 text-sm text-[var(--text-body)] outline-none"
+              />
+              <span className="text-xs" style={{ color: "var(--text-muted)" }}>일</span>
+            </div>
+          )}
 
-            {(showAdminAction.type === "restrictComments" || (showAdminAction.type === "ban" && adminBanType === "temporary")) && (
-              <div className="flex gap-2 items-center">
-                {[3, 7, 30].map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => setAdminDurationDays(d)}
-                    className="px-3 py-2 rounded-lg text-xs font-semibold"
-                    style={{
-                      background: adminDurationDays === d ? "var(--primary)" : "var(--muted)",
-                      color: adminDurationDays === d ? "white" : "var(--muted-foreground)",
-                    }}
-                  >
-                    {d}일
-                  </button>
-                ))}
-                <input
-                  type="number"
-                  min={1}
-                  value={adminDurationDays}
-                  onChange={(e) => setAdminDurationDays(Math.max(1, Number(e.target.value) || 1))}
-                  className="w-16 px-2 py-2 rounded-lg text-sm outline-none"
-                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-                />
-                <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>일</span>
-              </div>
-            )}
-
-            <textarea
-              value={adminReasonInput}
-              onChange={(e) => setAdminReasonInput(e.target.value)}
-              placeholder="사유를 입력하세요"
-              rows={3}
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
-              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-            />
-
-            <button
-              onClick={submitAdminAction}
-              disabled={!adminReasonInput.trim() || adminActionSubmitting}
-              className="w-full px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-50"
-              style={{ background: "#d4183d", color: "white" }}
-            >
-              {adminActionSubmitting ? "처리 중..." : "확인"}
-            </button>
-          </div>
+          <textarea
+            value={adminReasonInput}
+            onChange={(e) => setAdminReasonInput(e.target.value)}
+            placeholder="사유를 입력하세요"
+            rows={3}
+            className="w-full resize-none rounded-[var(--r-md)] border border-[var(--border-subtle)] bg-[var(--bg-input)] px-4 py-3 text-sm text-[var(--text-body)] outline-none placeholder:text-[var(--text-muted)]"
+          />
         </div>
-      )}
-
-    {/* 커스텀 알림 팝업 (확인 1개) */}
-{alertMessage && (
-  <div
-    className="absolute inset-0 z-[70] flex items-center justify-center px-6 pointer-events-auto"
-    style={{ background: "rgba(0,0,0,0.6)" }}
-  >
-    <div
-      className="w-full rounded-2xl overflow-hidden shadow-2xl pointer-events-auto"
-      style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
-    >
-      <div
-        className="flex items-center justify-between px-5 py-4 text-base font-semibold"
-        style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
-      >
-        Code
-        <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
-          <X size={18} />
-        </button>
-      </div>
-
-      <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-        {alertMessage}
-      </div>
-
-      <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-        <button
-          className="w-full py-3 text-sm font-medium"
-          style={{ color: "var(--foreground)" }}
-          onClick={closeAlert}
-        >
-          확인
-        </button>
-      </div>
-    </div>
-  </div>
-)}
-
-  {/* 커스텀 확인 팝업 (확인/취소 2개) */}
-{confirmState && (
-  <div
-    className="absolute inset-0 z-[70] flex items-center justify-center px-6 pointer-events-auto"
-    style={{ background: "rgba(0,0,0,0.6)" }}
-  >
-    <div
-      className="w-full rounded-2xl overflow-hidden shadow-2xl pointer-events-auto"
-      style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}
-    >
-      <div
-        className="flex items-center justify-between px-5 py-4 text-base font-semibold"
-        style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}
-      >
-        Code
-        <button onClick={closeConfirm} style={{ color: "var(--muted-foreground)" }}>
-          <X size={18} />
-        </button>
-      </div>
-
-      <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-        {confirmState.message}
-      </div>
-
-      <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-        <button
-          className="flex-1 py-3 text-sm font-medium"
-          style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
-          onClick={() => {
-            const action = confirmState.onConfirm;
-            setConfirmState(null);
-            action();
-          }}
-        >
-          확인
-        </button>
-
-        <button
-          className="flex-1 py-3 text-sm font-medium"
-          style={{ color: "var(--foreground)" }}
-          onClick={closeConfirm}
-        >
-          취소
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      </Modal>
 
 {alertAndConfirmModals}
 {/* 알림 패널 (팔로우 알림) */}
 {showNotifications && (
   <div
     className="absolute inset-0 z-50 flex flex-col pointer-events-auto"
-    style={{ background: "var(--background)" }}
+    style={{ background: "var(--bg-base)" }}
   >
-    <div
-      className="flex items-center gap-3 px-4 py-4 border-b shrink-0 pointer-events-auto"
-      style={{ borderColor: "var(--border)" }}
-    >
-      <button onClick={() => setShowNotifications(false)}>
-        <X size={20} style={{ color: "var(--foreground)" }} />
-      </button>
-      <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>
-        알림
-      </h2>
+    <div className="pointer-events-auto">
+      <ScreenHeader title="알림" icon="close" onBack={() => setShowNotifications(false)} />
     </div>
 
     <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1 no-scrollbar pointer-events-auto">
       {notifications.length === 0 ? (
-        <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+        <p className="text-sm text-center mt-10" style={{ color: "var(--text-muted)" }}>
           아직 알림이 없습니다.
         </p>
       ) : (
@@ -6463,6 +5527,7 @@ const handleDeleteSelectedChats = () => {
             : n.type === "join" ? "님이 회원님의 모임에 참여했습니다."
             : n.type === "leave" ? "님이 회원님의 모임 참여를 취소했습니다."
             : n.type === "comment" ? (commentPreview ? `님이 "${commentPreview}"라는 댓글을 작성했습니다.` : "님이 회원님의 게시물에 댓글을 남겼습니다.")
+            : n.type === "reply" ? (commentPreview ? `님이 회원님의 댓글에 "${commentPreview}"라는 답글을 남겼습니다.` : "님이 회원님의 댓글에 답글을 남겼습니다.")
             : n.type === "like" ? "님이 좋아요 버튼을 눌렀습니다."
             : n.type === "dislike" ? "님이 싫어요 버튼을 눌렀습니다."
             : n.type === "scrap" ? "님이 게시물을 스크랩했습니다."
@@ -6500,28 +5565,26 @@ const handleDeleteSelectedChats = () => {
                     showAlert("게시물을 찾을 수 없습니다. 삭제되었을 수 있습니다.");
                 }
               }}
-              className="flex items-center gap-3 p-2.5 rounded-xl text-left w-full cursor-pointer"
-              style={{ background: "var(--card)" }}
+              className="flex items-center gap-3 p-2.5 rounded-[var(--r-lg)] text-left w-full cursor-pointer"
+              style={{ background: "var(--bg-card)" }}
             >
-              <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                <img
-                  src={isAdminNotif ? defaultAvatar : (resolveAssetUrl(n.sender.avatar) || defaultAvatar)}
-                  alt="프로필 사진"
-                  className="w-full h-full object-cover"
-                />
-              </div>
+              <Avatar
+                src={isAdminNotif ? null : resolveAssetUrl(n.sender.avatar)}
+                fallbackSrc={defaultAvatar}
+                className="h-10 w-10"
+              />
 
-              <p className="flex-1 min-w-0 text-sm" style={{ color: "var(--foreground)" }}>
+              <p className="flex-1 min-w-0 text-sm" style={{ color: "var(--text-strong)" }}>
                 <span className="font-semibold">{isAdminNotif ? "관리자" : n.sender.nickname}</span>
                 {notifMessage}
-                <span className="block text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+                <span className="block text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
                   {getDisplayTime(n, nowTick)}
                 </span>
               </p>
 
               {n.type === "follow" && (
-                <button
-                  type="button"
+                <Chip
+                  selected={!isFollowingBack}
                   disabled={isFollowBackPending}
                   // 알림 카드 클릭(패널 닫기 + 프로필 이동)으로 이벤트가 번지지 않게 막고,
                   // 알림 패널 안에서 그대로 맞팔로우 / 팔로우 취소를 토글한다.
@@ -6529,15 +5592,10 @@ const handleDeleteSelectedChats = () => {
                     e.stopPropagation();
                     handleToggleFollowBack(senderId, isFollowingBack);
                   }}
-                  className="text-xs px-3 py-1.5 rounded-xl shrink-0 disabled:opacity-60"
-                  style={
-                    isFollowingBack
-                      ? { background: "var(--muted)", color: "var(--muted-foreground)", fontWeight: 500 }
-                      : { background: "var(--primary)", color: "white", fontWeight: 600 }
-                  }
+                  className="shrink-0"
                 >
                   {isFollowBackPending ? "처리 중..." : isFollowingBack ? "팔로잉" : "맞팔로우"}
-                </button>
+                </Chip>
               )}
             </div>
           );
@@ -6550,60 +5608,52 @@ const handleDeleteSelectedChats = () => {
 
       {/* 친구끼리 단체 채팅방 만들기 */}
       {showCreateGroupChat && (
-        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--background)" }}>
-          <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-            <button onClick={() => { setShowCreateGroupChat(false); setNewGroupChatMemberIds([]); setNewGroupChatName(""); }}>
-              <X size={20} style={{ color: "var(--foreground)" }} />
-            </button>
-            <h2 className="flex-1 font-semibold" style={{ color: "var(--foreground)" }}>단체채팅 만들기</h2>
-            <button
-              onClick={handleCreateGroupChat}
-              disabled={newGroupChatMemberIds.length === 0}
-              className="text-sm font-semibold px-2"
-              style={{ color: newGroupChatMemberIds.length === 0 ? "var(--muted-foreground)" : "var(--primary)" }}
-            >
-              만들기
-            </button>
-          </div>
+        <div className="absolute inset-0 z-50 flex flex-col" style={{ background: "var(--bg-base)" }}>
+          <ScreenHeader
+            title="단체채팅 만들기"
+            onBack={() => { setShowCreateGroupChat(false); setNewGroupChatMemberIds([]); setNewGroupChatName(""); }}
+            action={
+              <button
+                onClick={handleCreateGroupChat}
+                disabled={newGroupChatMemberIds.length === 0}
+                className="text-sm font-semibold px-2"
+                style={{ color: newGroupChatMemberIds.length === 0 ? "var(--text-muted)" : "var(--blue-primary)" }}
+              >
+                만들기
+              </button>
+            }
+          />
           <div className="px-4 py-3 shrink-0">
-            <input
+            <Input
+              label="채팅방 이름"
+              hideLabel
               value={newGroupChatName}
               onChange={(e) => setNewGroupChatName(e.target.value)}
               placeholder="채팅방 이름 (선택)"
-              className="w-full px-3 py-2 rounded-xl text-sm outline-none"
-              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
             />
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-2 flex flex-col gap-2 no-scrollbar">
             {friends.length === 0 ? (
-              <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+              <p className="text-sm text-center mt-10" style={{ color: "var(--text-muted)" }}>
                 초대할 친구가 없습니다.
               </p>
             ) : (
               friends.map((friend) => {
                 const checked = newGroupChatMemberIds.includes(friend._id);
                 return (
-                  <button
+                  <UserRow
                     key={friend._id}
-                    onClick={() =>
+                    avatarSrc={resolveAssetUrl(friend.avatar)}
+                    fallbackSrc={defaultAvatar}
+                    name={friend.nickname}
+                    selectable
+                    selected={checked}
+                    onPress={() =>
                       setNewGroupChatMemberIds((prev) =>
                         prev.includes(friend._id) ? prev.filter((id) => id !== friend._id) : [...prev, friend._id]
                       )
                     }
-                    className="flex items-center gap-3 p-2.5 rounded-xl text-left"
-                    style={{ background: "var(--card)", outline: checked ? "2px solid var(--primary)" : "none" }}
-                  >
-                    <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                      <img src={resolveAssetUrl(friend.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                    </div>
-                    <p className="flex-1 min-w-0 text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{friend.nickname}</p>
-                    <div
-                      className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
-                      style={{ background: checked ? "var(--primary)" : "var(--muted)", border: "1.5px solid var(--border)" }}
-                    >
-                      {checked && <span className="text-white text-[10px] font-bold">✓</span>}
-                    </div>
-                  </button>
+                  />
                 );
               })
             )}

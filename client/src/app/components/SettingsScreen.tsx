@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { Bell, Moon, User, Users, ChevronRight, ChevronDown, ChevronUp, LogOut, AlertTriangle, FileText, Lock, MessageSquare, BookOpen, UserX, Eye, EyeOff, X, Heart, ThumbsDown, MessageCircle, Bookmark, Ban } from "lucide-react";
+import {
+  Bell, Moon, User, Lock, ArrowLeft, LogOut, AlertTriangle, FileText, MessageSquare,
+  BookOpen, UserX, Eye, EyeOff, Heart, ThumbsDown, MessageCircle, Bookmark, Ban,
+  ChevronRight, ChevronDown, ChevronUp,
+} from "lucide-react";
 import api, { resolveAssetUrl } from "@/api";
 import defaultAvatar from "@/assets/default-avatar.svg";
 import {
@@ -8,6 +12,17 @@ import {
   getDisplayTime, type Post, scopedKey, updateStoredUser, getCurrentUser, BOARDS,
   OtherUserProfile, type PostAuthor,
 } from "./CommunityScreen";
+import "@/styles/tokens.css";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Card } from "@/components/ui/Card";
+import { Chip } from "@/components/ui/Chip";
+import { IconButton } from "@/components/ui/IconButton";
+import { Badge, type BoardTone } from "@/components/ui/Badge";
+import { Avatar } from "@/components/ui/Avatar";
+import { Switch } from "@/components/ui/Switch";
+import { List, ListItem } from "@/components/ui/List";
+import { Modal } from "@/components/ui/Modal";
 
 const PROFESSORS = ["유진호", "차대현", "홍진근"];
 
@@ -105,6 +120,24 @@ interface MyInquiryItem {
   content: string;
   status: "pending" | "resolved";
   createdAt: string;
+}
+
+// 페이지 헤더 공통 패턴: 뒤로가기 아이콘박스 + 제목
+function ScreenHeader({ title, onBack, action }: { title: string; onBack: () => void; action?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-4">
+      <IconButton aria-label="뒤로 가기" onClick={onBack}>
+        <ArrowLeft size={18} />
+      </IconButton>
+      <h2 className="flex-1 text-base font-semibold" style={{ color: "var(--text-strong)" }}>{title}</h2>
+      {action}
+    </div>
+  );
+}
+
+// 게시판 라벨 배지 (BOARD_ACCENTS와 동일한 톤을 Badge 컴포넌트로)
+function BoardBadge({ board }: { board: string }) {
+  return <Badge tone={board as BoardTone}>{BOARDS.find((b) => b.id === board)?.label ?? board}</Badge>;
 }
 
 export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, setNickname }: SettingsScreenProps) {
@@ -639,105 +672,147 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   };
   const closeConfirm = () => setConfirmState(null);
 
-  const AlertModal = alertMessage && (
-    <div className="absolute inset-0 z-[70] flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.6)" }}>
-      <div className="w-full rounded-2xl overflow-hidden shadow-2xl" style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}>
-        <div className="flex items-center justify-between px-5 py-4 text-base font-semibold" style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}>
-          알림
-          <button onClick={closeAlert} style={{ color: "var(--muted-foreground)" }}>
-            <X size={18} />
-          </button>
-        </div>
-        <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-          {alertMessage}
-        </div>
-        <div className="border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-          <button className="w-full py-3 text-sm font-medium" style={{ color: "var(--foreground)" }} onClick={closeAlert}>
-            확인
-          </button>
-        </div>
-      </div>
-    </div>
+  const AlertModal = (
+    <Modal open={!!alertMessage} title="알림" onClose={closeAlert}>
+      {alertMessage}
+    </Modal>
   );
 
-  const ConfirmModal = confirmState && (
-    <div className="absolute inset-0 z-[70] flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.6)" }}>
-      <div className="w-full rounded-2xl overflow-hidden shadow-2xl" style={{ background: "var(--background)", border: "1px solid rgba(255,255,255,0.1)" }}>
-        <div className="flex items-center justify-between px-5 py-4 text-base font-semibold" style={{ background: "var(--muted, #1a1f2e)", color: "var(--foreground)" }}>
-          확인
-          <button onClick={closeConfirm} style={{ color: "var(--muted-foreground)" }}>
-            <X size={18} />
-          </button>
-        </div>
-        <div className="px-5 py-6 text-sm leading-relaxed" style={{ color: "var(--foreground)" }}>
-          {confirmState.message}
-        </div>
-        <div className="flex border-t" style={{ borderColor: "rgba(255,255,255,0.1)" }}>
-          <button
-            className="flex-1 py-3 text-sm font-medium"
-            style={{ color: "var(--foreground)", borderRight: "1px solid rgba(255,255,255,0.1)" }}
-            onClick={() => {
-              const action = confirmState.onConfirm;
-              setConfirmState(null);
-              action();
-            }}
-          >
-            확인
-          </button>
-          <button className="flex-1 py-3 text-sm font-medium" style={{ color: "var(--foreground)" }} onClick={closeConfirm}>
-            취소
-          </button>
-        </div>
+  const ConfirmModal = (
+    <Modal
+      open={!!confirmState}
+      title="확인"
+      onClose={closeConfirm}
+      cancelText="취소"
+      onCancel={closeConfirm}
+      onConfirm={() => {
+        if (!confirmState) return;
+        const action = confirmState.onConfirm;
+        setConfirmState(null);
+        action();
+      }}
+    >
+      {confirmState?.message}
+    </Modal>
+  );
+
+  // 경고/차단/댓글제한/강제탈퇴 사유 입력 모달 — 회원 관리 화면과 신고 관리 화면이 동일한 상태를 공유한다.
+  const SanctionModal = sanctionAction && viewingUser && (
+    <Modal
+      open
+      title={sanctionAction.type === "warn" ? "유저 경고" : sanctionAction.type === "ban" ? "앱 차단" : sanctionAction.type === "restrictComments" ? "댓글 제한" : "강제 탈퇴"}
+      onClose={() => setSanctionAction(null)}
+      confirmText={sanctionSubmitting ? "처리 중..." : "확인"}
+      confirmDisabled={!sanctionReason.trim() || sanctionSubmitting}
+      onConfirm={submitSanctionAction}
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>대상: {viewingUser.nickname}</p>
+
+        {sanctionAction.type === "ban" && (
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant={sanctionBanType === "temporary" ? "primary" : "secondary"} onClick={() => setSanctionBanType("temporary")}>
+              기간 지정
+            </Button>
+            <Button variant={sanctionBanType === "permanent" ? "primary" : "secondary"} onClick={() => setSanctionBanType("permanent")}>
+              영구 정지
+            </Button>
+          </div>
+        )}
+
+        {(sanctionAction.type === "restrictComments" || (sanctionAction.type === "ban" && sanctionBanType === "temporary")) && (
+          <div className="flex gap-2 items-center">
+            {[3, 7, 30].map((d) => (
+              <Chip key={d} selected={sanctionDays === d} onClick={() => setSanctionDays(d)}>
+                {d}일
+              </Chip>
+            ))}
+            <input
+              type="number"
+              min={1}
+              value={sanctionDays}
+              onChange={(e) => setSanctionDays(Math.max(1, Number(e.target.value) || 1))}
+              className="w-16 rounded-[var(--r-sm)] border border-[var(--border-subtle)] bg-[var(--bg-input)] px-2 py-2 text-sm text-[var(--text-body)] outline-none"
+            />
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>일</span>
+          </div>
+        )}
+
+        <textarea
+          value={sanctionReason}
+          onChange={(e) => setSanctionReason(e.target.value)}
+          placeholder="사유를 입력하세요"
+          rows={3}
+          className="w-full resize-none rounded-[var(--r-md)] border border-[var(--border-subtle)] bg-[var(--bg-input)] px-4 py-3 text-sm text-[var(--text-body)] outline-none placeholder:text-[var(--text-muted)]"
+        />
       </div>
-    </div>
+    </Modal>
+  );
+
+  // "처리완료로 표시"를 누르면, 신고자/건의자에게 그대로 전달할 결과 메시지를 입력받는다.
+  const ResolveNoteModal = resolveNoteTarget && (
+    <Modal
+      open
+      title={resolveNoteTarget.kind === "report" ? "신고 처리 결과" : "건의사항 답변"}
+      onClose={() => setResolveNoteTarget(null)}
+      confirmText="처리완료로 표시"
+      onConfirm={submitResolveNote}
+    >
+      <div className="flex flex-col gap-3">
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          {resolveNoteTarget.kind === "report"
+            ? "여기에 적은 내용이 신고자에게 알림으로 전달됩니다. 비워두면 \"별도의 제재 조치는 없었습니다\"로 전달됩니다."
+            : "여기에 적은 내용이 건의자에게 답변 알림으로 전달됩니다. 비워두면 기본 안내 문구로 전달됩니다."}
+        </p>
+        <textarea
+          value={resolveNoteText}
+          onChange={(e) => setResolveNoteText(e.target.value)}
+          placeholder={resolveNoteTarget.kind === "report" ? "예: 검토 결과 규정 위반이 아니었습니다." : "예: 요청하신 기능은 다음 업데이트에 반영 예정입니다."}
+          rows={4}
+          className="w-full resize-none rounded-[var(--r-md)] border border-[var(--border-subtle)] bg-[var(--bg-input)] px-4 py-3 text-sm text-[var(--text-body)] outline-none placeholder:text-[var(--text-muted)]"
+        />
+      </div>
+    </Modal>
   );
 
   if (activeSection === "blocked") {
     return (
-      <div className="relative flex flex-col flex-1 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setActiveSection(null)}>
-            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
-          </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>차단 내역</h2>
-        </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+      <div className="relative flex flex-1 flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
+        <ScreenHeader title="차단 내역" onBack={() => setActiveSection(null)} />
+        <div className="no-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
           {blockedUsers.length === 0 && (
-            <p className="text-sm text-center mt-8" style={{ color: "var(--muted-foreground)" }}>
+            <p className="mt-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
               차단한 사용자가 없습니다.
             </p>
           )}
           {blockedUsers.map((user) => (
-            <div key={user.id} className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <UserX size={14} style={{ color: "#d4183d" }} />
-                    <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{user.name}</span>
-                  </div>
-                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>사유: {user.reason}</p>
-                  <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>{user.date}</p>
+            <Card key={user.id} className="flex items-start justify-between">
+              <div className="flex-1">
+                <div className="mb-1 flex items-center gap-2">
+                  <UserX size={14} style={{ color: "var(--danger)" }} />
+                  <span className="text-sm font-semibold" style={{ color: "var(--text-strong)" }}>{user.name}</span>
                 </div>
-                <button
-                  onClick={() => {
-                    showConfirm(`${user.name}님의 차단을 해제하시겠습니까?`, async () => {
-                      try {
-                        await api.delete(`/users/block/${user.id}`);
-                      } catch {
-                        showAlert("차단 해제에 실패했습니다.");
-                        return;
-                      }
-                      removeBlockedUser(user.id);
-                      showAlert("차단이 해제되었습니다.");
-                    });
-                  }}
-                  className="text-xs px-3 py-1 rounded-full font-medium"
-                  style={{ background: "var(--primary)", color: "white" }}
-                >
-                  차단 해제
-                </button>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>사유: {user.reason}</p>
+                <p className="mt-0.5 text-xs" style={{ color: "var(--text-muted)" }}>{user.date}</p>
               </div>
-            </div>
+              <Chip
+                selected
+                onClick={() => {
+                  showConfirm(`${user.name}님의 차단을 해제하시겠습니까?`, async () => {
+                    try {
+                      await api.delete(`/users/block/${user.id}`);
+                    } catch {
+                      showAlert("차단 해제에 실패했습니다.");
+                      return;
+                    }
+                    removeBlockedUser(user.id);
+                    showAlert("차단이 해제되었습니다.");
+                  });
+                }}
+              >
+                차단 해제
+              </Chip>
+            </Card>
           ))}
         </div>
         {AlertModal}
@@ -748,69 +823,51 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
   if (activeSection === "password") {
     return (
-      <div className="relative flex flex-col flex-1 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setActiveSection(null)}>
-            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
-          </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>비밀번호 변경</h2>
-        </div>
-        <div className="px-4 py-4 flex flex-col gap-4">
-          <div>
-            <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
-              현재 비밀번호
-            </label>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none pr-12"
-                style={{ background: "var(--input-background)", color: "var(--muted-foreground)", border: "1.5px solid var(--border)" }}
-              />
-              <button
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2"
-              >
-                {showPassword ? (
-                  <EyeOff size={18} style={{ color: "var(--muted-foreground)" }} />
-                ) : (
-                  <Eye size={18} style={{ color: "var(--muted-foreground)" }} />
-                )}
-              </button>
-            </div>
+      <div className="relative flex flex-1 flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
+        <ScreenHeader title="비밀번호 변경" onBack={() => setActiveSection(null)} />
+        <div className="flex flex-col gap-4 px-4 py-4">
+          <div className="relative">
+            <Input
+              label="현재 비밀번호"
+              type={showPassword ? "text" : "password"}
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="pr-12"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-1.5 bottom-1.5 flex h-8 w-8 items-center justify-center rounded-[var(--r-sm)]"
+              style={{ color: "var(--text-muted)" }}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
           </div>
           <div>
-            <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
-              새 비밀번호
-            </label>
-            <input
+            <Input
+              label="새 비밀번호"
               type={showPassword ? "text" : "password"}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-             style={{ background: "var(--input-background)", color: "var(--muted-foreground)", border: "1.5px solid var(--border)" }}
             />
-            <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
+            <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
               비밀번호 (8~15자의 영문, 숫자 또는 특수문자 조합)
             </p>
           </div>
           <div>
-            <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
-              새 비밀번호 확인
-            </label>
-            <input
+            <Input
+              label="새 비밀번호 확인"
               type={showPassword ? "text" : "password"}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-              style={{ background: "var(--input-background)", color: "var(--muted-foreground)", border: "1.5px solid var(--border)" }}
             />
-            <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
+            <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
               안전한 사용을 위해 8자 이상 입력해주세요!
             </p>
           </div>
-          <button
+          <Button
+            size={52}
+            fullWidth
             onClick={async () => {
               if (!currentPassword.trim()) {
                 showAlert("현재 비밀번호를 입력해주세요.");
@@ -837,11 +894,9 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 showAlert(err?.response?.data?.message || "비밀번호 변경에 실패했습니다.");
               }
             }}
-            className="w-full py-3 rounded-xl font-semibold text-sm mt-2"
-            style={{ background: "var(--primary)", color: "white" }}
           >
             변경하기
-          </button>
+          </Button>
         </div>
         {AlertModal}
         {ConfirmModal}
@@ -851,44 +906,32 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
   if (activeSection === "inquiry") {
     return (
-      <div className="relative flex flex-col flex-1 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setActiveSection(null)}>
-            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
-          </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>건의사항</h2>
-        </div>
+      <div className="relative flex flex-1 flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
+        <ScreenHeader title="건의사항" onBack={() => setActiveSection(null)} />
 
-        <div className="px-4 py-4 flex flex-col gap-4">
-          <div>
-            <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
-              제목
-            </label>
-            <input
-              type="text"
-              placeholder="건의사항 제목을 입력하세요"
-              value={inquiryTitle}
-              onChange={(e) => setInquiryTitle(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none text-white placeholder:text-white/60"
-              style={{ background: "var(--input-background)", border: "1.5px solid var(--border)" }}
-            />
-          </div>
+        <div className="flex flex-col gap-4 px-4 py-4">
+          <Input
+            label="제목"
+            type="text"
+            placeholder="건의사항 제목을 입력하세요"
+            value={inquiryTitle}
+            onChange={(e) => setInquiryTitle(e.target.value)}
+          />
 
-          <div>
-            <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
-              내용
-            </label>
+          <div className="flex flex-col gap-1">
+            <label className="text-[13px] font-medium" style={{ color: "var(--text-body)" }}>내용</label>
             <textarea
               placeholder="건의사항 내용을 입력하세요"
               value={inquiryContent}
               onChange={(e) => setInquiryContent(e.target.value)}
               rows={8}
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none text-white placeholder:text-white/60 no-scrollbar"
-              style={{ background: "var(--input-background)", border: "1.5px solid var(--border)" }}
+              className="no-scrollbar w-full resize-none rounded-[var(--r-md)] border border-[var(--border-subtle)] bg-[var(--bg-input)] px-4 py-3 text-sm text-[var(--text-body)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--blue-primary)] focus:bg-[var(--blue-soft)] focus:ring-2 focus:ring-[var(--blue-primary)]/30"
             />
           </div>
 
-          <button
+          <Button
+            size={52}
+            fullWidth
             onClick={async () => {
               if (!inquiryTitle.trim() || !inquiryContent.trim()) {
                 showAlert("제목과 내용을 입력해주세요.");
@@ -908,11 +951,9 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 setActiveSection(null);
               });
             }}
-            className="w-full py-3 rounded-xl font-semibold text-sm"
-            style={{ background: "var(--primary)", color: "white" }}
           >
             제출하기
-          </button>
+          </Button>
         </div>
         {AlertModal}
         {ConfirmModal}
@@ -922,30 +963,25 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
   if (activeSection === "guidelines") {
     return (
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setActiveSection(null)}>
-            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
-          </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>커뮤니티 이용 규칙</h2>
-        </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 no-scrollbar">
-          <div className="rounded-2xl p-4 mb-3" style={{ background: "var(--card)" }}>
-            <h3 className="font-semibold mb-2" style={{ color: "var(--foreground)" }}>가이드 및 규칙</h3>
-            <ul className="text-sm space-y-2" style={{ color: "var(--muted-foreground)" }}>
+      <div className="flex flex-1 flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
+        <ScreenHeader title="커뮤니티 이용 규칙" onBack={() => setActiveSection(null)} />
+        <div className="no-scrollbar flex-1 overflow-y-auto px-4 py-4">
+          <Card className="mb-3">
+            <h3 className="mb-2 font-semibold" style={{ color: "var(--text-strong)" }}>가이드 및 규칙</h3>
+            <ul className="space-y-2 text-sm" style={{ color: "var(--text-muted)" }}>
               <li>• 타인을 존중하고 예의 바르게 소통하세요.</li>
               <li>• 욕설, 비방, 차별적 발언은 금지됩니다.</li>
               <li>• 허위 정보나 스팸성 게시물을 작성하지 마세요.</li>
               <li>• 타인의 저작권을 침해하지 마세요.</li>
             </ul>
-          </div>
-          <div className="rounded-2xl p-4" style={{ background: "var(--card)" }}>
-            <h3 className="font-semibold mb-2" style={{ color: "var(--foreground)" }}>신고 및 제재</h3>
-            <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+          </Card>
+          <Card>
+            <h3 className="mb-2 font-semibold" style={{ color: "var(--text-strong)" }}>신고 및 제재</h3>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
               규칙을 위반한 게시물이나 사용자를 발견하면 신고 기능을 이용해주세요.
               신고가 접수되면 관리자가 확인 후 적절한 조치를 취합니다.
             </p>
-          </div>
+          </Card>
         </div>
       </div>
     );
@@ -953,50 +989,30 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
   if (activeSection === "reports") {
     return (
-      <div className="relative flex flex-col flex-1 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setActiveSection(null)}>
-            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
-          </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>신고/건의 내역</h2>
-        </div>
+      <div className="relative flex flex-1 flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
+        <ScreenHeader title="신고/건의 내역" onBack={() => setActiveSection(null)} />
 
         {/* 신고 내역 / 건의사항 내역 탭 */}
-        <div className="grid grid-cols-2 px-4 gap-2 mt-4 mb-1">
-          <button
-            onClick={() => setHistoryTab("reports")}
-            className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all"
-            style={{
-              background: historyTab === "reports" ? "var(--primary)" : "var(--muted)",
-              color: historyTab === "reports" ? "white" : "var(--muted-foreground)",
-            }}
-          >
+        <div className="mb-1 mt-4 grid grid-cols-2 gap-2 px-4">
+          <Button variant={historyTab === "reports" ? "primary" : "secondary"} onClick={() => setHistoryTab("reports")}>
             <AlertTriangle size={14} /> 신고 내역 ({reportHistory.length})
-          </button>
-          <button
-            onClick={() => setHistoryTab("inquiries")}
-            className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-all"
-            style={{
-              background: historyTab === "inquiries" ? "var(--primary)" : "var(--muted)",
-              color: historyTab === "inquiries" ? "white" : "var(--muted-foreground)",
-            }}
-          >
+          </Button>
+          <Button variant={historyTab === "inquiries" ? "primary" : "secondary"} onClick={() => setHistoryTab("inquiries")}>
             <MessageSquare size={14} /> 건의사항 내역 ({inquiryHistory.length})
-          </button>
+          </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+        <div className="no-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
           {historyTab === "reports" ? (
             reportHistory.length === 0 ? (
-              <p className="text-sm text-center mt-8" style={{ color: "var(--muted-foreground)" }}>
+              <p className="mt-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
                 신고 내역이 없습니다.
               </p>
             ) : (
               reportHistory.map((r) => (
-                <div
+                <Card
                   key={`report-${r.id}`}
-                  className="rounded-2xl p-4 shadow-sm cursor-pointer transition-all active:scale-98"
-                  style={{ background: "var(--card)" }}
+                  className="cursor-pointer"
                   onClick={async () => {
                     try {
                       const res = await api.get("/posts");
@@ -1013,14 +1029,14 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <AlertTriangle size={14} style={{ color: "var(--primary)" }} />
-                        <span className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{r.type}</span>
+                      <div className="mb-1 flex items-center gap-2">
+                        <AlertTriangle size={14} style={{ color: "var(--blue-primary)" }} />
+                        <span className="text-sm font-semibold" style={{ color: "var(--text-strong)" }}>{r.type}</span>
                       </div>
-                      <p className="text-xs font-medium mt-1" style={{ color: "var(--foreground)" }}>
+                      <p className="mt-1 text-xs font-medium" style={{ color: "var(--text-strong)" }}>
                         "{r.target}"
                       </p>
-                      <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>{r.date}</p>
+                      <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>{r.date}</p>
                     </div>
                     {r.status === "처리 완료" ? (
                       <button
@@ -1028,10 +1044,8 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                           e.stopPropagation();
                           showAlert(r.sanction || "현재 검토 중이며, 아직 확정된 제재 내용이 없습니다.");
                         }}
-                        className="text-xs px-2 py-1 rounded-full font-medium"
-                        style={{ background: "#5cb85c22", color: "#5cb85c" }}
                       >
-                        처리 완료
+                        <Badge tone="success">처리 완료</Badge>
                       </button>
                     ) : (
                       <button
@@ -1041,58 +1055,51 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                             removeReportFromHistory(r.id);
                           });
                         }}
-                        className="text-xs px-2 py-1 rounded-full font-medium"
-                        style={{ background: "#3b82f622", color: "var(--primary)" }}
                       >
-                        {r.status}
+                        <Badge tone="info">{r.status}</Badge>
                       </button>
                     )}
                   </div>
-                </div>
+                </Card>
               ))
             )
           ) : (
             inquiryHistory.length === 0 ? (
-              <p className="text-sm text-center mt-8" style={{ color: "var(--muted-foreground)" }}>
+              <p className="mt-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
                 건의사항 내역이 없습니다.
               </p>
             ) : (
               inquiryHistory.map((item) => (
-                <div key={`inquiry-${item._id}`} className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
+                <Card key={`inquiry-${item._id}`}>
                   <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 min-w-0">
-                        <MessageSquare size={14} className="shrink-0" style={{ color: "#1e88e5" }} />
-                        <span className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-1 flex min-w-0 items-center gap-2">
+                        <MessageSquare size={14} className="shrink-0" style={{ color: "var(--blue-primary)" }} />
+                        <span className="truncate text-sm font-semibold" style={{ color: "var(--text-strong)" }}>
                           {item.title}
                         </span>
                       </div>
                       <p
-                        className={`text-xs min-h-[2.25rem] break-words ${!expandedInquiryIds.has(item._id) && item.content.length > INQUIRY_PREVIEW_LENGTH ? "line-clamp-2" : ""}`}
-                        style={{ color: "var(--muted-foreground)" }}
+                        className={`min-h-[2.25rem] break-words text-xs ${!expandedInquiryIds.has(item._id) && item.content.length > INQUIRY_PREVIEW_LENGTH ? "line-clamp-2" : ""}`}
+                        style={{ color: "var(--text-muted)" }}
                       >
                         {item.content}
                       </p>
                       {item.content.length > INQUIRY_PREVIEW_LENGTH && (
                         <button
                           onClick={(e) => { e.stopPropagation(); toggleInquiryExpand(item._id); }}
-                          className="text-xs font-semibold mt-0.5"
-                          style={{ color: "var(--primary)" }}
+                          className="mt-0.5 text-xs font-semibold"
+                          style={{ color: "var(--blue-deep)" }}
                         >
                           {expandedInquiryIds.has(item._id) ? "접기" : "더보기"}
                         </button>
                       )}
-                      <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
+                      <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
                         {new Date(item.createdAt).toLocaleString("ko-KR")}
                       </p>
                     </div>
                     {item.status === "resolved" ? (
-                      <span
-                        className="text-xs px-2 py-1 rounded-full font-medium shrink-0"
-                        style={{ background: "#5cb85c22", color: "#5cb85c" }}
-                      >
-                        처리 완료
-                      </span>
+                      <Badge tone="success" className="shrink-0">처리 완료</Badge>
                     ) : (
                       <button
                         onClick={(e) => {
@@ -1106,14 +1113,13 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                             }
                           });
                         }}
-                        className="text-xs px-2 py-1 rounded-full font-medium shrink-0"
-                        style={{ background: "#3b82f622", color: "var(--primary)" }}
+                        className="shrink-0"
                       >
-                        처리 중
+                        <Badge tone="info">처리 중</Badge>
                       </button>
                     )}
                   </div>
-                </div>
+                </Card>
               ))
             )
           )}
@@ -1121,44 +1127,39 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
         {/* 신고/건의 내역에서 게시물 클릭 시, 커뮤니티 탭으로 이동하지 않고 이 화면 위에 바로 상세를 띄운다 */}
         {viewingPost && (
-          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--background)" }}>
-            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-              <button onClick={() => setViewingPost(null)} className="text-lg" style={{ color: "var(--foreground)" }}>←</button>
-              <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-              <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-                <div className="flex items-center gap-2 mb-2">
-                  <img src={resolveAssetUrl(viewingPost.author.avatar) || defaultAvatar} alt="프로필 사진" className="w-7 h-7 rounded-full object-cover" />
+          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--bg-base)" }}>
+            <ScreenHeader title="게시물" onBack={() => setViewingPost(null)} />
+            <div className="no-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
+              <Card>
+                <div className="mb-2 flex items-center gap-2">
+                  <Avatar src={resolveAssetUrl(viewingPost.author.avatar)} fallbackSrc={defaultAvatar} size="sm" />
                   <div>
-                    <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{viewingPost.author.nickname}</p>
-                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(viewingPost)}</p>
+                    <p className="text-sm font-semibold" style={{ color: "var(--text-strong)" }}>{viewingPost.author.nickname}</p>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>{getDisplayTime(viewingPost)}</p>
                   </div>
                 </div>
-                <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{viewingPost.title}</h3>
-                <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
+                <h3 className="mb-1 font-semibold" style={{ color: "var(--text-strong)" }}>{viewingPost.title}</h3>
+                <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
                   {viewingPost.content}
                 </p>
                 {viewingPost.images[0] && (
-                  <img src={resolveAssetUrl(viewingPost.images[0])} alt="첨부 이미지" className="mt-2 w-full max-h-72 object-cover rounded-xl" />
+                  <img src={resolveAssetUrl(viewingPost.images[0])} alt="첨부 이미지" className="mt-2 max-h-72 w-full rounded-[var(--r-md)] object-cover" />
                 )}
-              </div>
+              </Card>
 
-              <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3" style={{ background: "var(--card)" }}>
-                <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+              <Card className="flex flex-col gap-3">
+                <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
                   댓글 {viewingPost.comments.length}개
                 </p>
                 {viewingPost.comments.map((c) => (
-                  <div key={c._id} className="flex gap-2 items-start">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm overflow-hidden" style={{ background: "var(--muted)" }}>
-                      <img src={resolveAssetUrl(c.author.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1 px-3 py-2 rounded-xl text-xs" style={{ color: "var(--foreground)" }}>
+                  <div key={c._id} className="flex items-start gap-2">
+                    <Avatar src={resolveAssetUrl(c.author.avatar)} fallbackSrc={defaultAvatar} size="sm" />
+                    <div className="flex-1 rounded-[var(--r-md)] px-3 py-2 text-xs" style={{ color: "var(--text-body)" }}>
                       <span className="font-semibold">{c.author.nickname} </span>{c.content}
                     </div>
                   </div>
                 ))}
-              </div>
+              </Card>
             </div>
           </div>
         )}
@@ -1171,164 +1172,130 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
   if (activeSection === "adminMonitoring") {
     return (
-      <div className="relative flex flex-col flex-1 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setActiveSection(null)}>
-            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
-          </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>게시물/댓글 모니터링</h2>
-        </div>
+      <div className="relative flex flex-1 flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
+        <ScreenHeader title="게시물/댓글 모니터링" onBack={() => setActiveSection(null)} />
 
-        <div className="grid grid-cols-2 px-4 gap-2 mt-4 mb-1">
-          <button
+        <div className="mb-1 mt-4 grid grid-cols-2 gap-2 px-4">
+          <Button
+            variant={monitorTab === "posts" ? "primary" : "secondary"}
             onClick={() => { setMonitorTab("posts"); loadMonitorPosts(1, monitorBoard, monitorSearchQuery); }}
-            className="py-2.5 rounded-xl text-xs font-semibold"
-            style={{ background: monitorTab === "posts" ? "var(--primary)" : "var(--muted)", color: monitorTab === "posts" ? "white" : "var(--muted-foreground)" }}
           >
             최근 게시물
-          </button>
-          <button
+          </Button>
+          <Button
+            variant={monitorTab === "logs" ? "primary" : "secondary"}
             onClick={() => { setMonitorTab("logs"); loadMonitorLogs(1, monitorLogType); }}
-            className="py-2.5 rounded-xl text-xs font-semibold"
-            style={{ background: monitorTab === "logs" ? "var(--primary)" : "var(--muted)", color: monitorTab === "logs" ? "white" : "var(--muted-foreground)" }}
           >
             삭제 로그
-          </button>
+          </Button>
         </div>
 
         {monitorTab === "posts" ? (
           <>
-            <div className="px-4 pt-2 flex flex-col gap-2">
-              <input
+            <div className="flex flex-col gap-2 px-4 pt-2">
+              <Input
+                label="제목/내용 검색"
+                hideLabel
                 value={monitorSearchQuery}
                 onChange={(e) => { setMonitorSearchQuery(e.target.value); loadMonitorPosts(1, monitorBoard, e.target.value); }}
                 placeholder="제목/내용 검색"
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
               />
-              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                <button
-                  onClick={() => { setMonitorBoard(""); loadMonitorPosts(1, "", monitorSearchQuery); }}
-                  className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full"
-                  style={{ background: monitorBoard === "" ? "var(--primary)" : "var(--muted)", color: monitorBoard === "" ? "white" : "var(--muted-foreground)" }}
-                >
+              <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1">
+                <Chip selected={monitorBoard === ""} onClick={() => { setMonitorBoard(""); loadMonitorPosts(1, "", monitorSearchQuery); }}>
                   전체
-                </button>
+                </Chip>
                 {BOARDS.map((b) => (
-                  <button
+                  <Chip
                     key={b.id}
+                    selected={monitorBoard === b.id}
                     onClick={() => { setMonitorBoard(b.id); loadMonitorPosts(1, b.id, monitorSearchQuery); }}
-                    className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full"
-                    style={{ background: monitorBoard === b.id ? "var(--primary)" : "var(--muted)", color: monitorBoard === b.id ? "white" : "var(--muted-foreground)" }}
                   >
                     {b.label}
-                  </button>
+                  </Chip>
                 ))}
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar">
+            <div className="no-scrollbar flex flex-1 flex-col gap-2 overflow-y-auto px-4 py-3">
               {monitorPosts.length === 0 && !monitorLoading ? (
-                <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+                <p className="mt-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
                   게시물이 없습니다.
                 </p>
               ) : (
                 monitorPosts.map((p) => (
-                  <button
+                  <Card
                     key={p._id}
+                    className="flex cursor-pointer flex-col gap-1.5"
                     onClick={() => { setViewingPost(p); setViewingCommentId(null); }}
-                    className="rounded-2xl p-4 shadow-sm flex flex-col gap-1.5 text-left"
-                    style={{ background: "var(--card)" }}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs px-2 py-0.5 rounded-full shrink-0" style={{ background: "var(--secondary)", color: "var(--primary)" }}>
-                        {BOARDS.find((b) => b.id === p.board)?.label ?? p.board}
-                      </span>
-                      <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                      <BoardBadge board={p.board} />
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                         {new Date(p.createdAt).toLocaleString("ko-KR")}
                       </span>
                     </div>
-                    <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>{p.title}</p>
-                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    <p className="truncate text-sm font-semibold" style={{ color: "var(--text-strong)" }}>{p.title}</p>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                       {p.author?.nickname ?? "알 수 없음"} · 댓글 {p.comments?.length ?? 0} · 좋아요 {p.likes?.length ?? 0}
                     </p>
-                  </button>
+                  </Card>
                 ))
               )}
               {monitorHasMore && (
-                <button
-                  onClick={() => loadMonitorPosts(monitorPage + 1, monitorBoard, monitorSearchQuery, true)}
-                  disabled={monitorLoading}
-                  className="w-full py-2.5 rounded-xl text-xs font-semibold disabled:opacity-50"
-                  style={{ background: "var(--muted)", color: "var(--foreground)" }}
-                >
+                <Button variant="secondary" fullWidth disabled={monitorLoading} onClick={() => loadMonitorPosts(monitorPage + 1, monitorBoard, monitorSearchQuery, true)}>
                   {monitorLoading ? "불러오는 중..." : "더 보기"}
-                </button>
+                </Button>
               )}
             </div>
           </>
         ) : (
           <>
-            <div className="px-4 pt-2 flex gap-1.5">
+            <div className="flex gap-1.5 px-4 pt-2">
               {([
                 { key: "all", label: "전체" },
                 { key: "deletePost", label: "게시물 삭제" },
                 { key: "deleteComment", label: "댓글 삭제" },
               ] as { key: "all" | "deletePost" | "deleteComment"; label: string }[]).map((t) => (
-                <button
-                  key={t.key}
-                  onClick={() => { setMonitorLogType(t.key); loadMonitorLogs(1, t.key); }}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                  style={{ background: monitorLogType === t.key ? "var(--primary)" : "var(--muted)", color: monitorLogType === t.key ? "white" : "var(--muted-foreground)" }}
-                >
+                <Chip key={t.key} selected={monitorLogType === t.key} onClick={() => { setMonitorLogType(t.key); loadMonitorLogs(1, t.key); }}>
                   {t.label}
-                </button>
+                </Chip>
               ))}
             </div>
 
-            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-2 no-scrollbar">
+            <div className="no-scrollbar flex flex-1 flex-col gap-2 overflow-y-auto px-4 py-3">
               {monitorLogs.length === 0 && !monitorLogLoading ? (
-                <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+                <p className="mt-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
                   삭제 로그가 없습니다.
                 </p>
               ) : (
                 monitorLogs.map((log) => (
-                  <div key={log._id} className="rounded-2xl p-4 shadow-sm flex flex-col gap-1.5" style={{ background: "var(--card)" }}>
+                  <Card key={log._id} className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#d4183d22", color: "#d4183d" }}>
-                          {log.actionType === "deletePost" ? "게시물 삭제" : "댓글 삭제"}
-                        </span>
-                        <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}>
-                          {log.actorIsAdmin ? "관리자 삭제" : "본인 삭제"}
-                        </span>
+                        <Badge tone="danger">{log.actionType === "deletePost" ? "게시물 삭제" : "댓글 삭제"}</Badge>
+                        <Badge tone="muted">{log.actorIsAdmin ? "관리자 삭제" : "본인 삭제"}</Badge>
                       </div>
-                      <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                         {new Date(log.createdAt).toLocaleString("ko-KR")}
                       </span>
                     </div>
                     {log.snapshot?.title && (
-                      <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>{log.snapshot.title}</p>
+                      <p className="truncate text-sm font-semibold" style={{ color: "var(--text-strong)" }}>{log.snapshot.title}</p>
                     )}
                     {log.snapshot?.content && (
-                      <p className="text-xs line-clamp-2" style={{ color: "var(--muted-foreground)" }}>{log.snapshot.content}</p>
+                      <p className="line-clamp-2 text-xs" style={{ color: "var(--text-muted)" }}>{log.snapshot.content}</p>
                     )}
-                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                       {log.board ? `${BOARDS.find((b) => b.id === log.board)?.label ?? log.board} · ` : ""}
                       원작성자: {log.targetAuthor?.nickname ?? "탈퇴한 사용자"} · 처리자: {log.actor?.nickname ?? "알 수 없음"}
                     </p>
-                  </div>
+                  </Card>
                 ))
               )}
               {monitorLogHasMore && (
-                <button
-                  onClick={() => loadMonitorLogs(monitorLogPage + 1, monitorLogType, true)}
-                  disabled={monitorLogLoading}
-                  className="w-full py-2.5 rounded-xl text-xs font-semibold disabled:opacity-50"
-                  style={{ background: "var(--muted)", color: "var(--foreground)" }}
-                >
+                <Button variant="secondary" fullWidth disabled={monitorLogLoading} onClick={() => loadMonitorLogs(monitorLogPage + 1, monitorLogType, true)}>
                   {monitorLogLoading ? "불러오는 중..." : "더 보기"}
-                </button>
+                </Button>
               )}
             </div>
           </>
@@ -1336,77 +1303,67 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
         {/* 게시물 상세 (모니터링 화면에서 탭한 게시물) — 그 자리에서 게시물/댓글 삭제 가능 */}
         {viewingPost && (
-          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--background)" }}>
-            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-              <button onClick={() => { setViewingPost(null); setViewingCommentId(null); }} className="text-lg" style={{ color: "var(--foreground)" }}>←</button>
-              <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물 상세</h2>
-              <button
-                onClick={() => deleteMonitorPost(viewingPost)}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0"
-                style={{ background: "#d4183d", color: "white" }}
-              >
-                게시물 삭제
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-              <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-                <div className="flex items-center justify-between mb-2">
+          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--bg-base)" }}>
+            <ScreenHeader
+              title="게시물 상세"
+              onBack={() => { setViewingPost(null); setViewingCommentId(null); }}
+              action={
+                <Chip selected onClick={() => deleteMonitorPost(viewingPost)} style={{ background: "var(--danger)", color: "white" }}>
+                  게시물 삭제
+                </Chip>
+              }
+            />
+            <div className="no-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
+              <Card>
+                <div className="mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <img src={resolveAssetUrl(viewingPost.author?.avatar) || defaultAvatar} alt="프로필 사진" className="w-7 h-7 rounded-full object-cover" />
+                    <Avatar src={resolveAssetUrl(viewingPost.author?.avatar)} fallbackSrc={defaultAvatar} size="sm" />
                     <div>
-                      <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{viewingPost.author?.nickname ?? "알 수 없음"}</p>
-                      <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(viewingPost)}</p>
+                      <p className="text-sm font-semibold" style={{ color: "var(--text-strong)" }}>{viewingPost.author?.nickname ?? "알 수 없음"}</p>
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>{getDisplayTime(viewingPost)}</p>
                     </div>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full shrink-0" style={{ background: "var(--secondary)", color: "var(--primary)" }}>
-                    {BOARDS.find((b) => b.id === viewingPost.board)?.label ?? viewingPost.board}
-                  </span>
+                  <BoardBadge board={viewingPost.board} />
                 </div>
-                <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{viewingPost.title}</h3>
-                <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
+                <h3 className="mb-1 font-semibold" style={{ color: "var(--text-strong)" }}>{viewingPost.title}</h3>
+                <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
                   {viewingPost.content}
                 </p>
                 {viewingPost.images?.[0] && (
-                  <img src={resolveAssetUrl(viewingPost.images[0])} alt="첨부 이미지" className="mt-2 w-full max-h-72 object-cover rounded-xl" />
+                  <img src={resolveAssetUrl(viewingPost.images[0])} alt="첨부 이미지" className="mt-2 max-h-72 w-full rounded-[var(--r-md)] object-cover" />
                 )}
-                <div className="flex items-center gap-4 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+                <div className="mt-3 flex items-center gap-4 border-t pt-2.5" style={{ borderColor: "var(--border-subtle)" }}>
                   <div className="flex items-center gap-1.5">
-                    <Heart size={14} style={{ color: "var(--muted-foreground)" }} />
-                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.likes?.length ?? 0}</span>
+                    <Heart size={14} style={{ color: "var(--text-muted)" }} />
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{viewingPost.likes?.length ?? 0}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <MessageCircle size={14} style={{ color: "var(--muted-foreground)" }} />
-                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.comments?.length ?? 0}</span>
+                    <MessageCircle size={14} style={{ color: "var(--text-muted)" }} />
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{viewingPost.comments?.length ?? 0}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <Bookmark size={14} style={{ color: "var(--muted-foreground)" }} />
-                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.scraps?.length ?? 0}</span>
+                    <Bookmark size={14} style={{ color: "var(--text-muted)" }} />
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{viewingPost.scraps?.length ?? 0}</span>
                   </div>
                 </div>
-              </div>
+              </Card>
 
-              <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3" style={{ background: "var(--card)" }}>
-                <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+              <Card className="flex flex-col gap-3">
+                <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
                   댓글 {viewingPost.comments?.length ?? 0}개
                 </p>
                 {(viewingPost.comments ?? []).map((c) => (
-                  <div key={c._id} className="flex gap-2 items-start">
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm overflow-hidden shrink-0" style={{ background: "var(--muted)" }}>
-                      <img src={resolveAssetUrl(c.author?.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1 px-3 py-2 rounded-xl text-xs" style={{ color: "var(--foreground)" }}>
+                  <div key={c._id} className="flex items-start gap-2">
+                    <Avatar src={resolveAssetUrl(c.author?.avatar)} fallbackSrc={defaultAvatar} size="sm" />
+                    <div className="flex-1 rounded-[var(--r-md)] px-3 py-2 text-xs" style={{ color: "var(--text-body)" }}>
                       <span className="font-semibold">{c.author?.nickname ?? "알 수 없음"} </span>{c.content}
                     </div>
-                    <button
-                      onClick={() => deleteMonitorComment(viewingPost, c._id)}
-                      className="text-[10px] font-semibold px-2 py-1 rounded-lg shrink-0"
-                      style={{ background: "var(--muted)", color: "#d4183d" }}
-                    >
+                    <Chip selected onClick={() => deleteMonitorComment(viewingPost, c._id)} style={{ background: "var(--tag-danger-bg)", color: "var(--tag-danger-fg)" }}>
                       삭제
-                    </button>
+                    </Chip>
                   </div>
                 ))}
-              </div>
+              </Card>
             </div>
           </div>
         )}
@@ -1419,44 +1376,39 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
   if (activeSection === "adminMembers") {
     const memberBadges = (m: AdminMemberItem) => {
-      const badges: { label: string; color: string }[] = [];
-      if (m.isAdmin) badges.push({ label: "관리자", color: "var(--primary)" });
-      if (m.isWithdrawn) badges.push({ label: "탈퇴", color: "var(--muted-foreground)" });
-      if (m.banned) badges.push({ label: m.banType === "permanent" ? "영구차단" : "기간차단", color: "#d4183d" });
-      if (m.commentRestrictedUntil && new Date(m.commentRestrictedUntil) > new Date()) badges.push({ label: "댓글제한", color: "#d4183d" });
+      const badges: { label: string; tone: "info" | "muted" | "danger" }[] = [];
+      if (m.isAdmin) badges.push({ label: "관리자", tone: "info" });
+      if (m.isWithdrawn) badges.push({ label: "탈퇴", tone: "muted" });
+      if (m.banned) badges.push({ label: m.banType === "permanent" ? "영구차단" : "기간차단", tone: "danger" });
+      if (m.commentRestrictedUntil && new Date(m.commentRestrictedUntil) > new Date()) badges.push({ label: "댓글제한", tone: "danger" });
       return badges;
     };
 
-    const sanctionLabel = (s: SanctionItem): { label: string; color: string } => {
+    const sanctionLabel = (s: SanctionItem): { label: string; tone: "info" | "muted" | "danger" } => {
       switch (s.type) {
-        case "warning": return { label: "경고", color: "var(--muted-foreground)" };
-        case "ban": return { label: s.banType === "permanent" ? "영구 차단" : "기간 차단", color: "#d4183d" };
-        case "commentRestriction": return { label: "댓글 제한", color: "#d4183d" };
-        case "forceWithdraw": return { label: "강제 탈퇴", color: "#d4183d" };
-        default: return { label: s.type, color: "var(--muted-foreground)" };
+        case "warning": return { label: "경고", tone: "muted" };
+        case "ban": return { label: s.banType === "permanent" ? "영구 차단" : "기간 차단", tone: "danger" };
+        case "commentRestriction": return { label: "댓글 제한", tone: "danger" };
+        case "forceWithdraw": return { label: "강제 탈퇴", tone: "danger" };
+        default: return { label: s.type, tone: "muted" };
       }
     };
 
     return (
-      <div className="relative flex flex-col flex-1 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setActiveSection(null)}>
-            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
-          </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>회원 관리</h2>
-        </div>
+      <div className="relative flex flex-1 flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
+        <ScreenHeader title="회원 관리" onBack={() => setActiveSection(null)} />
         <div className="px-4 pt-4">
-          <input
+          <Input
+            label="학번 또는 닉네임 검색"
+            hideLabel
             value={memberSearchQuery}
             onChange={(e) => { setMemberSearchQuery(e.target.value); loadMembers(1, e.target.value); }}
             placeholder="학번 또는 닉네임 검색"
-            className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-            style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
           />
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-2 no-scrollbar">
+        <div className="no-scrollbar flex flex-1 flex-col gap-2 overflow-y-auto px-4 py-4">
           {memberList.length === 0 && !memberLoading ? (
-            <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+            <p className="mt-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
               회원이 없습니다.
             </p>
           ) : (
@@ -1464,53 +1416,43 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
               <button
                 key={m._id}
                 onClick={() => { setViewingPost(null); setViewingMember(m); }}
-                className="flex items-center gap-3 p-3 rounded-xl text-left"
-                style={{ background: "var(--card)" }}
+                className="flex items-center gap-3 rounded-[var(--r-lg)] p-3 text-left"
+                style={{ background: "var(--bg-card)", boxShadow: "var(--shadow-card)" }}
               >
-                <img src={resolveAssetUrl(m.avatar) || defaultAvatar} alt="프로필 사진" className="w-9 h-9 rounded-full object-cover shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{m.nickname}</p>
-                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                <Avatar src={resolveAssetUrl(m.avatar)} fallbackSrc={defaultAvatar} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium" style={{ color: "var(--text-strong)" }}>{m.nickname}</p>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                     {m.studentId}
                     {!!m.warningCount && ` · 경고 ${m.warningCount}회`}
                     {!!m.banCount && ` · 차단 ${m.banCount}회`}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-1 justify-end shrink-0 max-w-[40%]">
+                <div className="flex max-w-[40%] shrink-0 flex-wrap justify-end gap-1">
                   {memberBadges(m).map((b, i) => (
-                    <span key={i} className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: `${b.color}22`, color: b.color }}>
-                      {b.label}
-                    </span>
+                    <Badge key={i} tone={b.tone}>{b.label}</Badge>
                   ))}
                 </div>
               </button>
             ))
           )}
           {memberHasMore && (
-            <button
-              onClick={() => loadMembers(memberPage + 1, memberSearchQuery, true)}
-              disabled={memberLoading}
-              className="w-full py-2.5 rounded-xl text-xs font-semibold disabled:opacity-50"
-              style={{ background: "var(--muted)", color: "var(--foreground)" }}
-            >
+            <Button variant="secondary" fullWidth disabled={memberLoading} onClick={() => loadMembers(memberPage + 1, memberSearchQuery, true)}>
               {memberLoading ? "불러오는 중..." : "더 보기"}
-            </button>
+            </Button>
           )}
         </div>
 
         {/* 회원 상세: 상태 확인 + 그 자리에서 관리자 임명/해제, 제재, 강제 탈퇴 */}
         {viewingMember && (
-          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--background)" }}>
-            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-              <button onClick={() => { setViewingMember(null); setViewingPost(null); }} className="text-lg" style={{ color: "var(--foreground)" }}>←</button>
-              <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>회원 상세</h2>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4 no-scrollbar">
+          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--bg-base)" }}>
+            <ScreenHeader title="회원 상세" onBack={() => { setViewingMember(null); setViewingPost(null); }} />
+            <div className="no-scrollbar flex flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
               <div className="flex items-center gap-3">
-                <img src={resolveAssetUrl(viewingMember.avatar) || defaultAvatar} alt="프로필 사진" className="w-14 h-14 rounded-full object-cover shrink-0" />
+                <Avatar src={resolveAssetUrl(viewingMember.avatar)} fallbackSrc={defaultAvatar} size="lg" />
                 <div className="min-w-0 flex-1">
-                  <p className="text-base font-semibold truncate" style={{ color: "var(--foreground)" }}>{viewingMember.nickname}</p>
-                  <p className="text-xs truncate" style={{ color: "var(--muted-foreground)" }}>
+                  <p className="truncate text-base font-semibold" style={{ color: "var(--text-strong)" }}>{viewingMember.nickname}</p>
+                  <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
                     {viewingMember.studentId && `학번 ${viewingMember.studentId}`}
                     {viewingMember.createdAt && ` · 가입 ${new Date(viewingMember.createdAt).toLocaleDateString("ko-KR")}`}
                   </p>
@@ -1519,28 +1461,28 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
               <div className="flex flex-wrap gap-1.5">
                 {memberBadges(viewingMember).length === 0 ? (
-                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>특이사항 없음</span>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>특이사항 없음</span>
                 ) : (
-                  memberBadges(viewingMember).map((b, i) => (
-                    <span key={i} className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: `${b.color}22`, color: b.color }}>
-                      {b.label}
-                    </span>
-                  ))
+                  memberBadges(viewingMember).map((b, i) => <Badge key={i} tone={b.tone}>{b.label}</Badge>)
                 )}
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <button
+                <Button
+                  variant={memberSanctionFilter === "warning" ? "primary" : "secondary"}
+                  size={52}
+                  className="flex-col gap-0.5"
                   onClick={() => setMemberSanctionFilter((prev) => (prev === "warning" ? null : "warning"))}
-                  className="rounded-xl py-3 flex flex-col items-center gap-0.5"
-                  style={{ background: memberSanctionFilter === "warning" ? "var(--primary)" : "var(--muted)" }}
                 >
-                  <span className="text-lg font-bold" style={{ color: memberSanctionFilter === "warning" ? "white" : "var(--foreground)" }}>
+                  <span className="text-lg font-bold">
                     {memberSanctions.filter((s) => s.type === "warning" || s.type === "commentRestriction").length}
                   </span>
-                  <span className="text-xs" style={{ color: memberSanctionFilter === "warning" ? "white" : "var(--muted-foreground)" }}>경고/댓글 제한</span>
-                </button>
-                <button
+                  <span className="text-xs font-normal">경고/댓글 제한</span>
+                </Button>
+                <Button
+                  variant={memberSanctionFilter === "ban" ? "primary" : "secondary"}
+                  size={52}
+                  className="flex-col gap-0.5"
                   onClick={() => {
                     if (memberSanctionFilter === "ban" && viewingMember.banned) {
                       liftMemberBan();
@@ -1548,52 +1490,42 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                       setMemberSanctionFilter((prev) => (prev === "ban" ? null : "ban"));
                     }
                   }}
-                  className="rounded-xl py-3 flex flex-col items-center gap-0.5"
-                  style={{ background: memberSanctionFilter === "ban" ? "var(--primary)" : "var(--muted)" }}
                 >
-                  <span className="text-lg font-bold" style={{ color: memberSanctionFilter === "ban" ? "white" : "var(--foreground)" }}>
-                    {memberSanctions.filter((s) => s.type === "ban").length}
-                  </span>
-                  <span className="text-xs" style={{ color: memberSanctionFilter === "ban" ? "white" : "var(--muted-foreground)" }}>차단중</span>
-                </button>
+                  <span className="text-lg font-bold">{memberSanctions.filter((s) => s.type === "ban").length}</span>
+                  <span className="text-xs font-normal">차단중</span>
+                </Button>
               </div>
 
               {viewingMember.isWithdrawn ? (
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>탈퇴한 회원에게는 추가 조치를 할 수 없습니다.</p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>탈퇴한 회원에게는 추가 조치를 할 수 없습니다.</p>
               ) : (
-                <button
-                  onClick={() => toggleFullAdmin(viewingMember)}
-                  className="w-full py-3 rounded-xl text-sm font-semibold"
-                  style={{ background: viewingMember.isAdmin ? "var(--muted)" : "var(--primary)", color: viewingMember.isAdmin ? "var(--foreground)" : "white" }}
-                >
+                <Button variant={viewingMember.isAdmin ? "secondary" : "primary"} size={52} fullWidth onClick={() => toggleFullAdmin(viewingMember)}>
                   {viewingMember.isAdmin ? "관리자 권한 해제" : "관리자 권한 부여"}
-                </button>
+                </Button>
               )}
 
               {memberSanctionFilter && (
-                <div className="flex flex-col gap-2 pt-3 border-t" style={{ borderColor: "var(--border)" }}>
-                  <h3 className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                <div className="flex flex-col gap-2 border-t pt-3" style={{ borderColor: "var(--border-subtle)" }}>
+                  <h3 className="text-sm font-semibold" style={{ color: "var(--text-strong)" }}>
                     {memberSanctionFilter === "warning" ? "경고/댓글 제한 내역" : "차단 내역"}
                   </h3>
                   {memberSanctionsLoading ? (
-                    <p className="text-xs text-center py-8" style={{ color: "var(--muted-foreground)" }}>불러오는 중...</p>
+                    <p className="py-8 text-center text-xs" style={{ color: "var(--text-muted)" }}>불러오는 중...</p>
                   ) : (
                     (() => {
                       const filtered = memberSanctions.filter((s) =>
                         memberSanctionFilter === "warning" ? s.type === "warning" || s.type === "commentRestriction" : s.type === "ban"
                       );
                       if (filtered.length === 0) {
-                        return <p className="text-xs text-center py-8" style={{ color: "var(--muted-foreground)" }}>내역이 없습니다.</p>;
+                        return <p className="py-8 text-center text-xs" style={{ color: "var(--text-muted)" }}>내역이 없습니다.</p>;
                       }
                       return filtered.map((s) => {
-                        const { label, color } = sanctionLabel(s);
+                        const { label, tone } = sanctionLabel(s);
                         return (
-                          <div key={s._id} className="rounded-2xl p-3 shadow-sm flex flex-col gap-1" style={{ background: "var(--card)" }}>
+                          <Card key={s._id} className="flex flex-col gap-1">
                             <div className="flex items-center justify-between">
-                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: `${color}22`, color }}>
-                                {label}
-                              </span>
-                              <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                              <Badge tone={tone}>{label}</Badge>
+                              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                                 {s.active
                                   ? s.type === "ban" && s.banType === "permanent"
                                     ? "영구"
@@ -1603,20 +1535,20 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                                   : "해제됨"}
                               </span>
                             </div>
-                            <p className="text-sm" style={{ color: "var(--foreground)" }}>사유: {s.reason}</p>
-                            <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                            <p className="text-sm" style={{ color: "var(--text-body)" }}>사유: {s.reason}</p>
+                            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                               {new Date(s.createdAt).toLocaleString("ko-KR")} · 처리: {s.admin?.nickname ?? "-"}
                             </p>
                             {s.post && (
                               <button
                                 onClick={() => openSanctionPost(s.post!)}
-                                className="self-start flex items-center gap-1 text-xs font-semibold"
-                                style={{ color: "var(--primary)" }}
+                                className="flex items-center gap-1 self-start text-xs font-semibold"
+                                style={{ color: "var(--blue-deep)" }}
                               >
                                 원본 게시물 보기 <ChevronRight size={12} />
                               </button>
                             )}
-                          </div>
+                          </Card>
                         );
                       });
                     })()
@@ -1627,178 +1559,50 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
             {/* 제재 내역에서 원본 게시물을 눌렀을 때, 읽기 전용으로 바로 보여준다 */}
             {viewingPost && (
-              <div className="absolute inset-0 z-20 flex flex-col" style={{ background: "var(--background)" }}>
-                <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-                  <button onClick={() => setViewingPost(null)} className="text-lg" style={{ color: "var(--foreground)" }}>←</button>
-                  <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>게시물</h2>
-                </div>
-                <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-                  <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-                    <div className="flex items-center justify-between mb-2">
+              <div className="absolute inset-0 z-20 flex flex-col" style={{ background: "var(--bg-base)" }}>
+                <ScreenHeader title="게시물" onBack={() => setViewingPost(null)} />
+                <div className="no-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
+                  <Card>
+                    <div className="mb-2 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <img src={resolveAssetUrl(viewingPost.author?.avatar) || defaultAvatar} alt="프로필 사진" className="w-7 h-7 rounded-full object-cover" />
+                        <Avatar src={resolveAssetUrl(viewingPost.author?.avatar)} fallbackSrc={defaultAvatar} size="sm" />
                         <div>
-                          <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{viewingPost.author?.nickname ?? "알 수 없음"}</p>
-                          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(viewingPost)}</p>
+                          <p className="text-sm font-semibold" style={{ color: "var(--text-strong)" }}>{viewingPost.author?.nickname ?? "알 수 없음"}</p>
+                          <p className="text-xs" style={{ color: "var(--text-muted)" }}>{getDisplayTime(viewingPost)}</p>
                         </div>
                       </div>
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}>
-                        {BOARDS.find((b) => b.id === viewingPost.board)?.label ?? viewingPost.board}
-                      </span>
+                      <Badge tone="muted">{BOARDS.find((b) => b.id === viewingPost.board)?.label ?? viewingPost.board}</Badge>
                     </div>
-                    <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{viewingPost.title}</h3>
-                    <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
+                    <h3 className="mb-1 font-semibold" style={{ color: "var(--text-strong)" }}>{viewingPost.title}</h3>
+                    <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
                       {viewingPost.content}
                     </p>
                     {viewingPost.images?.[0] && (
-                      <img src={resolveAssetUrl(viewingPost.images[0])} alt="첨부 이미지" className="mt-2 w-full max-h-72 object-cover rounded-xl" />
+                      <img src={resolveAssetUrl(viewingPost.images[0])} alt="첨부 이미지" className="mt-2 max-h-72 w-full rounded-[var(--r-md)] object-cover" />
                     )}
-                  </div>
+                  </Card>
 
-                  <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3" style={{ background: "var(--card)" }}>
-                    <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                  <Card className="flex flex-col gap-3">
+                    <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
                       댓글 {viewingPost.comments?.length ?? 0}개
                     </p>
                     {(viewingPost.comments ?? []).map((c) => (
-                      <div key={c._id} className="flex gap-2 items-start">
-                        <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm overflow-hidden shrink-0" style={{ background: "var(--muted)" }}>
-                          <img src={resolveAssetUrl(c.author?.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex-1 px-3 py-2 rounded-xl text-xs" style={{ color: "var(--foreground)" }}>
+                      <div key={c._id} className="flex items-start gap-2">
+                        <Avatar src={resolveAssetUrl(c.author?.avatar)} fallbackSrc={defaultAvatar} size="sm" />
+                        <div className="flex-1 rounded-[var(--r-md)] px-3 py-2 text-xs" style={{ color: "var(--text-body)" }}>
                           <span className="font-semibold">{c.author?.nickname ?? "알 수 없음"} </span>{c.content}
                         </div>
                       </div>
                     ))}
-                  </div>
+                  </Card>
                 </div>
               </div>
             )}
           </div>
         )}
 
-        {/* 경고/차단/댓글제한/강제탈퇴 사유 입력 모달 (신고 관리 화면과 동일한 상태를 공유) */}
-        {sanctionAction && viewingUser && (
-          <div className="absolute inset-0 z-30 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
-            <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>
-                  {sanctionAction.type === "warn" ? "유저 경고" : sanctionAction.type === "ban" ? "앱 차단" : sanctionAction.type === "restrictComments" ? "댓글 제한" : "강제 탈퇴"}
-                </h3>
-                <button onClick={() => setSanctionAction(null)}>
-                  <X size={20} style={{ color: "var(--foreground)" }} />
-                </button>
-              </div>
-              <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>대상: {viewingUser.nickname}</p>
-
-              {sanctionAction.type === "ban" && (
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setSanctionBanType("temporary")}
-                    className="py-2.5 rounded-xl text-xs font-semibold"
-                    style={{
-                      background: sanctionBanType === "temporary" ? "var(--primary)" : "var(--muted)",
-                      color: sanctionBanType === "temporary" ? "white" : "var(--muted-foreground)",
-                    }}
-                  >
-                    기간 지정
-                  </button>
-                  <button
-                    onClick={() => setSanctionBanType("permanent")}
-                    className="py-2.5 rounded-xl text-xs font-semibold"
-                    style={{
-                      background: sanctionBanType === "permanent" ? "var(--primary)" : "var(--muted)",
-                      color: sanctionBanType === "permanent" ? "white" : "var(--muted-foreground)",
-                    }}
-                  >
-                    영구 정지
-                  </button>
-                </div>
-              )}
-
-              {(sanctionAction.type === "restrictComments" || (sanctionAction.type === "ban" && sanctionBanType === "temporary")) && (
-                <div className="flex gap-2 items-center">
-                  {[3, 7, 30].map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => setSanctionDays(d)}
-                      className="px-3 py-2 rounded-lg text-xs font-semibold"
-                      style={{
-                        background: sanctionDays === d ? "var(--primary)" : "var(--muted)",
-                        color: sanctionDays === d ? "white" : "var(--muted-foreground)",
-                      }}
-                    >
-                      {d}일
-                    </button>
-                  ))}
-                  <input
-                    type="number"
-                    min={1}
-                    value={sanctionDays}
-                    onChange={(e) => setSanctionDays(Math.max(1, Number(e.target.value) || 1))}
-                    className="w-16 px-2 py-2 rounded-lg text-sm outline-none"
-                    style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-                  />
-                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>일</span>
-                </div>
-              )}
-
-              <textarea
-                value={sanctionReason}
-                onChange={(e) => setSanctionReason(e.target.value)}
-                placeholder="사유를 입력하세요"
-                rows={3}
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
-                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-              />
-
-              <button
-                onClick={submitSanctionAction}
-                disabled={!sanctionReason.trim() || sanctionSubmitting}
-                className="w-full px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-50"
-                style={{ background: "#d4183d", color: "white" }}
-              >
-                {sanctionSubmitting ? "처리 중..." : "확인"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* "처리완료로 표시"를 누르면, 신고자/건의자에게 그대로 전달할 결과 메시지를 입력받는다 */}
-        {resolveNoteTarget && (
-          <div className="absolute inset-0 z-30 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
-            <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>
-                  {resolveNoteTarget.kind === "report" ? "신고 처리 결과" : "건의사항 답변"}
-                </h3>
-                <button onClick={() => setResolveNoteTarget(null)}>
-                  <X size={20} style={{ color: "var(--foreground)" }} />
-                </button>
-              </div>
-              <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                {resolveNoteTarget.kind === "report"
-                  ? "여기에 적은 내용이 신고자에게 알림으로 전달됩니다. 비워두면 \"별도의 제재 조치는 없었습니다\"로 전달됩니다."
-                  : "여기에 적은 내용이 건의자에게 답변 알림으로 전달됩니다. 비워두면 기본 안내 문구로 전달됩니다."}
-              </p>
-              <textarea
-                value={resolveNoteText}
-                onChange={(e) => setResolveNoteText(e.target.value)}
-                placeholder={resolveNoteTarget.kind === "report" ? "예: 검토 결과 규정 위반이 아니었습니다." : "예: 요청하신 기능은 다음 업데이트에 반영 예정입니다."}
-                rows={4}
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
-                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-              />
-              <button
-                onClick={submitResolveNote}
-                className="w-full px-4 py-3 rounded-xl text-sm font-semibold"
-                style={{ background: "var(--primary)", color: "white" }}
-              >
-                처리완료로 표시
-              </button>
-            </div>
-          </div>
-        )}
-
+        {SanctionModal}
+        {ResolveNoteModal}
         {AlertModal}
         {ConfirmModal}
       </div>
@@ -1807,69 +1611,45 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
   if (activeSection === "adminReports") {
     return (
-      <div className="relative flex flex-col flex-1 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setActiveSection(null)}>
-            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
-          </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>신고/건의 관리</h2>
-        </div>
+      <div className="relative flex flex-1 flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
+        <ScreenHeader title="신고/건의 관리" onBack={() => setActiveSection(null)} />
 
-        <div className="grid grid-cols-2 px-4 gap-2 mt-4 mb-1">
-          <button
-            onClick={() => setAdminReportTab("reports")}
-            className="py-2.5 rounded-xl text-xs font-semibold"
-            style={{ background: adminReportTab === "reports" ? "var(--primary)" : "var(--muted)", color: adminReportTab === "reports" ? "white" : "var(--muted-foreground)" }}
-          >
+        <div className="mb-1 mt-4 grid grid-cols-2 gap-2 px-4">
+          <Button variant={adminReportTab === "reports" ? "primary" : "secondary"} onClick={() => setAdminReportTab("reports")}>
             신고 ({adminReports.length})
-          </button>
-          <button
-            onClick={() => setAdminReportTab("inquiries")}
-            className="py-2.5 rounded-xl text-xs font-semibold"
-            style={{ background: adminReportTab === "inquiries" ? "var(--primary)" : "var(--muted)", color: adminReportTab === "inquiries" ? "white" : "var(--muted-foreground)" }}
-          >
+          </Button>
+          <Button variant={adminReportTab === "inquiries" ? "primary" : "secondary"} onClick={() => setAdminReportTab("inquiries")}>
             건의사항 ({adminInquiries.length})
-          </button>
+          </Button>
         </div>
 
         {/* 미처리/처리완료 상태 필터: 커뮤니티 화면의 최신순/인기순 드롭다운과 동일한 방식 */}
-        <div className="px-4 mb-1 flex justify-end">
+        <div className="mb-1 flex justify-end px-4">
           <div className="relative">
-            <button
-              onClick={() => setShowAdminStatusDropdown((v) => !v)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-medium whitespace-nowrap"
-              style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
-            >
+            <Chip selected={false} onClick={() => setShowAdminStatusDropdown((v) => !v)}>
               {adminStatusFilter === "all" ? "전체" : adminStatusFilter === "pending" ? "미처리" : "처리완료"}
               {showAdminStatusDropdown ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
+            </Chip>
 
             {showAdminStatusDropdown && (
               <div
-                className="absolute right-0 top-full mt-1 z-20 rounded-xl shadow-lg py-1 min-w-[90px]"
-                style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+                className="absolute right-0 top-full z-20 mt-1 min-w-[90px] rounded-[var(--r-md)] py-1"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", boxShadow: "0 4px 12px rgba(15,23,42,0.08)" }}
               >
-                <button
-                  onClick={() => { setAdminStatusFilter("all"); setShowAdminStatusDropdown(false); }}
-                  className="w-full px-3 py-2 text-xs text-left"
-                  style={{ color: adminStatusFilter === "all" ? "var(--primary)" : "var(--foreground)" }}
-                >
-                  전체
-                </button>
-                <button
-                  onClick={() => { setAdminStatusFilter("pending"); setShowAdminStatusDropdown(false); }}
-                  className="w-full px-3 py-2 text-xs text-left"
-                  style={{ color: adminStatusFilter === "pending" ? "var(--primary)" : "var(--foreground)" }}
-                >
-                  미처리
-                </button>
-                <button
-                  onClick={() => { setAdminStatusFilter("resolved"); setShowAdminStatusDropdown(false); }}
-                  className="w-full px-3 py-2 text-xs text-left"
-                  style={{ color: adminStatusFilter === "resolved" ? "var(--primary)" : "var(--foreground)" }}
-                >
-                  처리완료
-                </button>
+                {([
+                  { key: "all", label: "전체" },
+                  { key: "pending", label: "미처리" },
+                  { key: "resolved", label: "처리완료" },
+                ] as { key: "all" | "pending" | "resolved"; label: string }[]).map((opt) => (
+                  <button
+                    key={opt.key}
+                    onClick={() => { setAdminStatusFilter(opt.key); setShowAdminStatusDropdown(false); }}
+                    className="w-full px-3 py-2 text-left text-xs"
+                    style={{ color: adminStatusFilter === opt.key ? "var(--blue-deep)" : "var(--text-body)" }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -1885,71 +1665,49 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
         const visibleReports = filteredReports.slice(0, visibleReportsCount);
         const hasMoreReports = visibleReportsCount < filteredReports.length;
         return (
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+        <div className="no-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
           {filteredReports.length === 0 ? (
-            <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+            <p className="mt-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
               접수된 신고가 없습니다.
             </p>
           ) : (
             visibleReports.map((report) => (
-              <div key={report._id} className="rounded-2xl p-4 shadow-sm flex flex-col gap-2" style={{ background: "var(--card)" }}>
+              <Card key={report._id} className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span
-                    className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                    style={{
-                      background: report.status === "pending" ? "#d4183d22" : "var(--muted)",
-                      color: report.status === "pending" ? "#d4183d" : "var(--muted-foreground)",
-                    }}
-                  >
+                  <Badge tone={report.status === "pending" ? "danger" : "muted"}>
                     {report.status === "pending" ? "미처리" : "처리완료"}
-                  </span>
-                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  </Badge>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                     {new Date(report.createdAt).toLocaleString("ko-KR")}
                   </span>
                 </div>
-                <p className="text-sm" style={{ color: "var(--foreground)" }}>
+                <p className="text-sm" style={{ color: "var(--text-body)" }}>
                   <span className="font-semibold">{report.reporter?.nickname ?? "알 수 없음"}</span>님의 신고
                   {" · "}
                   {report.targetType === "post" ? "게시물" : report.targetType === "comment" ? "댓글" : "사용자"}
                 </p>
-                <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>사유: {report.reason}</p>
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>대상 ID: {report.targetId}</p>
-                <div className="flex gap-2 mt-1 flex-wrap">
-                  <button
-                    onClick={() => viewReportTarget(report)}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-                    style={{ background: "var(--primary)", color: "white" }}
-                  >
+                <p className="text-sm" style={{ color: "var(--text-muted)" }}>사유: {report.reason}</p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>대상 ID: {report.targetId}</p>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  <Button size={44} onClick={() => viewReportTarget(report)}>
                     {report.targetType === "post" ? "게시물 조회" : report.targetType === "comment" ? "댓글 조회" : "유저 조회"}
-                  </button>
+                  </Button>
                   {report.targetType === "post" && (
-                    <button
-                      onClick={() => deleteReportedPost(report)}
-                      className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-                      style={{ background: "#d4183d", color: "white" }}
-                    >
+                    <Button size={44} style={{ background: "var(--danger)" }} onClick={() => deleteReportedPost(report)}>
                       게시물 삭제
-                    </button>
+                    </Button>
                   )}
-                  <button
-                    onClick={() => toggleReportStatus(report)}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-                    style={{ background: "var(--muted)", color: "var(--foreground)" }}
-                  >
+                  <Button variant="secondary" size={44} onClick={() => toggleReportStatus(report)}>
                     {report.status === "pending" ? "처리완료로 표시" : "미처리로 되돌리기"}
-                  </button>
+                  </Button>
                 </div>
-              </div>
+              </Card>
             ))
           )}
           {hasMoreReports && (
-            <button
-              onClick={() => setVisibleReportsCount((prev) => prev + 5)}
-              className="w-full py-2.5 rounded-xl text-xs font-semibold"
-              style={{ background: "var(--muted)", color: "var(--foreground)" }}
-            >
+            <Button variant="secondary" fullWidth onClick={() => setVisibleReportsCount((prev) => prev + 5)}>
               더 보기
-            </button>
+            </Button>
           )}
         </div>
         );
@@ -1958,32 +1716,26 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
         const visibleInquiries = filteredInquiries.slice(0, visibleInquiriesCount);
         const hasMoreInquiries = visibleInquiriesCount < filteredInquiries.length;
         return (
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
+        <div className="no-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
           {filteredInquiries.length === 0 ? (
-            <p className="text-sm text-center mt-10" style={{ color: "var(--muted-foreground)" }}>
+            <p className="mt-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
               접수된 건의사항이 없습니다.
             </p>
           ) : (
             visibleInquiries.map((inquiry) => (
-              <div key={inquiry._id} className="rounded-2xl p-4 shadow-sm flex flex-col gap-2" style={{ background: "var(--card)" }}>
+              <Card key={inquiry._id} className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span
-                    className="text-xs font-semibold px-2 py-0.5 rounded-full"
-                    style={{
-                      background: inquiry.status === "pending" ? "#d4183d22" : "var(--muted)",
-                      color: inquiry.status === "pending" ? "#d4183d" : "var(--muted-foreground)",
-                    }}
-                  >
+                  <Badge tone={inquiry.status === "pending" ? "danger" : "muted"}>
                     {inquiry.status === "pending" ? "미처리" : "처리완료"}
-                  </span>
-                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                  </Badge>
+                  <span className="text-xs" style={{ color: "var(--text-muted)" }}>
                     {new Date(inquiry.createdAt).toLocaleString("ko-KR")}
                   </span>
                 </div>
-                <p className="text-sm font-semibold truncate" style={{ color: "var(--foreground)" }}>{inquiry.title}</p>
+                <p className="truncate text-sm font-semibold" style={{ color: "var(--text-strong)" }}>{inquiry.title}</p>
                 <p
-                  className={`text-sm min-h-[2.5rem] break-words ${!expandedInquiryIds.has(inquiry._id) && inquiry.content.length > INQUIRY_PREVIEW_LENGTH ? "line-clamp-2" : ""}`}
-                  style={{ color: "var(--muted-foreground)" }}
+                  className={`min-h-[2.5rem] break-words text-sm ${!expandedInquiryIds.has(inquiry._id) && inquiry.content.length > INQUIRY_PREVIEW_LENGTH ? "line-clamp-2" : ""}`}
+                  style={{ color: "var(--text-muted)" }}
                 >
                   {inquiry.content}
                 </p>
@@ -1991,34 +1743,26 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                   <button
                     onClick={() => toggleInquiryExpand(inquiry._id)}
                     className="self-start text-xs font-semibold"
-                    style={{ color: "var(--primary)" }}
+                    style={{ color: "var(--blue-deep)" }}
                   >
                     {expandedInquiryIds.has(inquiry._id) ? "접기" : "더보기"}
                   </button>
                 )}
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                   작성자: {inquiry.user?.nickname ?? "알 수 없음"}{inquiry.user?.studentId ? ` (${inquiry.user.studentId})` : ""}
                 </p>
-                <div className="flex gap-2 mt-1">
-                  <button
-                    onClick={() => toggleInquiryStatus(inquiry)}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-lg"
-                    style={{ background: "var(--muted)", color: "var(--foreground)" }}
-                  >
+                <div className="mt-1 flex gap-2">
+                  <Button variant="secondary" size={44} onClick={() => toggleInquiryStatus(inquiry)}>
                     {inquiry.status === "pending" ? "처리완료로 표시" : "미처리로 되돌리기"}
-                  </button>
+                  </Button>
                 </div>
-              </div>
+              </Card>
             ))
           )}
           {hasMoreInquiries && (
-            <button
-              onClick={() => setVisibleInquiriesCount((prev) => prev + 5)}
-              className="w-full py-2.5 rounded-xl text-xs font-semibold"
-              style={{ background: "var(--muted)", color: "var(--foreground)" }}
-            >
+            <Button variant="secondary" fullWidth onClick={() => setVisibleInquiriesCount((prev) => prev + 5)}>
               더 보기
-            </button>
+            </Button>
           )}
         </div>
         );
@@ -2026,140 +1770,113 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
         {/* 신고 대상 게시물/댓글 바로 조회 */}
         {viewingPost && (
-          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--background)" }}>
-            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-              <button onClick={() => { setViewingPost(null); setViewingCommentId(null); setViewingReportId(null); }} className="text-lg" style={{ color: "var(--foreground)" }}>←</button>
-              <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>
-                {viewingCommentId ? "신고된 댓글" : "신고된 게시물"}
-              </h2>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-              <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-                <div className="flex items-center justify-between mb-2">
+          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--bg-base)" }}>
+            <ScreenHeader
+              title={viewingCommentId ? "신고된 댓글" : "신고된 게시물"}
+              onBack={() => { setViewingPost(null); setViewingCommentId(null); setViewingReportId(null); }}
+            />
+            <div className="no-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
+              <Card>
+                <div className="mb-2 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <img src={resolveAssetUrl(viewingPost.author?.avatar) || defaultAvatar} alt="프로필 사진" className="w-7 h-7 rounded-full object-cover" />
+                    <Avatar src={resolveAssetUrl(viewingPost.author?.avatar)} fallbackSrc={defaultAvatar} size="sm" />
                     <div>
-                      <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{viewingPost.author?.nickname ?? "알 수 없음"}</p>
-                      <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>{getDisplayTime(viewingPost)}</p>
+                      <p className="text-sm font-semibold" style={{ color: "var(--text-strong)" }}>{viewingPost.author?.nickname ?? "알 수 없음"}</p>
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>{getDisplayTime(viewingPost)}</p>
                     </div>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full shrink-0" style={{ background: "var(--secondary)", color: "var(--primary)" }}>
-                    {BOARDS.find((b) => b.id === viewingPost.board)?.label ?? viewingPost.board}
-                  </span>
+                  <BoardBadge board={viewingPost.board} />
                 </div>
-                <h3 className="font-semibold mb-1" style={{ color: "var(--foreground)" }}>{viewingPost.title}</h3>
-                <p className="text-sm leading-relaxed mt-1" style={{ color: "var(--muted-foreground)" }}>
+                <h3 className="mb-1 font-semibold" style={{ color: "var(--text-strong)" }}>{viewingPost.title}</h3>
+                <p className="mt-1 text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>
                   {viewingPost.content}
                 </p>
                 {viewingPost.images?.[0] && (
-                  <img src={resolveAssetUrl(viewingPost.images[0])} alt="첨부 이미지" className="mt-2 w-full max-h-72 object-cover rounded-xl" />
+                  <img src={resolveAssetUrl(viewingPost.images[0])} alt="첨부 이미지" className="mt-2 max-h-72 w-full rounded-[var(--r-md)] object-cover" />
                 )}
                 {!!viewingPost.tags?.length && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
+                  <div className="mt-2 flex flex-wrap gap-1.5">
                     {viewingPost.tags.map((tag, i) => (
-                      <span key={i} className="text-xs px-2 py-0.5 rounded-full" style={{ background: "var(--secondary)", color: "var(--primary)" }}>
-                        #{tag}
-                      </span>
+                      <Badge key={i} tone="info">#{tag}</Badge>
                     ))}
                   </div>
                 )}
                 {/* 신고 검토용 참고 지표 — 관리자가 직접 좋아요/싫어요를 누르는 기능은 아니라서 읽기 전용으로만 보여준다 */}
-                <div className="flex items-center gap-4 mt-3 pt-2.5 border-t" style={{ borderColor: "var(--border)" }}>
+                <div className="mt-3 flex items-center gap-4 border-t pt-2.5" style={{ borderColor: "var(--border-subtle)" }}>
                   <div className="flex items-center gap-1.5">
-                    <Heart size={14} style={{ color: "var(--muted-foreground)" }} />
-                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.likes?.length ?? 0}</span>
+                    <Heart size={14} style={{ color: "var(--text-muted)" }} />
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{viewingPost.likes?.length ?? 0}</span>
                   </div>
                   {viewingPost.board === "lecture" && (
                     <div className="flex items-center gap-1.5">
-                      <ThumbsDown size={14} style={{ color: "var(--muted-foreground)" }} />
-                      <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.dislikes?.length ?? 0}</span>
+                      <ThumbsDown size={14} style={{ color: "var(--text-muted)" }} />
+                      <span className="text-xs" style={{ color: "var(--text-muted)" }}>{viewingPost.dislikes?.length ?? 0}</span>
                     </div>
                   )}
                   <div className="flex items-center gap-1.5">
-                    <MessageCircle size={14} style={{ color: "var(--muted-foreground)" }} />
-                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.comments?.length ?? 0}</span>
+                    <MessageCircle size={14} style={{ color: "var(--text-muted)" }} />
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{viewingPost.comments?.length ?? 0}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <Bookmark size={14} style={{ color: "var(--muted-foreground)" }} />
-                    <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{viewingPost.scraps?.length ?? 0}</span>
+                    <Bookmark size={14} style={{ color: "var(--text-muted)" }} />
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>{viewingPost.scraps?.length ?? 0}</span>
                   </div>
                 </div>
-              </div>
+              </Card>
 
-              <div className="rounded-2xl p-4 shadow-sm flex flex-col gap-3" style={{ background: "var(--card)" }}>
-                <p className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+              <Card className="flex flex-col gap-3">
+                <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
                   댓글 {viewingPost.comments?.length ?? 0}개{viewingCommentId ? " (신고된 댓글은 빨간 테두리로 표시됩니다)" : ""}
                 </p>
                 {(viewingPost.comments ?? []).map((c) => (
                   <div
                     key={c._id}
-                    className="flex gap-2 items-start rounded-xl"
-                    style={c._id === viewingCommentId ? { border: "1.5px solid #d4183d", padding: "6px" } : undefined}
+                    className="flex items-start gap-2 rounded-[var(--r-md)]"
+                    style={c._id === viewingCommentId ? { border: "1.5px solid var(--danger)", padding: "6px" } : undefined}
                   >
-                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-sm overflow-hidden shrink-0" style={{ background: "var(--muted)" }}>
-                      <img src={resolveAssetUrl(c.author?.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1 px-3 py-2 rounded-xl text-xs" style={{ color: "var(--foreground)" }}>
+                    <Avatar src={resolveAssetUrl(c.author?.avatar)} fallbackSrc={defaultAvatar} size="sm" />
+                    <div className="flex-1 rounded-[var(--r-md)] px-3 py-2 text-xs" style={{ color: "var(--text-body)" }}>
                       <span className="font-semibold">{c.author?.nickname ?? "알 수 없음"} </span>{c.content}
                     </div>
                   </div>
                 ))}
-              </div>
+              </Card>
             </div>
           </div>
         )}
 
         {/* 신고 대상이 유저일 때 바로 조회 */}
         {viewingUser && (
-          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--background)" }}>
-            <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0" style={{ borderColor: "var(--border)" }}>
-              <button onClick={() => { setViewingUser(null); setViewingReportId(null); }} className="text-lg" style={{ color: "var(--foreground)" }}>←</button>
-              <h2 className="font-semibold text-sm flex-1" style={{ color: "var(--foreground)" }}>신고된 사용자</h2>
-            </div>
-            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 no-scrollbar">
-              <div className="rounded-2xl p-4 shadow-sm flex items-center gap-3" style={{ background: "var(--card)" }}>
-                <img src={resolveAssetUrl(viewingUser.avatar) || defaultAvatar} alt="프로필 사진" className="w-12 h-12 rounded-full object-cover shrink-0" />
+          <div className="absolute inset-0 z-10 flex flex-col" style={{ background: "var(--bg-base)" }}>
+            <ScreenHeader title="신고된 사용자" onBack={() => { setViewingUser(null); setViewingReportId(null); }} />
+            <div className="no-scrollbar flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
+              <Card className="flex items-center gap-3">
+                <Avatar src={resolveAssetUrl(viewingUser.avatar)} fallbackSrc={defaultAvatar} size="lg" />
                 <div>
-                  <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{viewingUser.nickname}</p>
+                  <p className="text-sm font-semibold" style={{ color: "var(--text-strong)" }}>{viewingUser.nickname}</p>
                   {viewingUser.studentId && (
-                    <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>학번: {viewingUser.studentId}</p>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>학번: {viewingUser.studentId}</p>
                   )}
                   {viewingUser.isAdmin && (
-                    <p className="text-xs" style={{ color: "var(--primary)" }}>관리자 계정</p>
+                    <p className="text-xs" style={{ color: "var(--blue-primary)" }}>관리자 계정</p>
                   )}
                 </div>
-              </div>
+              </Card>
 
               <div className="flex flex-col gap-2">
-                <button
-                  onClick={openUserProfile}
-                  className="w-full py-3 rounded-xl text-sm font-semibold"
-                  style={{ background: "var(--primary)", color: "white" }}
-                >
+                <Button size={52} fullWidth onClick={openUserProfile}>
                   프로필 보기
-                </button>
+                </Button>
                 <div className="grid grid-cols-3 gap-2">
-                  <button
-                    onClick={() => setSanctionAction({ type: "warn" })}
-                    className="py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center gap-1"
-                    style={{ background: "var(--muted)", color: "var(--foreground)" }}
-                  >
-                    <AlertTriangle size={16} /> 경고
-                  </button>
-                  <button
-                    onClick={() => setSanctionAction({ type: "ban" })}
-                    className="py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center gap-1"
-                    style={{ background: "#d4183d22", color: "#d4183d" }}
-                  >
-                    <Ban size={16} /> 차단
-                  </button>
-                  <button
-                    onClick={() => setSanctionAction({ type: "restrictComments" })}
-                    className="py-2.5 rounded-xl text-xs font-semibold flex flex-col items-center gap-1"
-                    style={{ background: "var(--muted)", color: "var(--foreground)" }}
-                  >
-                    <MessageSquare size={16} /> 댓글 제한
-                  </button>
+                  <Button variant="secondary" size={52} className="flex-col gap-1" onClick={() => setSanctionAction({ type: "warn" })}>
+                    <AlertTriangle size={16} /> <span className="text-xs">경고</span>
+                  </Button>
+                  <Button size={52} className="flex-col gap-1" style={{ background: "var(--danger)" }} onClick={() => setSanctionAction({ type: "ban" })}>
+                    <Ban size={16} /> <span className="text-xs">차단</span>
+                  </Button>
+                  <Button variant="secondary" size={52} className="flex-col gap-1" onClick={() => setSanctionAction({ type: "restrictComments" })}>
+                    <MessageSquare size={16} /> <span className="text-xs">댓글 제한</span>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -2168,7 +1885,7 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
         {/* 신고된 사용자의 프로필 화면 (인스타 스타일 OtherUserProfile 재사용) */}
         {showingUserProfile && viewingUser && (
-          <div className="absolute inset-0 z-20 flex flex-col" style={{ background: "var(--background)" }}>
+          <div className="absolute inset-0 z-20 flex flex-col" style={{ background: "var(--bg-base)" }}>
             <OtherUserProfile
               author={viewingUser as PostAuthor}
               posts={userProfilePosts}
@@ -2185,129 +1902,8 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           </div>
         )}
 
-        {/* 신고된 사용자에게 이 화면에서 바로 제재 부여 */}
-        {sanctionAction && viewingUser && (
-          <div className="absolute inset-0 z-30 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
-            <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>
-                  {sanctionAction.type === "warn" ? "유저 경고" : sanctionAction.type === "ban" ? "앱 차단" : sanctionAction.type === "restrictComments" ? "댓글 제한" : "강제 탈퇴"}
-                </h3>
-                <button onClick={() => setSanctionAction(null)}>
-                  <X size={20} style={{ color: "var(--foreground)" }} />
-                </button>
-              </div>
-              <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>대상: {viewingUser.nickname}</p>
-
-              {sanctionAction.type === "ban" && (
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setSanctionBanType("temporary")}
-                    className="py-2.5 rounded-xl text-xs font-semibold"
-                    style={{
-                      background: sanctionBanType === "temporary" ? "var(--primary)" : "var(--muted)",
-                      color: sanctionBanType === "temporary" ? "white" : "var(--muted-foreground)",
-                    }}
-                  >
-                    기간 지정
-                  </button>
-                  <button
-                    onClick={() => setSanctionBanType("permanent")}
-                    className="py-2.5 rounded-xl text-xs font-semibold"
-                    style={{
-                      background: sanctionBanType === "permanent" ? "var(--primary)" : "var(--muted)",
-                      color: sanctionBanType === "permanent" ? "white" : "var(--muted-foreground)",
-                    }}
-                  >
-                    영구 정지
-                  </button>
-                </div>
-              )}
-
-              {(sanctionAction.type === "restrictComments" || (sanctionAction.type === "ban" && sanctionBanType === "temporary")) && (
-                <div className="flex gap-2 items-center">
-                  {[3, 7, 30].map((d) => (
-                    <button
-                      key={d}
-                      onClick={() => setSanctionDays(d)}
-                      className="px-3 py-2 rounded-lg text-xs font-semibold"
-                      style={{
-                        background: sanctionDays === d ? "var(--primary)" : "var(--muted)",
-                        color: sanctionDays === d ? "white" : "var(--muted-foreground)",
-                      }}
-                    >
-                      {d}일
-                    </button>
-                  ))}
-                  <input
-                    type="number"
-                    min={1}
-                    value={sanctionDays}
-                    onChange={(e) => setSanctionDays(Math.max(1, Number(e.target.value) || 1))}
-                    className="w-16 px-2 py-2 rounded-lg text-sm outline-none"
-                    style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-                  />
-                  <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>일</span>
-                </div>
-              )}
-
-              <textarea
-                value={sanctionReason}
-                onChange={(e) => setSanctionReason(e.target.value)}
-                placeholder="사유를 입력하세요"
-                rows={3}
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
-                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-              />
-
-              <button
-                onClick={submitSanctionAction}
-                disabled={!sanctionReason.trim() || sanctionSubmitting}
-                className="w-full px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-50"
-                style={{ background: "#d4183d", color: "white" }}
-              >
-                {sanctionSubmitting ? "처리 중..." : "확인"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* "처리완료로 표시"를 누르면, 신고자/건의자에게 그대로 전달할 결과 메시지를 입력받는다 */}
-        {resolveNoteTarget && (
-          <div className="absolute inset-0 z-30 flex items-center justify-center px-6" style={{ background: "rgba(0,0,0,0.5)" }}>
-            <div className="w-full rounded-3xl px-4 py-6 flex flex-col gap-3" style={{ background: "var(--background)" }}>
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="font-semibold" style={{ color: "var(--foreground)" }}>
-                  {resolveNoteTarget.kind === "report" ? "신고 처리 결과" : "건의사항 답변"}
-                </h3>
-                <button onClick={() => setResolveNoteTarget(null)}>
-                  <X size={20} style={{ color: "var(--foreground)" }} />
-                </button>
-              </div>
-              <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
-                {resolveNoteTarget.kind === "report"
-                  ? "여기에 적은 내용이 신고자에게 알림으로 전달됩니다. 비워두면 \"별도의 제재 조치는 없었습니다\"로 전달됩니다."
-                  : "여기에 적은 내용이 건의자에게 답변 알림으로 전달됩니다. 비워두면 기본 안내 문구로 전달됩니다."}
-              </p>
-              <textarea
-                value={resolveNoteText}
-                onChange={(e) => setResolveNoteText(e.target.value)}
-                placeholder={resolveNoteTarget.kind === "report" ? "예: 검토 결과 규정 위반이 아니었습니다." : "예: 요청하신 기능은 다음 업데이트에 반영 예정입니다."}
-                rows={4}
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
-                style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
-              />
-              <button
-                onClick={submitResolveNote}
-                className="w-full px-4 py-3 rounded-xl text-sm font-semibold"
-                style={{ background: "var(--primary)", color: "white" }}
-              >
-                처리완료로 표시
-              </button>
-            </div>
-          </div>
-        )}
-
+        {SanctionModal}
+        {ResolveNoteModal}
         {AlertModal}
         {ConfirmModal}
       </div>
@@ -2316,48 +1912,33 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
   if (activeSection === "adminUsers") {
     return (
-      <div className="relative flex flex-col flex-1 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setActiveSection(null)}>
-            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
-          </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>행사공지 관리자</h2>
-        </div>
-        <div className="px-4 py-4 flex flex-col gap-4 overflow-y-auto no-scrollbar">
-          <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+      <div className="relative flex flex-1 flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
+        <ScreenHeader title="행사공지 관리자" onBack={() => setActiveSection(null)} />
+        <div className="no-scrollbar flex flex-col gap-4 overflow-y-auto px-4 py-4">
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
             여기서 부여하는 권한은 행사공지 게시판 글쓰기만 가능합니다. 신고 처리·유저 제재·관리자 관리 등 다른 권한은 없습니다.
           </p>
           <div>
-            <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
-              학번/닉네임으로 검색해서 행사공지 작성 권한 부여
-            </label>
-            <input
+            <Input
+              label="학번/닉네임으로 검색해서 행사공지 작성 권한 부여"
               value={adminSearchQuery}
               onChange={(e) => searchAdminCandidates(e.target.value)}
               placeholder="학번 또는 닉네임 검색"
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-              style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
             />
             {adminSearchQuery.trim() && (
-              <div className="flex flex-col gap-2 mt-2">
+              <div className="mt-2 flex flex-col gap-2">
                 {adminSearchResults.length === 0 ? (
-                  <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>검색 결과가 없습니다.</p>
+                  <p className="text-xs" style={{ color: "var(--text-muted)" }}>검색 결과가 없습니다.</p>
                 ) : (
                   adminSearchResults.map((u) => {
                     const already = adminList.some((a) => a._id === u._id);
                     return (
-                      <div key={u._id} className="flex items-center gap-3 p-2.5 rounded-xl" style={{ background: "var(--card)" }}>
-                        <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
-                          <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                        </div>
-                        <p className="flex-1 min-w-0 text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
-                        <button
-                          onClick={() => setUserAdmin(u, !already)}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0"
-                          style={{ background: already ? "var(--muted)" : "var(--primary)", color: already ? "var(--muted-foreground)" : "white" }}
-                        >
+                      <div key={u._id} className="flex items-center gap-3 rounded-[var(--r-md)] p-2.5" style={{ background: "var(--bg-card)" }}>
+                        <Avatar src={resolveAssetUrl(u.avatar)} fallbackSrc={defaultAvatar} />
+                        <p className="min-w-0 flex-1 truncate text-sm font-medium" style={{ color: "var(--text-strong)" }}>{u.nickname}</p>
+                        <Button variant={already ? "secondary" : "primary"} size={44} onClick={() => setUserAdmin(u, !already)}>
                           {already ? "권한 해제" : "권한 부여"}
-                        </button>
+                        </Button>
                       </div>
                     );
                   })
@@ -2367,26 +1948,20 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
           </div>
 
           <div>
-            <label className="text-xs font-semibold mb-2 block" style={{ color: "var(--muted-foreground)" }}>
+            <label className="mb-2 block text-[13px] font-medium" style={{ color: "var(--text-body)" }}>
               현재 행사공지 관리자
             </label>
             <div className="flex flex-col gap-2">
               {adminList.length === 0 ? (
-                <p className="text-xs" style={{ color: "var(--muted-foreground)" }}>행사공지 관리자가 없습니다.</p>
+                <p className="text-xs" style={{ color: "var(--text-muted)" }}>행사공지 관리자가 없습니다.</p>
               ) : (
                 adminList.map((u) => (
-                  <div key={u._id} className="flex items-center gap-3 p-2.5 rounded-xl" style={{ background: "var(--card)" }}>
-                    <div className="w-9 h-9 rounded-full overflow-hidden shrink-0">
-                      <img src={resolveAssetUrl(u.avatar) || defaultAvatar} alt="프로필 사진" className="w-full h-full object-cover" />
-                    </div>
-                    <p className="flex-1 min-w-0 text-sm font-medium truncate" style={{ color: "var(--foreground)" }}>{u.nickname}</p>
-                    <button
-                      onClick={() => setUserAdmin(u, false)}
-                      className="text-xs font-semibold px-3 py-1.5 rounded-lg shrink-0"
-                      style={{ background: "var(--muted)", color: "#d4183d" }}
-                    >
+                  <div key={u._id} className="flex items-center gap-3 rounded-[var(--r-md)] p-2.5" style={{ background: "var(--bg-card)" }}>
+                    <Avatar src={resolveAssetUrl(u.avatar)} fallbackSrc={defaultAvatar} />
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium" style={{ color: "var(--text-strong)" }}>{u.nickname}</p>
+                    <Button variant="secondary" size={44} style={{ color: "var(--danger)" }} onClick={() => setUserAdmin(u, false)}>
                       권한 해제
-                    </button>
+                    </Button>
                   </div>
                 ))
               )}
@@ -2401,35 +1976,29 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
 
   if (activeSection === "account") {
     return (
-      <div className="relative flex flex-col flex-1 overflow-hidden">
-        <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: "var(--border)" }}>
-          <button onClick={() => setActiveSection(null)}>
-            <ChevronRight size={20} style={{ color: "var(--foreground)", transform: "rotate(180deg)" }} />
-          </button>
-          <h2 className="font-semibold" style={{ color: "var(--foreground)" }}>계정 관리</h2>
-        </div>
-        <div className="px-4 py-4 flex flex-col gap-3">
+      <div className="relative flex flex-1 flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
+        <ScreenHeader title="계정 관리" onBack={() => setActiveSection(null)} />
+        <div className="flex flex-col gap-3 px-4 py-4">
           {/* 닉네임 변경 카드 */}
-          <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm" style={{ color: "var(--muted-foreground)" }}>닉네임</span>
+          <Card>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm" style={{ color: "var(--text-muted)" }}>닉네임</span>
               {!editingNickname && (
-                <button
+                <Chip
+                  selected
                   onClick={() => {
                     setNicknameInput(nickname);
                     setNicknameChecked(false);
                     setEditingNickname(true);
                   }}
-                  className="text-xs font-semibold px-3 py-1 rounded-full"
-                  style={{ background: "var(--secondary)", color: "var(--primary)" }}
                 >
                   변경
-                </button>
+                </Chip>
               )}
             </div>
 
             {!editingNickname ? (
-              <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{nickname}</span>
+              <span className="text-sm font-medium" style={{ color: "var(--text-strong)" }}>{nickname}</span>
             ) : (
               <div className="flex flex-col gap-2">
                 <div className="flex gap-2">
@@ -2441,19 +2010,16 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                       setNicknameChecked(false);
                     }}
                     maxLength={10}
-                    className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
-                    style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                    className="flex-1 rounded-[var(--r-md)] border border-[var(--border-subtle)] bg-[var(--bg-input)] px-3 py-2 text-sm text-[var(--text-body)] outline-none focus:border-[var(--blue-primary)] focus:bg-[var(--blue-soft)] focus:ring-2 focus:ring-[var(--blue-primary)]/30"
                   />
-                  <button
-                    onClick={checkNicknameDuplicate}
-                    className="px-3 py-2 rounded-xl font-semibold text-xs whitespace-nowrap"
-                    style={{ background: "var(--primary)", color: "white" }}
-                  >
+                  <Button size={44} onClick={checkNicknameDuplicate}>
                     중복확인
-                  </button>
+                  </Button>
                 </div>
                 <div className="flex gap-2">
-                  <button
+                  <Button
+                    size={44}
+                    className="flex-1"
                     onClick={async () => {
                       const error = validateNickname(nicknameInput);
                       if (error) {
@@ -2474,57 +2040,51 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                         showAlert("닉네임 변경에 실패했습니다.");
                       }
                     }}
-                    className="flex-1 py-2 rounded-xl font-semibold text-xs"
-                    style={{ background: "var(--primary)", color: "white" }}
                   >
                     저장
-                  </button>
-                  <button
-                    onClick={() => setEditingNickname(false)}
-                    className="flex-1 py-2 rounded-xl font-semibold text-xs"
-                    style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
-                  >
+                  </Button>
+                  <Button variant="secondary" size={44} className="flex-1" onClick={() => setEditingNickname(false)}>
                     취소
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
-          </div>
+          </Card>
 
           {/* 담당 교수 변경 카드 */}
-          <div className="rounded-2xl p-4 shadow-sm" style={{ background: "var(--card)" }}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm" style={{ color: "var(--muted-foreground)" }}>담당 교수</span>
+          <Card>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm" style={{ color: "var(--text-muted)" }}>담당 교수</span>
               {!editingProfessor && (
-                <button
+                <Chip
+                  selected
                   onClick={() => {
                     setProfessorInput(professor);
                     setEditingProfessor(true);
                   }}
-                  className="text-xs font-semibold px-3 py-1 rounded-full"
-                  style={{ background: "var(--secondary)", color: "var(--primary)" }}
                 >
                   변경
-                </button>
+                </Chip>
               )}
             </div>
 
             {!editingProfessor ? (
-              <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{professor || "-"}</span>
+              <span className="text-sm font-medium" style={{ color: "var(--text-strong)" }}>{professor || "-"}</span>
             ) : (
               <div className="flex flex-col gap-2">
                 <select
                   value={professorInput}
                   onChange={(e) => setProfessorInput(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl text-sm outline-none"
-                  style={{ background: "var(--input-background)", color: "var(--foreground)", border: "1.5px solid var(--border)" }}
+                  className="w-full rounded-[var(--r-md)] border border-[var(--border-subtle)] bg-[var(--bg-input)] px-3 py-2 text-sm text-[var(--text-body)] outline-none focus:border-[var(--blue-primary)] focus:ring-2 focus:ring-[var(--blue-primary)]/30"
                 >
                   {PROFESSORS.map((p) => (
                     <option key={p} value={p}>{p} 교수</option>
                   ))}
                 </select>
                 <div className="flex gap-2">
-                  <button
+                  <Button
+                    size={44}
+                    className="flex-1"
                     onClick={async () => {
                       try {
                         const res = await api.patch("/users/profile", { professor: professorInput });
@@ -2536,34 +2096,30 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                         showAlert("담당 교수 변경에 실패했습니다.");
                       }
                     }}
-                    className="flex-1 py-2 rounded-xl font-semibold text-xs"
-                    style={{ background: "var(--primary)", color: "white" }}
                   >
                     저장
-                  </button>
-                  <button
-                    onClick={() => setEditingProfessor(false)}
-                    className="flex-1 py-2 rounded-xl font-semibold text-xs"
-                    style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}
-                  >
+                  </Button>
+                  <Button variant="secondary" size={44} className="flex-1" onClick={() => setEditingProfessor(false)}>
                     취소
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
-          </div>
+          </Card>
 
           {/* 비공개 계정 토글 */}
-          <div className="rounded-2xl p-4 shadow-sm flex items-center gap-3" style={{ background: "var(--card)" }}>
-            <Lock size={18} style={{ color: "var(--muted-foreground)" }} />
+          <Card className="flex items-center gap-3">
+            <Lock size={18} style={{ color: "var(--blue-primary)" }} />
             <div className="flex-1">
-              <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>비공개 계정</p>
-              <p className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>
+              <p className="text-sm font-medium" style={{ color: "var(--text-strong)" }}>비공개 계정</p>
+              <p className="mt-0.5 text-xs" style={{ color: "var(--text-muted)" }}>
                 켜면 친구가 아닌 사람에게는 기본 정보만 보이고, 글/북마크/팔로워·팔로잉 목록은 가려집니다.
               </p>
             </div>
-            <button
-              onClick={async () => {
+            <Switch
+              checked={isPrivate}
+              aria-label="비공개 계정"
+              onChange={async () => {
                 const next = !isPrivate;
                 setIsPrivate(next);
                 try {
@@ -2574,50 +2130,35 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
                   showAlert("설정 변경에 실패했습니다.");
                 }
               }}
-              className="relative w-12 h-6 rounded-full transition-all duration-300 shrink-0"
-              style={{ background: isPrivate ? "var(--primary)" : "var(--muted-foreground)" }}
-            >
-              <div
-                className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-300"
-                style={{ left: isPrivate ? "calc(100% - 22px)" : "2px" }}
-              />
-            </button>
-          </div>
+            />
+          </Card>
 
-          <div className="rounded-2xl overflow-hidden shadow-sm mt-2">
-            {[
-              { label: "비밀번호 변경", danger: false, action: "password" },
-              { label: "계정 탈퇴", danger: true, action: "delete" },
-            ].map(({ label, danger, action }) => (
-              <button
-                key={label}
-                onClick={() => {
-                  if (action === "password") {
-                    setActiveSection("password");
-                  } else if (action === "delete") {
-                    showConfirm("정말로 계정을 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.", () => {
-                      showConfirm("탈퇴하시면 모든 데이터가 삭제됩니다. 계속하시겠습니까?", async () => {
-                        try {
-                          await api.delete("/users/account");
-                        } catch {
-                          showAlert("계정 탈퇴에 실패했습니다.");
-                          return;
-                        }
-                        showAlert("계정이 탈퇴되었습니다.", () => {
-                          onLogout();
-                        });
-                      });
+          <List className="mt-2">
+            <ListItem
+              label="비밀번호 변경"
+              onPress={() => setActiveSection("password")}
+            />
+            <ListItem
+              label="계정 탈퇴"
+              danger
+              last
+              onPress={() => {
+                showConfirm("정말로 계정을 탈퇴하시겠습니까? 이 작업은 되돌릴 수 없습니다.", () => {
+                  showConfirm("탈퇴하시면 모든 데이터가 삭제됩니다. 계속하시겠습니까?", async () => {
+                    try {
+                      await api.delete("/users/account");
+                    } catch {
+                      showAlert("계정 탈퇴에 실패했습니다.");
+                      return;
+                    }
+                    showAlert("계정이 탈퇴되었습니다.", () => {
+                      onLogout();
                     });
-                  }
-                }}
-                className="w-full flex items-center justify-between px-4 py-4 border-b last:border-b-0 transition-all"
-                style={{ background: "var(--card)", borderColor: "var(--border)", color: danger ? "#d4183d" : "var(--foreground)" }}
-              >
-                <span className="text-sm">{label}</span>
-                <ChevronRight size={16} />
-              </button>
-            ))}
-          </div>
+                  });
+                });
+              }}
+            />
+          </List>
         </div>
         {AlertModal}
         {ConfirmModal}
@@ -2626,171 +2167,110 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-      <div className="px-4 pt-3 pb-2 shrink-0">
-        <h1 className="font-bold text-xl text-white">설정</h1>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
+      <div className="shrink-0 px-4 pb-2 pt-4">
+        <h1 className="text-xl font-extrabold" style={{ color: "var(--text-strong)" }}>설정</h1>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 flex flex-col gap-2.5 pb-3 no-scrollbar">
+      <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto px-4 pb-3">
         {isAdmin && (
-          <Section title="관리자">
-            <SettingRow
-              icon={<AlertTriangle size={18} style={{ color: "#d4183d" }} />}
+          <List title="관리자">
+            <ListItem
+              icon={<AlertTriangle size={18} style={{ color: "var(--danger)" }} />}
               label="신고/건의 관리"
               onPress={() => setActiveSection("adminReports")}
             />
-            <SettingRow
-              icon={<Users size={18} style={{ color: "var(--primary)" }} />}
+            <ListItem
+              icon={<User size={18} style={{ color: "var(--blue-primary)" }} />}
               label="회원 관리"
               onPress={() => setActiveSection("adminMembers")}
             />
-            <SettingRow
-              icon={<FileText size={18} style={{ color: "#f0ad4e" }} />}
+            <ListItem
+              icon={<FileText size={18} style={{ color: "var(--blue-primary)" }} />}
               label="게시물/댓글 모니터링"
               onPress={() => setActiveSection("adminMonitoring")}
               last
             />
-          </Section>
+          </List>
         )}
 
-        <Section title="계정">
-          <SettingRow
-            icon={<User size={18} style={{ color: "var(--primary)" }} />}
+        <List title="계정">
+          <ListItem
+            icon={<User size={18} style={{ color: "var(--blue-primary)" }} />}
             label="계정 관리"
             onPress={() => setActiveSection("account")}
+            last
           />
-        </Section>
+        </List>
 
-        <Section title="알림 설정">
-          <ToggleRow
-            icon={<Bell size={18} style={{ color: "#5bc0de" }} />}
+        <List title="알림 설정">
+          <ListItem
+            icon={<Bell size={18} style={{ color: "var(--blue-primary)" }} />}
             label="채팅 알림"
-            value={notifications.chat}
-            onChange={() => setNotifications(n => ({ ...n, chat: !n.chat }))}
+            trailing={<Switch checked={notifications.chat} aria-label="채팅 알림" onChange={() => setNotifications((n) => ({ ...n, chat: !n.chat }))} />}
           />
-          <ToggleRow
-            icon={<Bell size={18} style={{ color: "#5cb85c" }} />}
+          <ListItem
+            icon={<Bell size={18} style={{ color: "var(--blue-primary)" }} />}
             label="커뮤니티 알림"
-            value={notifications.community}
-            onChange={() => setNotifications(n => ({ ...n, community: !n.community }))}
+            trailing={<Switch checked={notifications.community} aria-label="커뮤니티 알림" onChange={() => setNotifications((n) => ({ ...n, community: !n.community }))} />}
             last
           />
-        </Section>
+        </List>
 
-        <Section title="화면">
-          <ToggleRow
-            icon={<Moon size={18} style={{ color: "#6f42c1" }} />}
+        <List title="화면">
+          <ListItem
+            icon={<Moon size={18} style={{ color: "var(--blue-primary)" }} />}
             label="다크 모드"
-            value={darkMode}
-            onChange={onToggleDark}
+            trailing={<Switch checked={darkMode} aria-label="다크 모드" onChange={onToggleDark} />}
             last
           />
-        </Section>
+        </List>
 
         {!isAdmin && (
           <>
-            <Section title="고객 지원">
-              <SettingRow
-                icon={<MessageSquare size={18} style={{ color: "#5bc0de" }} />}
+            <List title="고객 지원">
+              <ListItem
+                icon={<MessageSquare size={18} style={{ color: "var(--blue-primary)" }} />}
                 label="건의사항"
                 onPress={() => setActiveSection("inquiry")}
               />
-              <SettingRow
-                icon={<BookOpen size={18} style={{ color: "#5cb85c" }} />}
+              <ListItem
+                icon={<BookOpen size={18} style={{ color: "var(--blue-primary)" }} />}
                 label="커뮤니티 이용 규칙"
                 onPress={() => setActiveSection("guidelines")}
                 last
               />
-            </Section>
+            </List>
 
-            <Section title="안전">
-              <SettingRow
-                icon={<AlertTriangle size={18} style={{ color: "#d4183d" }} />}
+            <List title="안전">
+              <ListItem
+                icon={<AlertTriangle size={18} style={{ color: "var(--danger)" }} />}
                 label="신고/건의 내역"
                 onPress={() => setActiveSection("reports")}
               />
-              <SettingRow
-                icon={<UserX size={18} style={{ color: "#d4183d" }} />}
+              <ListItem
+                icon={<UserX size={18} style={{ color: "var(--danger)" }} />}
                 label="차단 내역"
                 onPress={() => setActiveSection("blocked")}
+                last
               />
-            </Section>
+            </List>
           </>
         )}
       </div>
 
-      <div className="px-4 pb-4 pt-2 shrink-0">
-        <button
+      <div className="shrink-0 px-4 pb-4 pt-2">
+        <Button
+          variant="secondary"
+          size={44}
+          fullWidth
           onClick={onLogout}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-sm shadow-sm transition-all active:scale-98"
-          style={{ background: "var(--card)", color: "#d4183d", border: "1.5px solid #d4183d30" }}
+          style={{ background: "var(--tag-danger-bg)", color: "var(--tag-danger-fg)" }}
         >
           <LogOut size={16} />
           로그아웃
-        </button>
+        </Button>
       </div>
-    </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="text-xs font-semibold mb-1 px-1 text-white">{title}</p>
-      <div className="rounded-2xl overflow-hidden shadow-sm" style={{ background: "var(--card)" }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function SettingRow({
-  icon, label, onPress, last = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  onPress: () => void;
-  last?: boolean;
-}) {
-  return (
-    <button
-      onClick={onPress}
-      className="w-full flex items-center gap-3 px-4 py-3 border-b transition-all active:bg-muted"
-      style={{ borderColor: last ? "transparent" : "var(--border)" }}
-    >
-      {icon}
-      <span className="flex-1 text-sm text-left text-white">{label}</span>
-      <ChevronRight size={16} style={{ color: "var(--muted-foreground)" }} />
-    </button>
-  );
-}
-
-function ToggleRow({
-  icon, label, value, onChange, last = false,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: boolean;
-  onChange: () => void;
-  last?: boolean;
-}) {
-  return (
-    <div
-      className="flex items-center gap-3 px-4 py-3 border-b"
-      style={{ borderColor: last ? "transparent" : "var(--border)" }}
-    >
-      {icon}
-      <span className="flex-1 text-sm text-white">{label}</span>
-      <button
-        onClick={onChange}
-        className="relative w-12 h-6 rounded-full transition-all duration-300"
-        style={{ background: value ? "var(--primary)" : "var(--muted-foreground)" }}
-      >
-        <div
-          className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all duration-300"
-          style={{ left: value ? "calc(100% - 22px)" : "2px" }}
-        />
-      </button>
     </div>
   );
 }
