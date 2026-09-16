@@ -4290,19 +4290,23 @@ const handleDeleteSelectedChats = () => {
             />
           )}
 
-          {/* 최신순/인기순 정렬 또는 강의평가 교과군 필터 */}
-          <Dropdown
-            value={activeBoard === "lecture" ? lectureGroupFilter : sortOrder}
-            onChange={(v) => (activeBoard === "lecture" ? setLectureGroupFilter(v) : setSortOrder(v as "latest" | "popular"))}
-            options={
-              activeBoard === "lecture"
-                ? ["전체", "기초교과군", "심화교과군", "응용교과군", "핵심교과군"].map((g) => ({ value: g, label: g }))
-                : [
-                    { value: "latest", label: "최신순" },
-                    { value: "popular", label: "인기순" },
-                  ]
-            }
-          />
+                    {/* 최신순/인기순 정렬 (꿀팁 게시판 제외) 또는 강의평가 교과군 필터 */}
+          {activeBoard === "lecture" ? (
+            <Dropdown
+              value={lectureGroupFilter}
+              onChange={(v) => setLectureGroupFilter(v)}
+              options={["전체", "기초교과군", "심화교과군", "응용교과군", "핵심교과군"].map((g) => ({ value: g, label: g }))}
+            />
+          ) : activeBoard !== "contest" ? (
+            <Dropdown
+              value={sortOrder}
+              onChange={(v) => setSortOrder(v as "latest" | "popular")}
+              options={[
+                { value: "latest", label: "최신순" },
+                { value: "popular", label: "인기순" },
+              ]}
+            />
+          ) : null}
         </div>
       )}
 
