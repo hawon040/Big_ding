@@ -12,6 +12,10 @@ const professorCodes = {
   "홍진근": "33",
 };
 
+// 하이픈/공백을 없앤 숫자만 남긴 전화번호. 같은 번호를 다르게 입력해도(010-1234-5678 vs
+// 01012345678) 동일하게 비교할 수 있도록 저장/비교 전에 항상 이 형태로 정규화한다.
+const normalizePhone = (value) => String(value || "").replace(/\D/g, "");
+
 // 인증번호(2자리)는 자릿수가 짧아 무차별 대입에 취약하다. IP 기준 rate limit과 별개로,
 // "이 학번을 대상으로 한 시도" 자체를 계정 단위로도 제한해서 자동화된 대량 시도를 늦춘다.
 const guardCodeAttempt = (res, studentId) => {
@@ -103,13 +107,19 @@ router.post("/check-nickname", async (req, res) => {
 // POST /api/auth/register - 회원가입
 router.post("/register", async (req, res) => {
   try {
-    const { studentId, name, professor, code, password } = req.body;
+    const { studentId, name, professor, code, password, phone } = req.body;
     if (!studentId) return res.status(400).json({ message: "학번을 입력해주세요." });
     if (!guardCodeAttempt(res, studentId)) return;
 
     // 교수별 인증번호 검증
     if (professorCodes[professor] !== code) {
       return res.status(401).json({ message: "인증번호가 올바르지 않습니다." });
+    }
+
+    // 비밀번호 찾기 본인 확인에 쓸 전화번호. 010으로 시작하는 국내 휴대전화 번호만 허용한다.
+    const normalizedPhone = normalizePhone(phone);
+    if (!/^01[016789]\d{7,8}$/.test(normalizedPhone)) {
+      return res.status(400).json({ message: "올바른 휴대전화 번호를 입력해주세요." });
     }
 
     // 중복 학번 체크
@@ -124,6 +134,7 @@ router.post("/register", async (req, res) => {
       password,                  // pre save에서 자동 해시 암호화
       nickname: name,            // 이름을 닉네임으로 저장
       professor,
+      phone: normalizedPhone,
       isFirstLogin: false,       // 회원가입으로 생성 → 바로 로그인 가능
     });
 
@@ -177,31 +188,60 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// POST /api/auth/find-password - 비밀번호 찾기 (로그인 없이, 학번+담당교수+인증번호로 본인 확인 후 재설정)
-// 가입 때와 동일한 방식(학번, 담당교수, 교수별 인증번호)으로 본인 확인을 한다.
+// POST /api/auth/find-password - 비밀번호 찾기 (로그인 없이, 학번+전화번호로 본인 확인 후 재설정)
+// 예전에는 교수별 인증번호(교수당 2자리, 같은 교수 수강생 전체가 공유)로 본인 확인을 했는데,
+// 이건 개인 비밀이 아니라서 같은 교수 수강생이라면 학번만 알아도 남의 비밀번호를 바꿀 수 있는
+// 문제가 있었다. 가입 때 등록한, 본인만 아는 전화번호로 확인하도록 바꿨다.
 router.post("/find-password", async (req, res) => {
   try {
-    const { studentId, professor, code, newPassword } = req.body;
+    const { studentId, phone, newPassword } = req.body;
     if (!studentId) return res.status(400).json({ message: "학번을 입력해주세요." });
+    if (!phone) return res.status(400).json({ message: "전화번호를 입력해주세요." });
     if (!newPassword) return res.status(400).json({ message: "새 비밀번호를 입력해주세요." });
     if (!guardCodeAttempt(res, studentId)) return;
-
-    if (professorCodes[professor] !== code) {
-      return res.status(401).json({ message: "인증번호가 올바르지 않습니다." });
-    }
 
     const user = await User.findOne({ studentId });
     if (!user || user.isWithdrawn) {
       return res.status(404).json({ message: "가입되지 않은 학번입니다." });
     }
-    if (user.professor !== professor) {
-      return res.status(401).json({ message: "담당 교수 정보가 일치하지 않습니다." });
+    // 전화번호 등록 이전 가입자는 대조할 값이 없으므로, 관리자 문의로 안내한다.
+    if (!user.phone) {
+      return res.status(400).json({ message: "등록된 전화번호가 없습니다. 관리자에게 문의해주세요." });
+    }
+    if (user.phone !== normalizePhone(phone)) {
+      return res.status(401).json({ message: "전화번호가 일치하지 않습니다." });
     }
 
     resetAttempts(`code:${studentId}`);
     user.password = newPassword; // pre save 훅에서 자동 해시 암호화
     await user.save();
     res.json({ message: "비밀번호가 재설정되었습니다." });
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
+// PATCH /api/auth/phone - 전화번호 등록/변경 (로그인 필요)
+// find-password를 쓰려면 전화번호가 등록되어 있어야 하므로, 이미 가입한(전화번호가 없는)
+// 사용자도 로그인한 상태에서 스스로 등록할 수 있게 한다. 계정 탈취 방지를 위해 비밀번호
+// 변경(PATCH /password)과 동일하게 현재 비밀번호 확인을 거친 뒤에만 바꿀 수 있다.
+router.patch("/phone", auth, async (req, res) => {
+  try {
+    const { currentPassword, phone } = req.body;
+    if (!currentPassword) return res.status(400).json({ message: "현재 비밀번호를 입력해주세요." });
+
+    const normalizedPhone = normalizePhone(phone);
+    if (!/^01[016789]\d{7,8}$/.test(normalizedPhone)) {
+      return res.status(400).json({ message: "올바른 휴대전화 번호를 입력해주세요." });
+    }
+
+    const user = await User.findById(req.user.id);
+    const isMatch = await user.comparePassword(currentPassword);
+    if (!isMatch) return res.status(401).json({ message: "현재 비밀번호가 올바르지 않습니다." });
+
+    user.phone = normalizedPhone;
+    await user.save();
+    res.json({ message: "전화번호가 등록되었습니다." });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }

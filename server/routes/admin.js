@@ -1,4 +1,5 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 const User = require("../models/User");
 const Sanction = require("../models/Sanction");
@@ -152,8 +153,10 @@ router.get("/sanctions", async (req, res) => {
   try {
     const { type, user } = req.query;
     const query = {};
-    if (type) query.type = type;
-    if (user) query.user = user;
+    // req.query 값은 ?user[$ne]=x 처럼 객체로 파싱될 수 있으므로, Mongo 연산자 주입을
+    // 막기 위해 문자열/유효한 ObjectId인지 확인한 뒤에만 필터에 반영한다.
+    if (typeof type === "string") query.type = type;
+    if (typeof user === "string" && mongoose.Types.ObjectId.isValid(user)) query.user = user;
     const sanctions = await Sanction.find(query)
       .populate("user", "nickname avatar studentId")
       .populate("admin", "nickname")
@@ -294,9 +297,11 @@ router.get("/posts", async (req, res) => {
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit, 10) || 30));
 
     const query = {};
-    if (id) query._id = id;
-    if (board) query.board = board;
-    if (q?.trim()) {
+    // req.query 값은 ?id[$ne]=x 처럼 객체로 파싱될 수 있으므로, Mongo 연산자 주입을
+    // 막기 위해 문자열/유효한 ObjectId인지 확인한 뒤에만 필터에 반영한다.
+    if (typeof id === "string" && mongoose.Types.ObjectId.isValid(id)) query._id = id;
+    if (typeof board === "string") query.board = board;
+    if (typeof q === "string" && q.trim()) {
       const safeQ = escapeRegex(q.trim());
       query.$or = [
         { title: { $regex: safeQ, $options: "i" } },

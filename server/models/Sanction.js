@@ -28,4 +28,8 @@ const sanctionSchema = new mongoose.Schema({
   liftedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
 }, { timestamps: true });
 
+// 회원별 제재 이력 집계(user + type)와 관리자 목록 조회(active + createdAt 정렬)에 쓰인다.
+sanctionSchema.index({ user: 1, type: 1 });
+sanctionSchema.index({ active: 1, createdAt: -1 });
+
 module.exports = mongoose.model("Sanction", sanctionSchema);

@@ -1,9 +1,7 @@
 import { useEffect, useState } from "react";
-import { ArrowLeft, ChevronRight, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
 import api from "@/api";
 import "@/styles/tokens.css";
-
-const PROFESSORS = ["유진호", "차대현", "홍진근"];
 
 // Light-theme token set for this screen, extracted from the community
 // reference. Kept local to LoginScreen (not the shared dark --background
@@ -39,24 +37,20 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
   // 비밀번호 찾기
   const [showFindPassword, setShowFindPassword] = useState(false);
   const [findPwStudentId, setFindPwStudentId] = useState("");
-  const [findPwProfessor, setFindPwProfessor] = useState("");
-  const [showFindPwProfessorDropdown, setShowFindPwProfessorDropdown] = useState(false);
-  const [findPwCode, setFindPwCode] = useState("");
+  const [findPwPhone, setFindPwPhone] = useState("");
   const [findPwNewPassword, setFindPwNewPassword] = useState("");
   const [findPwConfirmPassword, setFindPwConfirmPassword] = useState("");
 
   const resetFindPasswordForm = () => {
     setFindPwStudentId("");
-    setFindPwProfessor("");
-    setFindPwCode("");
+    setFindPwPhone("");
     setFindPwNewPassword("");
     setFindPwConfirmPassword("");
-    setShowFindPwProfessorDropdown(false);
   };
 
   const handleFindPassword = async () => {
-    if (!findPwStudentId.trim() || !findPwProfessor || !findPwCode.trim()) {
-      setAlertMessage("학번, 담당 교수, 인증번호를 모두 입력해주세요.");
+    if (!findPwStudentId.trim() || !findPwPhone.trim()) {
+      setAlertMessage("학번과 가입 시 등록한 전화번호를 입력해주세요.");
       return;
     }
     if (findPwNewPassword.length < 4) {
@@ -70,8 +64,7 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
     try {
       await api.post("/auth/find-password", {
         studentId: findPwStudentId.trim(),
-        professor: findPwProfessor,
-        code: findPwCode.trim(),
+        phone: findPwPhone.trim(),
         newPassword: findPwNewPassword,
       });
       setAlertMessage("비밀번호가 재설정되었습니다. 새 비밀번호로 로그인해주세요.");
@@ -120,7 +113,7 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [studentId, password, autoLogin, showFindPassword, findPwStudentId, findPwProfessor, findPwCode, findPwNewPassword, findPwConfirmPassword, alertMessage]);
+  }, [studentId, password, autoLogin, showFindPassword, findPwStudentId, findPwPhone, findPwNewPassword, findPwConfirmPassword, alertMessage]);
 
   const labelClass = "text-[13px] mb-1 block font-medium";
   const inputClass =
@@ -163,9 +156,9 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
               </h2>
             </div>
             <p className="text-xs mb-4" style={{ color: "var(--login-text-muted)" }}>
-              가입할 때와 동일한 학번, 담당 교수, 인증번호로 본인 확인 후 비밀번호를 새로 설정합니다.
+              가입할 때 등록한 학번과 전화번호로 본인 확인 후 비밀번호를 새로 설정합니다.
             </p>
-            <div className="flex flex-col gap-4" onClick={() => setShowFindPwProfessorDropdown(false)}>
+            <div className="flex flex-col gap-4">
               <div>
                 <label htmlFor="findpw-studentid" className={labelClass} style={{ color: "var(--login-text-body)" }}>
                   학번
@@ -180,62 +173,16 @@ export function LoginScreen({ onLogin, onRegister }: LoginScreenProps) {
                 />
               </div>
               <div>
-                <label id="findpw-professor-label" className={labelClass} style={{ color: "var(--login-text-body)" }}>
-                  담당 교수
-                </label>
-                <div className="relative" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    type="button"
-                    aria-labelledby="findpw-professor-label"
-                    onClick={() => setShowFindPwProfessorDropdown((v) => !v)}
-                    className="w-full flex items-center justify-between px-4 py-3 rounded-[12px] text-sm border transition-colors focus:outline-none focus:ring-2"
-                    style={{
-                      background: "var(--login-bg)",
-                      color: findPwProfessor ? "var(--login-text-body)" : "var(--login-text-muted)",
-                      borderColor: "var(--login-border)",
-                    }}
-                  >
-                    {findPwProfessor || "담당 교수 선택"}
-                    <ChevronRight
-                      size={16}
-                      style={{
-                        color: "var(--login-text-muted)",
-                        transform: showFindPwProfessorDropdown ? "rotate(90deg)" : "rotate(-90deg)",
-                      }}
-                    />
-                  </button>
-                  {showFindPwProfessorDropdown && (
-                    <div
-                      className="absolute left-0 right-0 top-full mt-1 z-20 rounded-[12px] py-1"
-                      style={{
-                        background: "var(--login-surface)",
-                        border: "1px solid var(--login-border)",
-                        boxShadow: "0 4px 12px rgba(15,23,42,0.08)",
-                      }}
-                    >
-                      {PROFESSORS.map((p) => (
-                        <button
-                          key={p}
-                          onClick={() => { setFindPwProfessor(p); setShowFindPwProfessorDropdown(false); }}
-                          className="w-full px-4 py-2.5 text-sm text-left"
-                          style={{ color: findPwProfessor === p ? "var(--login-accent-strong)" : "var(--login-text-body)" }}
-                        >
-                          {p}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div>
-                <label htmlFor="findpw-code" className={labelClass} style={{ color: "var(--login-text-body)" }}>
-                  교수님 인증번호 (2자리)
+                <label htmlFor="findpw-phone" className={labelClass} style={{ color: "var(--login-text-body)" }}>
+                  전화번호
                 </label>
                 <input
-                  id="findpw-code"
-                  value={findPwCode}
-                  onChange={(e) => setFindPwCode(e.target.value)}
-                  maxLength={2}
+                  id="findpw-phone"
+                  type="tel"
+                  value={findPwPhone}
+                  onChange={(e) => setFindPwPhone(e.target.value)}
+                  placeholder="가입 시 등록한 전화번호"
+                  maxLength={13}
                   className={inputClass}
                 />
               </div>

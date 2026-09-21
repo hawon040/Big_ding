@@ -10,7 +10,10 @@ const isAdmin = require("../middleware/adminMiddleware");
 // POST /api/reports - 신고 접수
 router.post("/", auth, async (req, res) => {
   try {
-    const report = await Report.create({ ...req.body, reporter: req.user.id });
+    // status/sanctionApplied/sanctionType까지 req.body로 그대로 넘기면 신고자가
+    // 자기 신고의 처리 상태를 직접 조작할 수 있으므로, 신고 접수에 필요한 필드만 골라 쓴다.
+    const { targetType, targetId, reason } = req.body;
+    const report = await Report.create({ targetType, targetId, reason, reporter: req.user.id });
     res.status(201).json({ message: "신고가 접수되었습니다.", report });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });

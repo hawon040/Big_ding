@@ -10,4 +10,7 @@ const groupMessageSchema = new mongoose.Schema({
   type: { type: String, enum: ["text", "system"], default: "text" },
 }, { timestamps: true });
 
+// 채팅방별 메시지 조회/정렬(groupChat + createdAt)에 쓰인다.
+groupMessageSchema.index({ groupChat: 1, createdAt: 1 });
+
 module.exports = mongoose.model("GroupMessage", groupMessageSchema);

@@ -10,4 +10,8 @@ const inquirySchema = new mongoose.Schema({
   adminResponse: { type: String },
 }, { timestamps: true });
 
+// 내 건의 내역(user + createdAt)과 관리자 전체 목록(status + createdAt) 조회에 쓰인다.
+inquirySchema.index({ user: 1, createdAt: -1 });
+inquirySchema.index({ status: 1, createdAt: -1 });
+
 module.exports = mongoose.model("Inquiry", inquirySchema);

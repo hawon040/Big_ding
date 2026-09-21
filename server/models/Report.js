@@ -12,4 +12,8 @@ const reportSchema = new mongoose.Schema({
   sanctionType: { type: String, enum: ["warning", "ban", "commentRestriction", "forceWithdraw"] },
 }, { timestamps: true });
 
+// 내 신고 내역(reporter + createdAt)과 관리자 전체 목록(status + createdAt) 조회에 쓰인다.
+reportSchema.index({ reporter: 1, createdAt: -1 });
+reportSchema.index({ status: 1, createdAt: -1 });
+
 module.exports = mongoose.model("Report", reportSchema);

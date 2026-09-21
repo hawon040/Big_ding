@@ -151,6 +151,9 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  // + 전화번호 등록/변경용 상태 (비밀번호 찾기 본인 확인에 사용됨)
+  const [phoneCurrentPassword, setPhoneCurrentPassword] = useState("");
+  const [phoneInput, setPhoneInput] = useState("");
   const [inquiryTitle, setInquiryTitle] = useState("");
   const [inquiryContent, setInquiryContent] = useState("");
   // + 닉네임 변경용 상태
@@ -648,16 +651,11 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
       return;
     }
     try {
-      const res = await fetch("http://localhost:5000/api/auth/check-nickname", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nickname: nicknameInput }),
-      });
-      const data = await res.json();
-      if (res.ok && data.available) {
+      const res = await api.post("/auth/check-nickname", { nickname: nicknameInput });
+      if (res.data.available) {
         setNicknameChecked(true);
       }
-      showAlert(data.message);
+      showAlert(res.data.message);
     } catch {
       showAlert("서버 연결 실패");
     }
@@ -896,6 +894,62 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             }}
           >
             변경하기
+          </Button>
+        </div>
+        {AlertModal}
+        {ConfirmModal}
+      </div>
+    );
+  }
+
+  if (activeSection === "phone") {
+    return (
+      <div className="relative flex flex-1 flex-col overflow-hidden" style={{ background: "var(--bg-base)" }}>
+        <ScreenHeader title="전화번호 등록/변경" onBack={() => setActiveSection(null)} />
+        <div className="flex flex-col gap-4 px-4 py-4">
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            비밀번호를 잊었을 때 본인 확인에 사용되는 전화번호입니다. 등록되어 있지 않으면
+            비밀번호 찾기를 이용할 수 없습니다.
+          </p>
+          <Input
+            label="현재 비밀번호"
+            type="password"
+            value={phoneCurrentPassword}
+            onChange={(e) => setPhoneCurrentPassword(e.target.value)}
+          />
+          <Input
+            label="전화번호"
+            type="tel"
+            placeholder="예) 01012345678"
+            value={phoneInput}
+            onChange={(e) => setPhoneInput(e.target.value)}
+            maxLength={13}
+          />
+          <Button
+            size={52}
+            fullWidth
+            onClick={async () => {
+              if (!phoneCurrentPassword.trim()) {
+                showAlert("현재 비밀번호를 입력해주세요.");
+                return;
+              }
+              if (!/^01[016789]\d{7,8}$/.test(phoneInput.replace(/\D/g, ""))) {
+                showAlert("올바른 휴대전화 번호를 입력해주세요.");
+                return;
+              }
+              try {
+                await api.patch("/auth/phone", { currentPassword: phoneCurrentPassword, phone: phoneInput });
+                showAlert("전화번호가 등록되었습니다.", () => {
+                  setPhoneCurrentPassword("");
+                  setPhoneInput("");
+                  setActiveSection(null);
+                });
+              } catch (err: any) {
+                showAlert(err?.response?.data?.message || "전화번호 등록에 실패했습니다.");
+              }
+            }}
+          >
+            저장하기
           </Button>
         </div>
         {AlertModal}
@@ -2137,6 +2191,10 @@ export function SettingsScreen({ darkMode, onToggleDark, onLogout, nickname, set
             <ListItem
               label="비밀번호 변경"
               onPress={() => setActiveSection("password")}
+            />
+            <ListItem
+              label="전화번호 등록/변경"
+              onPress={() => setActiveSection("phone")}
             />
             <ListItem
               label="계정 탈퇴"

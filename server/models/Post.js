@@ -56,4 +56,11 @@ const postSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
+// 메인 피드 조회(GET /api/posts)가 매번 isBlocked:false + board 필터 + createdAt 내림차순
+// 정렬을 하므로 이 조합에 복합 인덱스를 건다.
+postSchema.index({ isBlocked: 1, board: 1, createdAt: -1 });
+// 댓글은 게시물 문서에 임베드되어 있어 comments._id는 기본적으로 인덱싱되지 않는다.
+// 신고 대상 댓글을 담은 게시물을 찾는 조회(Post.findOne({ "comments._id": id }))에 필요하다.
+postSchema.index({ "comments._id": 1 });
+
 module.exports = mongoose.model("Post", postSchema);

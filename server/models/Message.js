@@ -21,4 +21,10 @@ const messageSchema = new mongoose.Schema({
 
 }, { timestamps: true }); // createdAt이 전송 시간
 
+// 1:1 대화 내역 조회($or: [{from,to},{from,to}])와 정렬에 쓰인다. from/to 위치가 바뀐
+// 두 방향 모두 이 인덱스의 접두사(from, to)로 동등 비교되므로 하나의 복합 인덱스로 충분하다.
+messageSchema.index({ from: 1, to: 1, createdAt: 1 });
+// 안 읽은 메시지 개수/전체 읽음 처리(to + read)에 쓰인다.
+messageSchema.index({ to: 1, read: 1 });
+
 module.exports = mongoose.model("Message", messageSchema);

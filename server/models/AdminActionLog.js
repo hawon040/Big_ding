@@ -15,4 +15,7 @@ const adminActionLogSchema = new mongoose.Schema({
   postId: { type: mongoose.Schema.Types.ObjectId }, // 댓글 삭제 시 소속 게시물 id (게시물 자체는 이미 없을 수도 있음)
 }, { timestamps: true });
 
+// 관리자 로그 목록 조회(actionType 필터 + createdAt 정렬)에 쓰인다.
+adminActionLogSchema.index({ actionType: 1, createdAt: -1 });
+
 module.exports = mongoose.model("AdminActionLog", adminActionLogSchema);

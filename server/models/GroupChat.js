@@ -18,4 +18,7 @@ const groupChatSchema = new mongoose.Schema({
   members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
 }, { timestamps: true });
 
+// 내 채팅방 목록 조회(members + updatedAt 정렬)에 쓰인다.
+groupChatSchema.index({ members: 1, updatedAt: -1 });
+
 module.exports = mongoose.model("GroupChat", groupChatSchema);

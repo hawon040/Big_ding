@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import api from "@/api";
 import "@/styles/tokens.css";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -18,6 +19,7 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
   const [name, setName] = useState("");
   const [professor, setProfessor] = useState("");
   const [code, setCode] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -61,23 +63,11 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
     }
 
     try {
-      const res = await fetch("http://localhost:5000/api/auth/check-nickname", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          nickname: name,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok && data.available) {
+      const res = await api.post("/auth/check-nickname", { nickname: name });
+      if (res.data.available) {
         setNicknameChecked(true);
       }
-
-      showAlert(data.message);
+      showAlert(res.data.message);
     } catch {
       showAlert("서버 연결 실패");
     }
@@ -94,21 +84,23 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
       return;
     }
     try {
-      const res = await fetch("http://localhost:5000/api/auth/verify-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, professor, code }),
-      });
-      const data = await res.json();
-      if (!res.ok) { showAlert(data.message); return; }
+      await api.post("/auth/verify-code", { studentId, professor, code });
       setVerified(true);
       showAlert("인증이 완료되었습니다.");
-    } catch {
-      showAlert("서버 연결 실패");
+    } catch (err: any) {
+      showAlert(err?.response?.data?.message || "서버 연결 실패");
     }
   };
 
   const handleRegister = async () => {
+    if (!phone.trim()) {
+      showAlert("비밀번호를 잊었을 때 본인 확인에 쓸 전화번호를 입력해주세요.");
+      return;
+    }
+    if (!/^01[016789]\d{7,8}$/.test(phone.replace(/\D/g, ""))) {
+      showAlert("올바른 휴대전화 번호를 입력해주세요.");
+      return;
+    }
     if (!password || !confirmPassword) {
       showAlert("비밀번호를 입력해주세요.");
       return;
@@ -125,21 +117,14 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
       return;
     }
     try {
-      const res = await fetch("http://localhost:5000/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, name, professor, code, password }),
-      });
-      const data = await res.json();
-      if (!res.ok) { showAlert(data.message); return; }
-
+      await api.post("/auth/register", { studentId, name, professor, code, phone, password });
       showAlert("회원가입이 완료되었습니다! 로그인해주세요.", () => {
         setNicknameChecked(false);
         setVerified(false);
         onComplete();
       });
-    } catch {
-      showAlert("서버 연결 실패");
+    } catch (err: any) {
+      showAlert(err?.response?.data?.message || "서버 연결 실패");
     }
   };
 
@@ -232,6 +217,19 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
                 인증 확인
               </Button>
             </div>
+          </div>
+
+          {/* 전화번호 (비밀번호를 잊었을 때 본인 확인용) */}
+          <div>
+            <Input
+              label="전화번호"
+              type="tel"
+              placeholder="비밀번호를 잊었을 때 본인 확인에 사용됩니다"
+              value={phone}
+              disabled={verified}
+              onChange={(e) => setPhone(e.target.value)}
+              maxLength={13}
+            />
           </div>
 
           {/* 비밀번호 */}

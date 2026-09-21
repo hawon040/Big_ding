@@ -11,8 +11,8 @@ const userSchema = new mongoose.Schema({
   // 비밀번호 (pre save에서 자동 해시 암호화)
   password: { type: String, required: true },
 
-  // 닉네임
-  nickname: { type: String, required: true },
+  // 닉네임 (check-nickname으로 중복확인을 거치므로 DB 단에서도 유일성을 보장한다)
+  nickname: { type: String, required: true, unique: true },
 
   // 프로필 사진 URL (Firebase Storage)
   avatar: { type: String },
@@ -26,6 +26,12 @@ const userSchema = new mongoose.Schema({
     required: true,
     enum: ["유진호", "차대현", "홍진근"],
   },
+
+  // 비밀번호 찾기(find-password) 본인 확인용 전화번호. 교수별 인증번호는 같은 교수
+  // 수강생끼리 공유하는 값이라 타인 계정 탈취에 쓰일 수 있어, 본인만 아는 값인
+  // 전화번호로 대체했다. 이 필드 추가 이전 가입자는 값이 없을 수 있으므로 스키마
+  // 단에서는 필수로 두지 않는다(필수로 두면 기존 문서를 저장할 때마다 검증에 걸린다).
+  phone: { type: String },
 
   // 최초 로그인 여부 (true면 회원가입 화면 표시)
   isFirstLogin: { type: Boolean, default: true },
@@ -69,6 +75,10 @@ const userSchema = new mongoose.Schema({
   commentRestrictionSanctionId: { type: mongoose.Schema.Types.ObjectId, ref: "Sanction" },
 
 }, { timestamps: true }); // createdAt, updatedAt 자동 생성
+
+// 피드/채팅/채팅목록 조회마다 "나를 차단한 사람" 목록을 찾기 위해 User.find({ blockedUsers: id })를
+// 자주 호출하므로 인덱스를 걸어둔다.
+userSchema.index({ blockedUsers: 1 });
 
 // 저장 전 비밀번호 자동 해시 암호화
 userSchema.pre("save", async function (next) {

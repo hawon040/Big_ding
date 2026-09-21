@@ -117,13 +117,18 @@ router.post("/", auth, upload.array("images", 5), profanityFilter, async (req, r
       }
     }
 
-    const { tags: _rawTags, ...restBody } = req.body;
+    // 클라이언트가 실제로 보내는 필드만 명시적으로 골라서 저장한다. req.body를 통째로
+    // 넘기면 likes/dislikes/scraps/isBlocked 같은 필드를 사용자가 임의로 조작해 저장할 수 있다.
+    const { board, title, content, maxParticipants, currentParticipants, rating, lectureGrade } = req.body;
     // 공강모임은 작성자 본인도 참여 인원에 포함되므로, 생성 시점에 참여자 목록에 넣어둔다.
-    const participants = restBody.board === "meeting" ? [req.user.id] : undefined;
+    const participants = board === "meeting" ? [req.user.id] : undefined;
 
     const allowedVisibility = ["all", "followers", "private"];
-    const visibility = allowedVisibility.includes(restBody.visibility) ? restBody.visibility : "all";
-    const post = await Post.create({ ...restBody, images, poll, tags, participants, visibility, author: req.user.id });
+    const visibility = allowedVisibility.includes(req.body.visibility) ? req.body.visibility : "all";
+    const post = await Post.create({
+      board, title, content, maxParticipants, currentParticipants, rating, lectureGrade,
+      images, poll, tags, participants, visibility, author: req.user.id,
+    });
     await post.populate("author", "nickname avatar");
 
     // 공강모임을 만들면 작성자가 방장이 되어 채팅방이 함께 생성된다.
@@ -338,9 +343,13 @@ router.post("/:id/comments", auth, profanityFilter, async (req, res) => {
     }
     const { parentComment } = req.body;
     // 답글이 실제로 이 게시물에 존재하는 최상위 댓글을 가리키는지 확인한다.
-    if (parentComment && !post.comments.some((c) => c._id.toString() === parentComment && !c.parentComment)) {
+    const parentCommentDoc = parentComment
+      ? post.comments.find((c) => c._id.toString() === parentComment && !c.parentComment)
+      : null;
+    if (parentComment && !parentCommentDoc) {
       return res.status(404).json({ message: "답글을 달 댓글을 찾을 수 없습니다." });
     }
+    const parentAuthorId = parentCommentDoc ? parentCommentDoc.author.toString() : null;
     post.comments.push({ author: req.user.id, content: req.body.content, parentComment: parentComment || null });
     await post.save();
     await post.populate("comments.author", "nickname avatar");
@@ -348,6 +357,10 @@ router.post("/:id/comments", auth, profanityFilter, async (req, res) => {
     // 본인 글에 스스로 댓글을 단 경우는 알림을 보내지 않는다.
     if (post.author.toString() !== req.user.id) {
       await Notification.create({ recipient: post.author, sender: req.user.id, type: "comment", post: post._id, commentContent: req.body.content });
+    }
+    // 대댓글인 경우, 원 댓글 작성자에게도 알림을 보낸다 (본인 답글이거나 위 게시물 알림과 중복되는 경우는 제외).
+    if (parentAuthorId && parentAuthorId !== req.user.id && parentAuthorId !== post.author.toString()) {
+      await Notification.create({ recipient: parentAuthorId, sender: req.user.id, type: "reply", post: post._id, commentContent: req.body.content });
     }
 
     res.json(post.comments);
