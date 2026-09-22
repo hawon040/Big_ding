@@ -195,7 +195,7 @@ const [currentTime, setCurrentTime] = useState("");
             setShowRegister(true);
           }}
         >
-          이름, 학번에 대한 개인 정보 수집 및 이용에 동의하시겠습니까?
+          이름, 학번, 전화번호에 대한 개인 정보 수집 및 이용에 동의하시겠습니까?
         </Modal>
       </div>
     </div>
