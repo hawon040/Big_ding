@@ -9,8 +9,11 @@ import { MyScreen } from "@/aplan/screens/MyScreen";
 import { NotificationScreen } from "@/aplan/screens/NotificationScreen";
 import { PostDetailScreen } from "@/aplan/screens/PostDetailScreen";
 import { WriteScreen } from "@/aplan/screens/WriteScreen";
+import { SettingsScreen } from "@/aplan/screens/SettingsScreen";
+import { OnboardingScreen } from "@/aplan/screens/OnboardingScreen";
 import { EmptyState } from "@/aplan/components/States";
 import type { BoardKey } from "@/constants/boards";
+import type { TopicKey } from "@/constants/topics";
 import "@/styles/aplan-tokens.css";
 
 type WriteTarget = { mode: "create"; board: BoardKey | null } | { mode: "edit"; postId: string };
@@ -33,6 +36,9 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
   const [openPostId, setOpenPostId] = useState<string | null>(null);
   // 상세 위에 또 쌓이는 글쓰기/수정 화면
   const [writeTarget, setWriteTarget] = useState<WriteTarget | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  // 온보딩(edit 모드) 재진입 — 여는 시점의 관심 분야를 들고 있는다
+  const [editingInterests, setEditingInterests] = useState<TopicKey[] | null>(null);
   const openPost = (id: string) => setOpenPostId(id);
   const openUser = () => {
     /* 프로필 화면 구현 후 연결 */
@@ -87,12 +93,8 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
           onEditProfile={() => {
             /* 프로필 수정 화면 구현 후 연결 */
           }}
-          onEditInterests={() => {
-            /* A-03 온보딩(edit 모드) 진입 구현 후 연결 */
-          }}
-          onOpenSettings={() => {
-            /* 설정 화면 구현 후 연결 */
-          }}
+          onEditInterests={setEditingInterests}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
       );
       break;
@@ -136,6 +138,25 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
           onEditPost={(id) => setWriteTarget({ mode: "edit", postId: id })}
         />
       </div>
+    );
+  }
+
+  if (settingsOpen) {
+    return (
+      <div className="a-screen flex h-dvh flex-col overflow-hidden">
+        <SettingsScreen onBack={() => setSettingsOpen(false)} />
+      </div>
+    );
+  }
+
+  if (editingInterests) {
+    return (
+      <OnboardingScreen
+        mode="edit"
+        initialInterests={editingInterests}
+        onBack={() => setEditingInterests(null)}
+        onDone={() => setEditingInterests(null)}
+      />
     );
   }
 

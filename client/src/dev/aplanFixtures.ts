@@ -241,6 +241,18 @@ const routes: [RegExp, Handler][] = [
   }],
   [/^\/search\/trending$/, () => ({ items: trendingKeywords, computedAt: new Date().toISOString() })],
   [/^\/users\/me$/, (): Me => sampleMe],
+  [/^\/users\/me\/settings$/, (c): Me => {
+    const data = typeof c.data === "string" ? JSON.parse(c.data) : c.data;
+    if (data?.notificationSettings) Object.assign(sampleMe.notificationSettings, data.notificationSettings);
+    if (data?.appSettings) Object.assign(sampleMe.appSettings, data.appSettings);
+    return sampleMe;
+  }],
+  [/^\/users\/me\/interests$/, (c): Me => {
+    const data = typeof c.data === "string" ? JSON.parse(c.data) : c.data;
+    if (data?.interests) sampleMe.interests = data.interests;
+    return sampleMe;
+  }],
+  [/^\/users\/account$/, () => ({ message: "탈퇴되었습니다." })],
   [/^\/users\/[^/]+\/posts$/, (): Page<PostCard> => ({ items: allPosts.filter((p) => p.author?.id === sampleMe.id), nextCursor: null })],
   [/^\/users\/[^/]+\/comments$/, (): Page<MyComment> => ({ items: myComments, nextCursor: null })],
   [/^\/users\/[^/]+\/scraps$/, (): Page<PostCard> => ({ items: communityPosts.slice(0, 1), nextCursor: null })],

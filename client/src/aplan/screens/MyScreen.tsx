@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { Settings } from "lucide-react";
 import { meApi, userApi } from "@/api/aplan";
-import { TOPIC_MAP } from "@/constants/topics";
+import { TOPIC_MAP, type TopicKey } from "@/constants/topics";
 import { BOARDS } from "@/constants/boards";
 import { formatTime } from "@/utils";
 import { Avatar } from "@/aplan/components/Avatar";
@@ -17,8 +17,8 @@ type MyTab = "posts" | "comments" | "scraps";
 interface MyScreenProps {
   onOpenPost: (id: string) => void;
   onEditProfile: () => void;
-  /** 관심 분야 다시 고르기 (A-03 온보딩을 edit 모드로 재사용) */
-  onEditInterests: () => void;
+  /** 관심 분야 다시 고르기 (A-03 온보딩을 edit 모드로 재사용). 지금 선택된 관심 분야를 함께 넘긴다 */
+  onEditInterests: (current: TopicKey[]) => void;
   onOpenSettings: () => void;
 }
 
@@ -134,7 +134,7 @@ export function MyScreen({ onOpenPost, onEditProfile, onEditInterests, onOpenSet
                 <h2 className="m-0 min-w-px flex-1 text-[14px] leading-[17px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
                   관심 분야
                 </h2>
-                <button type="button" onClick={onEditInterests} className="border-0 bg-transparent p-0 text-[12px] leading-[14px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>
+                <button type="button" onClick={() => onEditInterests(me?.interests ?? [])} className="border-0 bg-transparent p-0 text-[12px] leading-[14px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>
                   수정
                 </button>
               </div>

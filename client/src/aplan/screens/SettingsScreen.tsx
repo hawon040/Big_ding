@@ -1,0 +1,224 @@
+import { useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { meApi } from "@/api/aplan";
+import { Toggle } from "@/aplan/components/Toggle";
+import { TextField } from "@/aplan/components/TextField";
+import { BottomSheet } from "@/aplan/components/BottomSheet";
+import { ErrorState, Skeleton } from "@/aplan/components/States";
+import type { Me } from "@/types/aplan";
+import "@/styles/aplan-tokens.css";
+
+interface SettingsScreenProps {
+  onBack: () => void;
+  /** 아직 없는 화면들 — 만들어지면 연결 */
+  onEditProfile?: () => void;
+  onChangePassword?: () => void;
+  onOpenAnnouncements?: () => void;
+}
+
+// A-08 설정 (Figma 2:465).
+export function SettingsScreen({ onBack, onEditProfile, onChangePassword, onOpenAnnouncements }: SettingsScreenProps) {
+  const [me, setMe] = useState<Me | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+
+  const load = () => {
+    setError(null);
+    meApi.get().then(setMe).catch((err) => setError(err?.response?.data?.message || "불러오지 못했어요."));
+  };
+  useEffect(load, []);
+
+  const patchSettings = (patch: Parameters<typeof meApi.updateSettings>[0]) => {
+    if (!me) return;
+    // 낙관적 업데이트 후 서버 값으로 맞춘다
+    setMe({
+      ...me,
+      notificationSettings: { ...me.notificationSettings, ...patch.notificationSettings },
+      appSettings: { ...me.appSettings, ...patch.appSettings },
+    });
+    meApi.updateSettings(patch).then(setMe).catch(load);
+  };
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    window.location.reload();
+  };
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <header className="flex w-full shrink-0 items-center gap-[12px] px-[20px] py-[12px]">
+        <button type="button" onClick={onBack} aria-label="뒤로 가기" className="flex size-[26px] shrink-0 items-center justify-center border-0 bg-transparent p-0">
+          <ChevronLeft size={26} strokeWidth={1.5} style={{ color: "var(--a-color-text-primary)" }} />
+        </button>
+        <h1 className="m-0 min-w-px flex-1 text-[18px] leading-[22px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>설정</h1>
+      </header>
+
+      <main className="flex min-h-0 w-full flex-1 flex-col items-start overflow-y-auto px-[20px] py-[4px] pb-[24px]">
+        {error && <ErrorState message={error} onRetry={load} />}
+
+        {!error && (
+          <>
+            <SectionTitle>계정</SectionTitle>
+            <LinkRow label="프로필 정보" onClick={onEditProfile} />
+            <StaticRow label="학교 인증" value="인증 완료" />
+            <LinkRow label="비밀번호 변경" onClick={onChangePassword} />
+
+            <Divider />
+
+            <SectionTitle>알림</SectionTitle>
+            {!me ? (
+              <ToggleSkeletonRows count={3} />
+            ) : (
+              <>
+                <ToggleRow
+                  label="댓글·답글 알림"
+                  checked={me.notificationSettings.comment}
+                  onChange={(v) => patchSettings({ notificationSettings: { comment: v } })}
+                />
+                <ToggleRow
+                  label="스터디 모집 알림"
+                  checked={me.notificationSettings.studyRecruit}
+                  onChange={(v) => patchSettings({ notificationSettings: { studyRecruit: v } })}
+                />
+                <ToggleRow
+                  label="마케팅 정보 수신"
+                  checked={me.notificationSettings.marketing}
+                  onChange={(v) => patchSettings({ notificationSettings: { marketing: v } })}
+                />
+              </>
+            )}
+
+            <Divider />
+
+            <SectionTitle>앱 설정</SectionTitle>
+            {!me ? (
+              <ToggleSkeletonRows count={1} />
+            ) : (
+              <ToggleRow
+                label="다크 모드"
+                checked={me.appSettings.darkMode}
+                onChange={(v) => patchSettings({ appSettings: { darkMode: v } })}
+              />
+            )}
+            <StaticRow label="언어" value="한국어" />
+
+            <Divider />
+
+            <LinkRow label="공지사항" onClick={onOpenAnnouncements} />
+            <button type="button" onClick={logout} className="flex w-full appearance-none items-center border-0 bg-transparent py-[12px] px-0 text-left">
+              <span className="text-[15px] leading-[18px] font-normal" style={{ color: "var(--a-color-text-primary)" }}>로그아웃</span>
+            </button>
+            <button type="button" onClick={() => setWithdrawOpen(true)} className="flex w-full appearance-none items-center border-0 bg-transparent py-[4px] px-0 text-left">
+              <span className="text-[13px] leading-[16px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>회원 탈퇴</span>
+            </button>
+          </>
+        )}
+      </main>
+
+      <WithdrawSheet open={withdrawOpen} onClose={() => setWithdrawOpen(false)} />
+    </div>
+  );
+}
+
+function WithdrawSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = () => {
+    if (!password || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    meApi.withdraw(password)
+      .then(() => {
+        localStorage.removeItem("token");
+        window.location.reload();
+      })
+      .catch((err) => setError(err?.response?.data?.message || "탈퇴하지 못했어요."))
+      .finally(() => setSubmitting(false));
+  };
+
+  return (
+    <BottomSheet open={open} title="회원 탈퇴" onClose={onClose}>
+      <p className="m-0 mb-[12px] text-[13px] leading-[16px]" style={{ color: "var(--a-color-text-secondary)" }}>
+        탈퇴하면 되돌릴 수 없어요. 본인 확인을 위해 비밀번호를 입력해주세요.
+      </p>
+      <TextField
+        label="비밀번호"
+        type="password"
+        placeholder="비밀번호"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        error={error}
+      />
+      <div className="h-[12px]" aria-hidden />
+      <button
+        type="button"
+        onClick={submit}
+        disabled={!password || submitting}
+        aria-busy={submitting}
+        className="flex w-full items-center justify-center gap-[6px] border-0 px-[16px] py-[15px] text-[15px] leading-[18px] font-bold disabled:cursor-not-allowed"
+        style={{ borderRadius: "var(--a-radius-control)", background: "var(--a-color-danger)", color: "#fff", opacity: !password || submitting ? 0.5 : 1 }}
+      >
+        {submitting ? "처리 중..." : "탈퇴하기"}
+      </button>
+    </BottomSheet>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="m-0 w-full pt-[16px] pb-[4px] text-[12px] leading-[14px] font-bold" style={{ color: "var(--a-color-text-secondary)" }}>
+      {children}
+    </p>
+  );
+}
+
+function Divider() {
+  return <div className="my-[4px] h-px w-full shrink-0" style={{ background: "var(--a-color-border)" }} aria-hidden />;
+}
+
+function LinkRow({ label, onClick }: { label: string; onClick?: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+      className="flex w-full appearance-none items-center gap-[12px] border-0 bg-transparent py-[12px] px-0 text-left disabled:cursor-default"
+    >
+      <span className="min-w-px flex-1 text-[15px] leading-[18px] font-normal" style={{ color: "var(--a-color-text-primary)" }}>{label}</span>
+      <ChevronRight size={20} strokeWidth={1.5} style={{ color: "var(--a-color-text-secondary)" }} aria-hidden />
+    </button>
+  );
+}
+
+function StaticRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex w-full items-center gap-[12px] py-[12px]">
+      <span className="min-w-px flex-1 text-[15px] leading-[18px] font-normal" style={{ color: "var(--a-color-text-primary)" }}>{label}</span>
+      <span className="text-[13px] leading-[16px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>{value}</span>
+    </div>
+  );
+}
+
+function ToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div className="flex w-full items-center gap-[12px] py-[12px]">
+      <span className="min-w-px flex-1 text-[15px] leading-[18px] font-normal" style={{ color: "var(--a-color-text-primary)" }}>{label}</span>
+      <Toggle label={label} checked={checked} onChange={onChange} />
+    </div>
+  );
+}
+
+function ToggleSkeletonRows({ count }: { count: number }) {
+  return (
+    <>
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className="flex w-full items-center gap-[12px] py-[12px]">
+          <Skeleton className="h-[18px] flex-1" />
+          <Skeleton className="h-[26px] w-[46px]" style={{ borderRadius: "var(--a-radius-pill)" }} />
+        </div>
+      ))}
+    </>
+  );
+}
