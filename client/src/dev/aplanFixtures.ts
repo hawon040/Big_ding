@@ -1,7 +1,7 @@
 // 개발 전용: A안 미리보기(/__aplan/...)에서 서버 대신 응답하는 가짜 API.
 // 내용은 Figma 시안의 예시(제목·숫자·주제)와 같게 맞춰 비교 스크린샷을 찍을 수 있게 한다.
 import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
-import type { Me, MyComment, Page, PostCard, RecentSearch, TopicChipItem, TrendingKeyword, UserSummary } from "@/types/aplan";
+import type { Me, MyComment, NotificationItem, Page, PostCard, RecentSearch, TopicChipItem, TrendingKeyword, UserSummary } from "@/types/aplan";
 
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
 
@@ -78,6 +78,39 @@ const myComments: MyComment[] = [
   },
 ];
 
+const sampleActor = { id: "u2", nickname: "판다마스터", department: "산업공학과", profileImage: null, isWithdrawn: false };
+
+const notifications: NotificationItem[] = [
+  {
+    id: "n1", type: "comment", actor: sampleActor, actorCount: 1,
+    post: { id: "c1", title: "XGBoost 파라미터 튜닝 질문 있습니다", board: "question" },
+    commentId: "cm1", commentContent: "learning_rate 먼저 줄여보세요!", message: null, until: null,
+    isRead: false, createdAt: minutesAgo(5),
+  },
+  {
+    id: "n2", type: "like", actor: sampleActor, actorCount: 3,
+    post: { id: "p1", title: "Pandas로 공공데이터 EDA 해본 후기 공유합니다", board: "free" },
+    commentId: null, commentContent: null, message: null, until: null,
+    isRead: false, createdAt: minutesAgo(20),
+  },
+  {
+    id: "n3", type: "follow", actor: sampleActor, actorCount: 1,
+    post: null, commentId: null, commentContent: null, message: null, until: null,
+    isRead: true, createdAt: minutesAgo(120),
+  },
+  {
+    id: "n4", type: "accepted", actor: sampleActor, actorCount: 1,
+    post: { id: "c1", title: "XGBoost 파라미터 튜닝 질문 있습니다", board: "question" },
+    commentId: "cm1", commentContent: null, message: null, until: null,
+    isRead: true, createdAt: minutesAgo(200),
+  },
+  {
+    id: "n5", type: "adminWarning", actor: null, actorCount: 1,
+    post: null, commentId: null, commentContent: null, message: "부적절한 표현 사용", until: null,
+    isRead: false, createdAt: minutesAgo(400),
+  },
+];
+
 const trendingKeywords: TrendingKeyword[] = [
   { keyword: "판다스", rank: 1, change: "up" },
   { keyword: "캐글", rank: 2, change: "same" },
@@ -146,7 +179,18 @@ const routes: [RegExp, Handler][] = [
   [/^\/users\/[^/]+\/posts$/, (): Page<PostCard> => ({ items: allPosts.filter((p) => p.author?.id === sampleMe.id), nextCursor: null })],
   [/^\/users\/[^/]+\/comments$/, (): Page<MyComment> => ({ items: myComments, nextCursor: null })],
   [/^\/users\/[^/]+\/scraps$/, (): Page<PostCard> => ({ items: communityPosts.slice(0, 1), nextCursor: null })],
-  [/^\/notifications\/unread-count$/, () => ({ count: 0 })],
+  [/^\/notifications$/, (): Page<NotificationItem> => ({ items: notifications, nextCursor: null })],
+  [/^\/notifications\/read-all$/, () => {
+    notifications.forEach((n) => (n.isRead = true));
+    return { message: "읽음 처리되었습니다." };
+  }],
+  [/^\/notifications\/[^/]+\/read$/, (c) => {
+    const id = (c.url || "").split("?")[0].split("/").slice(-2, -1)[0];
+    const target = notifications.find((n) => n.id === id);
+    if (target) target.isRead = true;
+    return { message: "읽음 처리되었습니다." };
+  }],
+  [/^\/notifications\/unread-count$/, () => ({ count: notifications.filter((n) => !n.isRead).length })],
   [/^\/chat\/unread-count$/, () => ({ count: 0 })],
   [/^\/posts\/[^/]+\/(like|scrap)$/, (c) => ({ isLiked: c.method === "post", likeCount: 25, isScrapped: c.method === "post", scrapCount: 4 })],
 ];

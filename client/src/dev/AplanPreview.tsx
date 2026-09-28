@@ -24,6 +24,8 @@ const SCREENS: Record<string, () => ReactElement> = {
   "a05-search": () => <MainShell initialTab="search" />,
   "a06-community": () => <MainShell initialTab="community" />,
   "a07-my": () => <MainShell initialTab="my" />,
+  // Figma 번호 없음 (Figma의 A-08은 설정 화면)
+  "notifications": () => <MainShell initialTab="notifications" />,
 };
 
 export default function AplanPreview({ name }: { name: string }) {

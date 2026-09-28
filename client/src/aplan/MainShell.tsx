@@ -6,6 +6,7 @@ import { HomeScreen } from "@/aplan/screens/HomeScreen";
 import { CommunityScreen } from "@/aplan/screens/CommunityScreen";
 import { SearchScreen } from "@/aplan/screens/SearchScreen";
 import { MyScreen } from "@/aplan/screens/MyScreen";
+import { NotificationScreen } from "@/aplan/screens/NotificationScreen";
 import { EmptyState } from "@/aplan/components/States";
 import "@/styles/aplan-tokens.css";
 
@@ -97,8 +98,20 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
         />
       );
       break;
+    case "notifications":
+      content = (
+        <NotificationScreen
+          onOpenPost={() => {
+            /* A-09 상세 구현 후 연결 */
+          }}
+          onOpenUser={() => {
+            /* 프로필 화면 구현 후 연결 */
+          }}
+        />
+      );
+      break;
     default:
-      // 아직 구현 전인 탭 (알림)
+      // 도달할 일 없음: 모든 탭 구현됨 (타입 좁히기용 안전망)
       content = (
         <main className="flex flex-1 items-center justify-center px-[20px]">
           <EmptyState title="준비 중인 화면이에요" />
