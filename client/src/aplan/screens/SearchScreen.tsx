@@ -138,20 +138,19 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
             </button>
           )}
         </span>
-        {(input || query) && (
-          <button
-            type="button"
-            onClick={() => {
-              setInput("");
-              setQuery("");
-              inputRef.current?.blur();
-            }}
-            className="shrink-0 border-0 bg-transparent p-0 text-[14px] leading-[17px] font-normal"
-            style={{ color: "var(--a-color-text-secondary)" }}
-          >
-            취소
-          </button>
-        )}
+        {/* Figma는 검색어가 비어 있을 때도 항상 "취소"를 보여준다 */}
+        <button
+          type="button"
+          onClick={() => {
+            setInput("");
+            setQuery("");
+            inputRef.current?.blur();
+          }}
+          className="shrink-0 border-0 bg-transparent p-0 text-[14px] leading-[17px] font-normal"
+          style={{ color: "var(--a-color-text-secondary)" }}
+        >
+          취소
+        </button>
       </header>
 
       {!query ? (

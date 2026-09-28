@@ -123,7 +123,10 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
   };
 
   const acceptComment = (id: string) => {
-    commentApi.accept(id).then(() => setAcceptedCommentId(id));
+    commentApi.accept(id).then(() => {
+      setAcceptedCommentId(id);
+      setPost((p) => (p ? { ...p, isAnswered: true } : p));
+    });
   };
 
   const removePost = () => {
@@ -189,18 +192,30 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
               {/* 제목 */}
               <h1 className="m-0 w-full text-[20px] leading-[24px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>{post.title}</h1>
 
-              {/* 모집 상태 (Figma 예시엔 없지만, 모집글엔 상태를 보여줄 자리가 여기뿐이다) */}
-              {post.recruit && (
-                <span
-                  className="inline-flex h-[16px] items-center px-[6px] text-[11px] font-bold"
-                  style={{
-                    borderRadius: 3,
-                    background: post.recruit.status === "open" ? "var(--a-color-surface-inverse)" : "var(--a-color-surface-muted)",
-                    color: post.recruit.status === "open" ? "var(--a-color-on-inverse)" : "var(--a-color-text-secondary)",
-                  }}
-                >
-                  {post.recruit.status === "open" ? "모집중" : "마감"} {post.recruit.current}/{post.recruit.capacity}명
-                </span>
+              {/* 모집 상태 · 채택 완료 (Figma 예시엔 없지만, 목록(PostListItem)엔 있는 배지라 상세에도 맞춘다) */}
+              {(post.recruit || post.isAnswered) && (
+                <div className="flex items-center gap-[6px]">
+                  {post.recruit && (
+                    <span
+                      className="inline-flex h-[16px] items-center px-[6px] text-[11px] font-bold"
+                      style={{
+                        borderRadius: 3,
+                        background: post.recruit.status === "open" ? "var(--a-color-surface-inverse)" : "var(--a-color-surface-muted)",
+                        color: post.recruit.status === "open" ? "var(--a-color-on-inverse)" : "var(--a-color-text-secondary)",
+                      }}
+                    >
+                      {post.recruit.status === "open" ? "모집중" : "마감"} {post.recruit.current}/{post.recruit.capacity}명
+                    </span>
+                  )}
+                  {post.isAnswered && (
+                    <span
+                      className="inline-flex h-[16px] items-center px-[6px] text-[11px] font-bold"
+                      style={{ borderRadius: 3, background: "var(--a-color-surface-inverse)", color: "var(--a-color-on-inverse)" }}
+                    >
+                      채택 완료
+                    </span>
+                  )}
+                </div>
               )}
 
               {/* 태그 */}
