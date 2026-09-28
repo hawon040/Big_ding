@@ -3,6 +3,11 @@ const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env") });
 const mongoose = require("mongoose");
 
+// 모델 파일을 불러오기만 해도 Mongoose가 연결 시 컬렉션/스키마 인덱스를 자동으로 만들므로,
+// dry-run이 DB를 전혀 바꾸지 않도록 스크립트에서는 끈다.
+mongoose.set("autoCreate", false);
+mongoose.set("autoIndex", false);
+
 const args = process.argv.slice(2);
 const APPLY = args.includes("--apply");
 const BACKUP_CONFIRMED = args.includes("--backup-confirmed");
