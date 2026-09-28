@@ -11,6 +11,10 @@ import api from "@/api";
 import { useSocket } from "@/hooks/useSocket";
 import "@/styles/tokens.css";
 import { Modal } from "@/components/ui/Modal";
+import { SplashScreen } from "@/aplan/screens/SplashScreen";
+import { meApi } from "@/api/aplan";
+
+const SPLASH_MIN_MS = 1000;
 
 type Tab = "community" | "chat" | "profile" | "settings" | "lunch";
 
@@ -139,17 +143,31 @@ const [currentTime, setCurrentTime] = useState("");
   }, []);
 
 
-  // 앱 시작 시 토큰 확인 → 자동 로그인
+  // 앱 시작: 스플래시(A-01)를 최소 1초 보여주면서 토큰을 확인한다 → 자동 로그인
+  const [booting, setBooting] = useState(true);
   useEffect(() => {
     const token = localStorage.getItem("token");
     const autoLogin = localStorage.getItem("autoLogin");
+    const minDelay = new Promise((resolve) => setTimeout(resolve, SPLASH_MIN_MS));
+    let check: Promise<boolean>;
     if (token && autoLogin === "true") {
-      setLoggedIn(true); // 토큰 있고 자동 로그인 동의한 경우에만 바로 메인으로
+      // 토큰이 아직 유효한지 서버에 확인한다 (만료됐으면 api 인터셉터가 로그아웃 처리)
+      check = meApi.get().then(() => true).catch(() => false);
     } else {
       // 자동 로그인을 선택하지 않았다면 이전 토큰은 정리
       localStorage.removeItem("token");
       localStorage.removeItem("user");
+      check = Promise.resolve(false);
     }
+    let cancelled = false;
+    Promise.all([check, minDelay]).then(([ok]) => {
+      if (cancelled) return;
+      setLoggedIn(ok);
+      setBooting(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
   if (typeof document !== "undefined") {
     if (darkMode) {
@@ -200,6 +218,8 @@ const [currentTime, setCurrentTime] = useState("");
       </div>
     </div>
   );
+
+  if (booting) return <SplashScreen />;
 
   // 회원가입 화면
   if (showRegister) {
