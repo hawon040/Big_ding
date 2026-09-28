@@ -5,6 +5,12 @@ import { SplashScreen } from "@/aplan/screens/SplashScreen";
 import { LoginScreen } from "@/aplan/screens/LoginScreen";
 import { FindPasswordScreen } from "@/aplan/screens/FindPasswordScreen";
 import { OnboardingScreen } from "@/aplan/screens/OnboardingScreen";
+import { MainShell } from "@/aplan/MainShell";
+import api from "@/api";
+import { fixtureAdapter } from "./aplanFixtures";
+
+// 미리보기에서는 서버 대신 가짜 응답을 쓴다 (Figma와 같은 예시 데이터)
+api.defaults.adapter = fixtureAdapter;
 
 const noop = () => {};
 
@@ -14,6 +20,7 @@ const SCREENS: Record<string, () => ReactElement> = {
   "a02-find-password": () => <FindPasswordScreen onBack={noop} onDone={noop} />,
   "a03-onboarding": () => <OnboardingScreen initialInterests={["python", "sql", "ml", "dataviz"]} onDone={noop} />,
   "a03-onboarding-edit": () => <OnboardingScreen mode="edit" initialInterests={["python", "sql"]} onDone={noop} onBack={noop} />,
+  "a04-home": () => <MainShell />,
 };
 
 export default function AplanPreview({ name }: { name: string }) {

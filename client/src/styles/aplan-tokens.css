@@ -51,7 +51,6 @@
   font-family: var(--a-font-sans);
   color: var(--a-color-text-primary);
   background: var(--a-color-bg);
-  word-break: keep-all; /* 한글은 단어 단위로 줄바꿈 */
 }
 
 /* 입력칸 (components/TextField.tsx) */

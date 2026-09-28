@@ -67,7 +67,7 @@ export function FindPasswordScreen({ onBack, onDone }: FindPasswordScreenProps) 
         <h1 className="m-0 mt-[20px] text-[26px] leading-[31px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
           비밀번호 찾기
         </h1>
-        <p className="m-0 text-[14px] leading-[17px]" style={{ color: "var(--a-color-text-secondary)" }}>
+        <p className="m-0 text-[14px] leading-[17px] [word-break:keep-all]" style={{ color: "var(--a-color-text-secondary)" }}>
           가입할 때 등록한 학번과 전화번호로 확인해요
         </p>
         <TextField label="학번" placeholder="학번" inputMode="numeric" maxLength={8} autoComplete="username" {...bind("studentId")} />

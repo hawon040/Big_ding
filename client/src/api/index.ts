@@ -34,6 +34,8 @@ const API_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, "");
 
 export const resolveAssetUrl = (url?: string | null): string | undefined => {
   if (!url) return undefined;
+  // 브라우저 안에서 만든 주소(미리보기 이미지 등)는 그대로 쓴다.
+  if (url.startsWith("data:") || url.startsWith("blob:")) return url;
   if (!url.startsWith("http://") && !url.startsWith("https://")) return `${API_ORIGIN}${url}`;
   try {
     const { pathname } = new URL(url);
