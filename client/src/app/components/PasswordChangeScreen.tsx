@@ -20,6 +20,8 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
   const [professor, setProfessor] = useState("");
   const [code, setCode] = useState("");
   const [phone, setPhone] = useState("");
+  const [department, setDepartment] = useState("");
+  const [grade, setGrade] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -117,7 +119,11 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
       return;
     }
     try {
-      await api.post("/auth/register", { studentId, name, professor, code, phone, password });
+      await api.post("/auth/register", {
+        studentId, name, professor, code, phone, password,
+        department: department.trim() || undefined,
+        grade: grade ? Number(grade) : undefined,
+      });
       showAlert("회원가입이 완료되었습니다! 로그인해주세요.", () => {
         setNicknameChecked(false);
         setVerified(false);
@@ -230,6 +236,34 @@ export function PasswordChangeScreen({ onComplete, onSkip }: RegisterScreenProps
               onChange={(e) => setPhone(e.target.value)}
               maxLength={13}
             />
+          </div>
+
+          {/* 학과 · 학년 (A안: 프로필·게시글 카드에 표시, 선택 입력) */}
+          <div className="flex gap-2">
+            <Input
+              label="학과 (선택)"
+              type="text"
+              placeholder="예) 빅데이터학과"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              maxLength={50}
+              className="flex-1"
+            />
+            <div className="flex w-[96px] flex-col gap-1">
+              <label htmlFor="register-grade" className="text-[13px] font-medium" style={{ color: "var(--text-body)" }}>학년 (선택)</label>
+              <select
+                id="register-grade"
+                value={grade}
+                onChange={(e) => setGrade(e.target.value)}
+                className="w-full rounded-[var(--r-md)] border border-[var(--border-subtle)] bg-[var(--bg-input)] px-3 py-2 text-sm outline-none focus:border-[var(--blue-primary)] focus:ring-2 focus:ring-[var(--blue-primary)]/30"
+                style={{ color: grade ? "var(--text-body)" : "var(--text-muted)" }}
+              >
+                <option value="">선택</option>
+                {[1, 2, 3, 4].map((g) => (
+                  <option key={g} value={g}>{g}학년</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* 비밀번호 */}

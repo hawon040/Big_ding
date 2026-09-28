@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { LoginScreen } from "./components/LoginScreen";
+import { LoginScreen } from "@/aplan/screens/LoginScreen";
+import { FindPasswordScreen } from "@/aplan/screens/FindPasswordScreen";
 import { CommunityScreen, getCurrentUser } from "./components/CommunityScreen";
 import { ProfileScreen } from "./components/ProfileScreen";
 import { SettingsScreen } from "./components/SettingsScreen";
@@ -81,6 +82,8 @@ useEffect(() => {
   const [darkMode, setDarkMode] = useState(false);
   const [showRegister, setShowRegister] = useState(false); // 회원가입 화면
   const [showConsentModal, setShowConsentModal] = useState(false); // 개인정보 동의 팝업
+  const [authView, setAuthView] = useState<"login" | "findPassword">("login");
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   // 프로필/설정 화면에 보여줄 닉네임은 회원가입 때 설정한 실제 닉네임을 기본값으로 쓴다.
   const [nickname, setNickname] = useState(() => getCurrentUser()?.nickname ?? "");
 
@@ -177,6 +180,24 @@ const [currentTime, setCurrentTime] = useState("");
     }
   }
 
+  // 개인정보 수집 동의 팝업 (로그인 화면의 "회원가입" → 동의 → 회원가입 화면)
+  const consentModal = (
+    <Modal
+      open={showConsentModal}
+      title="개인정보 수집 동의"
+      onClose={() => setShowConsentModal(false)}
+      cancelText="취소"
+      onCancel={() => setShowConsentModal(false)}
+      confirmText="확인"
+      onConfirm={() => {
+        setShowConsentModal(false);
+        setShowRegister(true);
+      }}
+    >
+      이름, 학번, 전화번호에 대한 개인 정보 수집 및 이용에 동의하시겠습니까?
+    </Modal>
+  );
+
   const phoneFrame = (children: React.ReactNode) => (
     <div
       className="flex items-center justify-center min-h-screen"
@@ -199,22 +220,7 @@ const [currentTime, setCurrentTime] = useState("");
           style={{ width: "126px", height: "30px", background: "#05070f", borderRadius: "0 0 20px 20px" }}
         />
         {children}
-
-        {/* 개인정보 수집 동의 팝업 */}
-        <Modal
-          open={showConsentModal}
-          title="개인정보 수집 동의"
-          onClose={() => setShowConsentModal(false)}
-          cancelText="취소"
-          onCancel={() => setShowConsentModal(false)}
-          confirmText="확인"
-          onConfirm={() => {
-            setShowConsentModal(false);
-            setShowRegister(true);
-          }}
-        >
-          이름, 학번, 전화번호에 대한 개인 정보 수집 및 이용에 동의하시겠습니까?
-        </Modal>
+        {consentModal}
       </div>
     </div>
   );
@@ -233,17 +239,38 @@ const [currentTime, setCurrentTime] = useState("");
     );
   }
 
-  // 로그인 화면
+  // 로그인 (A-02) / 비밀번호 찾기 — A안 화면이라 폰 목업 프레임 없이 그린다.
   if (!loggedIn) {
-    return phoneFrame(
-      <div className="flex-1 overflow-y-auto mt-7 no-scrollbar">
-        <LoginScreen
-          onLogin={() => {
-            setNickname(getCurrentUser()?.nickname ?? "");
-            setLoggedIn(true);
-          }}
-          onRegister={() => setShowConsentModal(true)}
-        />
+    return (
+      <div className="relative min-h-dvh">
+        {authView === "findPassword" ? (
+          <FindPasswordScreen
+            onBack={() => setAuthView("login")}
+            onDone={(message) => {
+              setAuthView("login");
+              setAuthNotice(message);
+            }}
+          />
+        ) : (
+          <LoginScreen
+            onLogin={() => {
+              setNickname(getCurrentUser()?.nickname ?? "");
+              setLoggedIn(true);
+            }}
+            onRegister={() => setShowConsentModal(true)}
+            onFindPassword={() => setAuthView("findPassword")}
+          />
+        )}
+        <Modal
+          open={!!authNotice}
+          title="알림"
+          onClose={() => setAuthNotice(null)}
+          confirmText="확인"
+          onConfirm={() => setAuthNotice(null)}
+        >
+          {authNotice}
+        </Modal>
+        {consentModal}
       </div>
     );
   }

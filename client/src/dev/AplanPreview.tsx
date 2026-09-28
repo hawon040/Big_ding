@@ -2,9 +2,15 @@
 // main.tsx에서 import.meta.env.DEV일 때만 동적으로 불러오므로 배포 번들에는 포함되지 않는다.
 import type { ReactElement } from "react";
 import { SplashScreen } from "@/aplan/screens/SplashScreen";
+import { LoginScreen } from "@/aplan/screens/LoginScreen";
+import { FindPasswordScreen } from "@/aplan/screens/FindPasswordScreen";
+
+const noop = () => {};
 
 const SCREENS: Record<string, () => ReactElement> = {
   "a01-splash": () => <SplashScreen />,
+  "a02-login": () => <LoginScreen onLogin={noop} onRegister={noop} onFindPassword={noop} />,
+  "a02-find-password": () => <FindPasswordScreen onBack={noop} onDone={noop} />,
 };
 
 export default function AplanPreview({ name }: { name: string }) {

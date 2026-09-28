@@ -14,6 +14,8 @@
   --a-color-bg: #ffffff;
   --a-color-surface-inverse: #212121; /* 스플래시 배경, 선택된 칩 채움 */
   --a-color-on-inverse: #ffffff;
+  /* Figma에 없는 상태 색: 입력 오류 메시지 (기존 앱의 --danger와 같은 값) */
+  --a-color-danger: #dc2626;
 
   /* 폰트: Noto Sans KR 400/500/700 (index.html에서 로드) */
   --a-font-sans: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
@@ -23,11 +25,19 @@
   --a-radius-image: 10px;
   --a-radius-icon: 4px;
   --a-radius-logo: 24px;
+  --a-radius-control: 12px; /* 입력칸·주 버튼 */
+  --a-radius-pill: 999px;
 
   /* 화면: 기준 360×780, 넓은 화면에서는 최대 480px로 가운데 정렬 */
   --a-screen-min: 360px;
   --a-screen-max: 480px;
 }
+
+/*
+ * 줄 높이: Figma의 "normal"은 Noto Sans KR에서 글자 크기×1.2를 반올림한 텍스트 상자 높이로
+ * 그려진다(12→14, 13→16, 14→17, 15→18, 26→31, 30→36). 브라우저의 normal은 더 크므로
+ * A안 화면의 텍스트는 이 px 값을 leading-[..px]로 직접 지정한다.
+ */
 
 /* A안 화면 공통 컬럼 */
 .a-screen {
@@ -38,4 +48,15 @@
   font-family: var(--a-font-sans);
   color: var(--a-color-text-primary);
   background: var(--a-color-bg);
+}
+
+/* 입력칸 (components/TextField.tsx) */
+.a-text-field {
+  border-color: var(--a-color-border);
+}
+.a-text-field::placeholder {
+  color: var(--a-color-text-secondary);
+}
+.a-text-field:focus {
+  border-color: var(--a-color-text-primary);
 }
