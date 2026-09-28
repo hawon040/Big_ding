@@ -184,10 +184,25 @@ const routes: [RegExp, Handler][] = [
   [/^\/feed$/, (): Page<PostCard> => ({ items: feedPosts, nextCursor: null })],
   [
     /^\/posts$/,
-    (c): Page<PostCard> => {
+    (c) => {
+      if (c.method === "post") {
+        const data = c.data as FormData;
+        const id = `new${Date.now()}`;
+        const board = String(data.get("board") || "free") as PostCard["board"];
+        const created: PostCard = {
+          id, board, title: String(data.get("title") || ""), contentPreview: String(data.get("content") || "").slice(0, 100),
+          thumbnail: null, imageCount: 0, author,
+          topics: JSON.parse(String(data.get("topics") || "[]")), tags: JSON.parse(String(data.get("tags") || "[]")),
+          createdAt: new Date().toISOString(), likeCount: 0, commentCount: 0, scrapCount: 0, viewCount: 0,
+          isLiked: false, isScrapped: false, recruit: null, isAnswered: false,
+        };
+        communityPosts.unshift(created);
+        postDetails[id] = { ...created, content: created.contentPreview, images: [], visibility: "all", acceptedCommentId: null, updatedAt: created.createdAt, isMine: true, isFollowingAuthor: false };
+        return { _id: id };
+      }
       const board = c.params?.board;
       const items = !board || board === "all" ? communityPosts : communityPosts.filter((p) => p.board === board);
-      return { items, nextCursor: null };
+      return { items, nextCursor: null } satisfies Page<PostCard>;
     },
   ],
   [
@@ -262,7 +277,31 @@ const routes: [RegExp, Handler][] = [
     tree.commentCount += 1;
     return {};
   }],
-  [/^\/posts\/[^/]+$/, (c): PostDetail => detailOf((c.url || "").split("?")[0].split("/").pop() || "")],
+  [/^\/posts\/[^/]+$/, (c) => {
+    const id = (c.url || "").split("?")[0].split("/").pop() || "";
+    if (c.method === "patch") {
+      const data = typeof c.data === "string" ? JSON.parse(c.data) : c.data;
+      const detail = postDetails[id] ?? detailOf(id);
+      const updated: PostDetail = {
+        ...detail,
+        title: data?.title ?? detail.title,
+        content: data?.content ?? detail.content,
+        topics: data?.topics ?? detail.topics,
+        tags: data?.tags ?? detail.tags,
+      };
+      postDetails[id] = updated;
+      const listItemIndex = communityPosts.findIndex((p) => p.id === id);
+      if (listItemIndex >= 0) communityPosts[listItemIndex] = { ...communityPosts[listItemIndex], title: updated.title, tags: updated.tags, topics: updated.topics };
+      return updated;
+    }
+    if (c.method === "delete") {
+      delete postDetails[id];
+      const idx = communityPosts.findIndex((p) => p.id === id);
+      if (idx >= 0) communityPosts.splice(idx, 1);
+      return { message: "삭제되었습니다." };
+    }
+    return detailOf(id) satisfies PostDetail;
+  }],
   [/^\/comments\/[^/]+\/accept$/, (c) => {
     const id = (c.url || "").split("?")[0].split("/")[2];
     for (const tree of Object.values(commentTrees)) {

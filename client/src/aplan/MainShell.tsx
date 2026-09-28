@@ -8,8 +8,12 @@ import { SearchScreen } from "@/aplan/screens/SearchScreen";
 import { MyScreen } from "@/aplan/screens/MyScreen";
 import { NotificationScreen } from "@/aplan/screens/NotificationScreen";
 import { PostDetailScreen } from "@/aplan/screens/PostDetailScreen";
+import { WriteScreen } from "@/aplan/screens/WriteScreen";
 import { EmptyState } from "@/aplan/components/States";
+import type { BoardKey } from "@/constants/boards";
 import "@/styles/aplan-tokens.css";
+
+type WriteTarget = { mode: "create"; board: BoardKey | null } | { mode: "edit"; postId: string };
 
 const UNREAD_POLL_MS = 30_000;
 
@@ -27,6 +31,8 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
   const [unreadMessages, setUnreadMessages] = useState(0);
   // 탭 위에 쌓이는 상세 화면(A-09). null이면 탭 콘텐츠를 그대로 보여준다.
   const [openPostId, setOpenPostId] = useState<string | null>(null);
+  // 상세 위에 또 쌓이는 글쓰기/수정 화면
+  const [writeTarget, setWriteTarget] = useState<WriteTarget | null>(null);
   const openPost = (id: string) => setOpenPostId(id);
   const openUser = () => {
     /* 프로필 화면 구현 후 연결 */
@@ -65,9 +71,7 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
         <CommunityScreen
           onOpenPost={openPost}
           onOpenSearch={() => setTab("search")}
-          onWrite={() => {
-            /* 글쓰기(7-2) 구현 후 연결 */
-          }}
+          onWrite={(board) => setWriteTarget({ mode: "create", board })}
         />
       );
       break;
@@ -106,10 +110,31 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
       );
   }
 
+  if (writeTarget) {
+    return (
+      <div className="a-screen flex h-dvh flex-col overflow-hidden">
+        <WriteScreen
+          initialBoard={writeTarget.mode === "create" ? writeTarget.board : undefined}
+          editPostId={writeTarget.mode === "edit" ? writeTarget.postId : undefined}
+          onBack={() => setWriteTarget(null)}
+          onDone={(postId) => {
+            setWriteTarget(null);
+            setOpenPostId(postId);
+          }}
+        />
+      </div>
+    );
+  }
+
   if (openPostId) {
     return (
       <div className="a-screen flex h-dvh flex-col overflow-hidden">
-        <PostDetailScreen postId={openPostId} onBack={() => setOpenPostId(null)} onOpenUser={openUser} />
+        <PostDetailScreen
+          postId={openPostId}
+          onBack={() => setOpenPostId(null)}
+          onOpenUser={openUser}
+          onEditPost={(id) => setWriteTarget({ mode: "edit", postId: id })}
+        />
       </div>
     );
   }
