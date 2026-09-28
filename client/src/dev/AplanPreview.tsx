@@ -23,6 +23,7 @@ const SCREENS: Record<string, () => ReactElement> = {
   "a04-home": () => <MainShell />,
   "a05-search": () => <MainShell initialTab="search" />,
   "a06-community": () => <MainShell initialTab="community" />,
+  "a07-my": () => <MainShell initialTab="my" />,
 };
 
 export default function AplanPreview({ name }: { name: string }) {

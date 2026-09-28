@@ -1,7 +1,7 @@
 // 개발 전용: A안 미리보기(/__aplan/...)에서 서버 대신 응답하는 가짜 API.
 // 내용은 Figma 시안의 예시(제목·숫자·주제)와 같게 맞춰 비교 스크린샷을 찍을 수 있게 한다.
 import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
-import type { Page, PostCard, RecentSearch, TopicChipItem, TrendingKeyword, UserSummary } from "@/types/aplan";
+import type { Me, MyComment, Page, PostCard, RecentSearch, TopicChipItem, TrendingKeyword, UserSummary } from "@/types/aplan";
 
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
 
@@ -55,6 +55,27 @@ const sampleUsers: UserSummary[] = [
 let recentSearches: RecentSearch[] = [
   { keyword: "판다스", searchedAt: minutesAgo(60) },
   { keyword: "빅분기", searchedAt: minutesAgo(120) },
+];
+
+const sampleMe: Me = {
+  id: "u1", studentId: "202012345", nickname: "데이터곰", profileImage: null,
+  department: "통계학과", grade: 3, bio: "데이터로 세상을 읽어보려 합니다.",
+  interests: ["python", "sql", "ml", "dataviz"], onboardingCompleted: true,
+  notificationSettings: { comment: true, studyRecruit: true, marketing: false },
+  appSettings: { darkMode: false }, isPrivate: false, isAdmin: false, canPostEvents: false,
+  counts: { posts: 2, comments: 2, scraps: 1, followers: 12, following: 8 },
+  createdAt: minutesAgo(60 * 24 * 30),
+};
+
+const myComments: MyComment[] = [
+  {
+    id: "cm1", content: "저도 비슷한 문제 겪었는데, learning_rate 먼저 줄여보세요!", parentId: null,
+    isAccepted: true, createdAt: minutesAgo(30), post: { id: "c1", title: "XGBoost 파라미터 튜닝 질문 있습니다", board: "question" },
+  },
+  {
+    id: "cm2", content: "좋은 정리 감사합니다, 저장해둘게요.", parentId: null,
+    isAccepted: false, createdAt: minutesAgo(90), post: { id: "p1", title: "Pandas로 공공데이터 EDA 해본 후기 공유합니다", board: "free" },
+  },
 ];
 
 const trendingKeywords: TrendingKeyword[] = [
@@ -121,6 +142,10 @@ const routes: [RegExp, Handler][] = [
     return { message: "삭제되었습니다." };
   }],
   [/^\/search\/trending$/, () => ({ items: trendingKeywords, computedAt: new Date().toISOString() })],
+  [/^\/users\/me$/, (): Me => sampleMe],
+  [/^\/users\/[^/]+\/posts$/, (): Page<PostCard> => ({ items: allPosts.filter((p) => p.author?.id === sampleMe.id), nextCursor: null })],
+  [/^\/users\/[^/]+\/comments$/, (): Page<MyComment> => ({ items: myComments, nextCursor: null })],
+  [/^\/users\/[^/]+\/scraps$/, (): Page<PostCard> => ({ items: communityPosts.slice(0, 1), nextCursor: null })],
   [/^\/notifications\/unread-count$/, () => ({ count: 0 })],
   [/^\/chat\/unread-count$/, () => ({ count: 0 })],
   [/^\/posts\/[^/]+\/(like|scrap)$/, (c) => ({ isLiked: c.method === "post", likeCount: 25, isScrapped: c.method === "post", scrapCount: 4 })],
