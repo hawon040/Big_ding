@@ -31,6 +31,20 @@ export const feedPosts: PostCard[] = [
   },
 ];
 
+const listItem = (id: string, board: PostCard["board"], title: string, extra: Partial<PostCard> = {}): PostCard => ({
+  id, board, title, contentPreview: "", thumbnail: sampleImage, imageCount: 1,
+  author: { ...author, nickname: "닉네임" }, topics: ["ml"], tags: [],
+  createdAt: minutesAgo(5), likeCount: 3, commentCount: 12, scrapCount: 0, viewCount: 230,
+  isLiked: false, isScrapped: false, recruit: null, isAnswered: false, ...extra,
+});
+
+export const communityPosts: PostCard[] = [
+  listItem("c1", "question", "XGBoost 파라미터 튜닝 질문 있습니다"),
+  listItem("c2", "free", "데이터 직무 대학원 vs 취업 고민"),
+  listItem("c3", "study", "[모집] 주 2회 캐글 스터디 4명", { recruit: { status: "open", capacity: 4, current: 2 } }),
+  listItem("c4", "competition", "공공데이터 활용 공모전 팀원 구해요"),
+];
+
 const feedTopics: TopicChipItem[] = [
   { key: "all", label: "전체", shortLabel: "전체" },
   { key: "python", label: "Python", shortLabel: "Python" },
@@ -45,6 +59,14 @@ type Handler = (config: InternalAxiosRequestConfig) => unknown;
 const routes: [RegExp, Handler][] = [
   [/^\/feed\/topics$/, () => ({ items: feedTopics })],
   [/^\/feed$/, (): Page<PostCard> => ({ items: feedPosts, nextCursor: null })],
+  [
+    /^\/posts$/,
+    (c): Page<PostCard> => {
+      const board = c.params?.board;
+      const items = !board || board === "all" ? communityPosts : communityPosts.filter((p) => p.board === board);
+      return { items, nextCursor: null };
+    },
+  ],
   [/^\/notifications\/unread-count$/, () => ({ count: 0 })],
   [/^\/chat\/unread-count$/, () => ({ count: 0 })],
   [/^\/posts\/[^/]+\/(like|scrap)$/, (c) => ({ isLiked: c.method === "post", likeCount: 25, isScrapped: c.method === "post", scrapCount: 4 })],
