@@ -3,7 +3,7 @@
 import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
 import type {
   CommentTree, Me, MyComment, NotificationItem, Page, PostCard, PostDetail,
-  RecentSearch, TopicChipItem, TrendingKeyword, UserSummary,
+  RecentSearch, TopicChipItem, TrendingKeyword, UserProfile, UserSummary,
 } from "@/types/aplan";
 
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
@@ -253,9 +253,30 @@ const routes: [RegExp, Handler][] = [
     return sampleMe;
   }],
   [/^\/users\/account$/, () => ({ message: "탈퇴되었습니다." })],
-  [/^\/users\/[^/]+\/posts$/, (): Page<PostCard> => ({ items: allPosts.filter((p) => p.author?.id === sampleMe.id), nextCursor: null })],
-  [/^\/users\/[^/]+\/comments$/, (): Page<MyComment> => ({ items: myComments, nextCursor: null })],
+  [/^\/users\/[^/]+\/posts$/, (c): Page<PostCard> => {
+    const id = (c.url || "").split("?")[0].split("/")[2];
+    return { items: allPosts.filter((p) => p.author?.id === id), nextCursor: null };
+  }],
+  [/^\/users\/[^/]+\/comments$/, (c): Page<MyComment> => {
+    const id = (c.url || "").split("?")[0].split("/")[2];
+    return { items: id === sampleMe.id ? myComments : [], nextCursor: null };
+  }],
   [/^\/users\/[^/]+\/scraps$/, (): Page<PostCard> => ({ items: communityPosts.slice(0, 1), nextCursor: null })],
+  [/^\/users\/[^/]+\/block$/, (c) => ({ message: "ok", isBlocked: c.method === "post" })],
+  [/^\/users\/[^/]+$/, (c): UserProfile => {
+    const id = (c.url || "").split("?")[0].split("/").pop() || "";
+    if (id === sampleMe.id) {
+      return { ...sampleMe, isPrivate: false, isWithdrawn: false, isMe: true, postCount: sampleMe.counts.posts, commentCount: sampleMe.counts.comments, scrapCount: sampleMe.counts.scraps, followerCount: sampleMe.counts.followers, followingCount: sampleMe.counts.following, isFollowing: false, isMutualFollow: false, isFriend: false };
+    }
+    const u = sampleUsers.find((u) => u.id === id);
+    return {
+      id, nickname: u?.nickname ?? "알 수 없음", profileImage: u?.profileImage ?? null,
+      department: u?.department ?? null, grade: 3, bio: u?.bio ?? null, interests: ["python", "ml"],
+      isPrivate: false, isWithdrawn: false, isMe: false,
+      postCount: allPosts.filter((p) => p.author?.id === id).length, commentCount: 4, scrapCount: 2,
+      followerCount: 20, followingCount: 15, isFollowing: u?.isFollowing ?? false, isMutualFollow: false, isFriend: false,
+    };
+  }],
   [/^\/notifications$/, (): Page<NotificationItem> => ({ items: notifications, nextCursor: null })],
   [/^\/notifications\/read-all$/, () => {
     notifications.forEach((n) => (n.isRead = true));

@@ -2,14 +2,13 @@ import { Fragment, useEffect, useState } from "react";
 import { Settings } from "lucide-react";
 import { meApi, userApi } from "@/api/aplan";
 import { TOPIC_MAP, type TopicKey } from "@/constants/topics";
-import { BOARDS } from "@/constants/boards";
-import { formatTime } from "@/utils";
 import { Avatar } from "@/aplan/components/Avatar";
 import { IconButton } from "@/aplan/components/IconButton";
+import { CompactPostRow } from "@/aplan/components/CompactPostRow";
 import { MyCommentListItem } from "@/aplan/components/MyCommentListItem";
 import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
 import { useInfiniteList } from "@/aplan/hooks/useInfiniteList";
-import type { Me, PostCard } from "@/types/aplan";
+import type { Me } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
 
 type MyTab = "posts" | "comments" | "scraps";
@@ -188,7 +187,7 @@ export function MyScreen({ onOpenPost, onEditProfile, onEditInterests, onOpenSet
                   {posts.status === "ready" &&
                     posts.items.map((post) => (
                       <Fragment key={post.id}>
-                        <MyPostRow post={post} onOpen={onOpenPost} />
+                        <CompactPostRow post={post} onOpen={onOpenPost} />
                         <Divider />
                       </Fragment>
                     ))}
@@ -222,7 +221,7 @@ export function MyScreen({ onOpenPost, onEditProfile, onEditInterests, onOpenSet
                   {scraps.status === "ready" &&
                     scraps.items.map((post) => (
                       <Fragment key={post.id}>
-                        <MyPostRow post={post} onOpen={onOpenPost} />
+                        <CompactPostRow post={post} onOpen={onOpenPost} />
                         <Divider />
                       </Fragment>
                     ))}
@@ -235,25 +234,6 @@ export function MyScreen({ onOpenPost, onEditProfile, onEditInterests, onOpenSet
         )}
       </main>
     </div>
-  );
-}
-
-// 마이페이지 "내 글"·"스크랩" 한 줄 (Figma 2:400): 작성자 표시 없이 제목 + "주제 · 시간 · 좋아요 N".
-// 목록 화면(PostListItem)과 달리 항상 본인 글이라 닉네임을 반복하지 않는다.
-function MyPostRow({ post, onOpen }: { post: PostCard; onOpen: (id: string) => void }) {
-  const topic = (post.topics[0] && TOPIC_MAP[post.topics[0]]?.label) || BOARDS.find((b) => b.key === post.board)?.label || "";
-  const meta = [topic, formatTime(post.createdAt), `좋아요 ${post.likeCount}`].filter(Boolean).join(" · ");
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(post.id)}
-      className="flex w-full flex-col items-start gap-[4px] border-0 bg-transparent py-[12px] px-0 text-left"
-    >
-      <span className="line-clamp-2 w-full text-[15px] leading-[18px] font-[500]" style={{ color: "var(--a-color-text-primary)" }}>
-        {post.title}
-      </span>
-      <span className="text-[12px] leading-[14px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>{meta}</span>
-    </button>
   );
 }
 

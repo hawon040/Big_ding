@@ -11,6 +11,7 @@ import { PostDetailScreen } from "@/aplan/screens/PostDetailScreen";
 import { WriteScreen } from "@/aplan/screens/WriteScreen";
 import { SettingsScreen } from "@/aplan/screens/SettingsScreen";
 import { OnboardingScreen } from "@/aplan/screens/OnboardingScreen";
+import { ProfileScreen } from "@/aplan/screens/ProfileScreen";
 import { EmptyState } from "@/aplan/components/States";
 import type { BoardKey } from "@/constants/boards";
 import type { TopicKey } from "@/constants/topics";
@@ -39,10 +40,14 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
   const [settingsOpen, setSettingsOpen] = useState(false);
   // 온보딩(edit 모드) 재진입 — 여는 시점의 관심 분야를 들고 있는다
   const [editingInterests, setEditingInterests] = useState<TopicKey[] | null>(null);
-  const openPost = (id: string) => setOpenPostId(id);
-  const openUser = () => {
-    /* 프로필 화면 구현 후 연결 */
+  // 프로필 위에서 다른 글을 열면(openPost) 프로필을 닫는다 — 실제 내비게이션 스택이 없어서
+  // 열려 있는 화면이 openUserId > openPostId 우선순위로만 하나 쌓이기 때문
+  const [openUserId, setOpenUserId] = useState<string | null>(null);
+  const openPost = (id: string) => {
+    setOpenUserId(null);
+    setOpenPostId(id);
   };
+  const openUser = (id: string) => setOpenUserId(id);
 
   useEffect(() => {
     let cancelled = false;
@@ -124,6 +129,14 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
             setOpenPostId(postId);
           }}
         />
+      </div>
+    );
+  }
+
+  if (openUserId) {
+    return (
+      <div className="a-screen flex h-dvh flex-col overflow-hidden">
+        <ProfileScreen userId={openUserId} onBack={() => setOpenUserId(null)} onOpenPost={openPost} />
       </div>
     );
   }

@@ -7,6 +7,7 @@ import { FindPasswordScreen } from "@/aplan/screens/FindPasswordScreen";
 import { OnboardingScreen } from "@/aplan/screens/OnboardingScreen";
 import { PostDetailScreen } from "@/aplan/screens/PostDetailScreen";
 import { SettingsScreen } from "@/aplan/screens/SettingsScreen";
+import { ProfileScreen } from "@/aplan/screens/ProfileScreen";
 import { MainShell } from "@/aplan/MainShell";
 import api from "@/api";
 import { fixtureAdapter } from "./aplanFixtures";
@@ -34,6 +35,11 @@ const SCREENS: Record<string, () => ReactElement> = {
   "a08-settings": () => (
     <div className="a-screen flex h-dvh flex-col overflow-hidden">
       <SettingsScreen onBack={noop} />
+    </div>
+  ),
+  "profile": () => (
+    <div className="a-screen flex h-dvh flex-col overflow-hidden">
+      <ProfileScreen userId="u2" onBack={noop} onOpenPost={noop} />
     </div>
   ),
   // Figma 번호 없음 (Figma의 A-08은 설정 화면)
