@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
+const { TOPIC_KEYS } = require("../constants/topics");
 
 const userSchema = new mongoose.Schema({
   // 학번 (로그인 아이디, 중복 불가)
@@ -73,6 +74,42 @@ const userSchema = new mongoose.Schema({
   commentRestrictedUntil: { type: Date },
   commentRestrictionReason: { type: String },
   commentRestrictionSanctionId: { type: mongoose.Schema.Types.ObjectId, ref: "Sanction" },
+
+  // ── A안 ──
+  // 관심 주제 key (온보딩에서 3개 이상 선택 — API에서 검증. 온보딩 전엔 빈 배열)
+  interests: { type: [{ type: String, enum: TOPIC_KEYS }], default: [] },
+  // false면 로그인 후 온보딩 화면으로 보낸다 (기존 가입자도 다음 로그인 때 온보딩)
+  onboardingCompleted: { type: Boolean, default: false },
+
+  department: { type: String, trim: true, maxlength: 50 },
+  grade: { type: Number, min: 1, max: 4 },
+  bio: { type: String, trim: true, maxlength: 150 },
+
+  notificationSettings: {
+    comment: { type: Boolean, default: true },      // 댓글·답글
+    studyRecruit: { type: Boolean, default: true }, // 관심 주제 스터디 모집
+    marketing: { type: Boolean, default: false },   // 저장만 하고 발송 기능은 없음
+  },
+  appSettings: {
+    darkMode: { type: Boolean, default: false },    // 저장만 (다크 테마 색상은 다음 작업)
+  },
+
+  // 최근 검색어 (최신순, 최대 10개. 새 검색 시 앞에 추가·중복 제거·초과분 삭제)
+  recentSearches: {
+    type: [{
+      _id: false,
+      keyword: { type: String, required: true },
+      searchedAt: { type: Date, default: Date.now },
+    }],
+    default: [],
+  },
+
+  // 목록/프로필마다 집계하지 않도록 저장하는 카운트 ($inc로 갱신, scripts/recount.js로 재계산)
+  postCount: { type: Number, default: 0 },
+  commentCount: { type: Number, default: 0 },
+  scrapCount: { type: Number, default: 0 },
+  followerCount: { type: Number, default: 0 },
+  followingCount: { type: Number, default: 0 },
 
 }, { timestamps: true }); // createdAt, updatedAt 자동 생성
 

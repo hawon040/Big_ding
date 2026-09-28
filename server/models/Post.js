@@ -1,5 +1,9 @@
 const mongoose = require("mongoose");
+const { BOARD_KEYS } = require("../constants/boards");
+const { TOPIC_KEYS, MAX_POST_TOPICS } = require("../constants/topics");
 
+// 임베드 댓글은 A안에서 Comment 컬렉션으로 옮긴다. 마이그레이션(scripts/migrate-a-plan.js)이
+// 같은 _id로 복사해두며, 모든 라우트가 Comment 컬렉션을 쓰도록 바뀌기 전까지는 지우지 않는다.
 const commentSchema = new mongoose.Schema({
   author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   content: { type: String, required: true },
@@ -22,11 +26,13 @@ const pollSchema = new mongoose.Schema({
 
 const postSchema = new mongoose.Schema({
   author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  board: {
-  type: String,
-  enum: ["free", "qna", "contest", "event", "lecture", "meeting", "alumni"],
-  required: true,
-},
+  board: { type: String, enum: BOARD_KEYS, required: true },
+  // 관심 주제 key (새 글은 1~3개 필수 — API에서 검증. 기존 글은 빈 배열일 수 있다)
+  topics: {
+    type: [{ type: String, enum: TOPIC_KEYS }],
+    default: [],
+    validate: [(v) => v.length <= MAX_POST_TOPICS, `주제는 최대 ${MAX_POST_TOPICS}개까지 선택할 수 있습니다.`],
+  },
   title: { type: String, required: true },
   // 투표만 올리는 글은 본문 없이도 등록할 수 있어야 하므로, 투표가 없을 때만 필수로 둔다.
   content: {
@@ -54,7 +60,36 @@ const postSchema = new mongoose.Schema({
     enum: ["all", "followers", "private"],
     default: "all",
   },
+
+  // 목록마다 배열 길이/댓글 수를 집계하지 않도록 카운트를 문서에 저장한다.
+  // 좋아요·스크랩은 배열(likes/scraps)이 원본이고, 카운트는 $inc로 함께 갱신한다.
+  // 어긋나면 scripts/recount.js로 재계산한다.
+  viewCount: { type: Number, default: 0 },
+  likeCount: { type: Number, default: 0 },
+  commentCount: { type: Number, default: 0 },
+  scrapCount: { type: Number, default: 0 },
+  // 홈 인기순 정렬용 (utils/popularity.js)
+  popularityScore: { type: Number, default: 0 },
+
+  // 스터디·공모전 모집 정보 (RECRUIT_BOARDS에서만 사용)
+  recruit: {
+    type: new mongoose.Schema({
+      status: { type: String, enum: ["open", "closed"], default: "open" },
+      capacity: { type: Number, min: 2 },
+      current: { type: Number, min: 0, default: 1 },
+    }, { _id: false }),
+    default: undefined,
+  },
+  // Q&A 채택 댓글 (ACCEPT_BOARDS에서만 사용, 채택 후 변경 불가)
+  acceptedCommentId: { type: mongoose.Schema.Types.ObjectId, ref: "Comment", default: null },
+
+  // 소프트 삭제. 목록/상세에서 제외한다.
+  isDeleted: { type: Boolean, default: false },
+  deletedAt: { type: Date },
 }, { timestamps: true });
+
+// A안 인덱스는 운영 DB에 자동 생성되지 않도록 스키마에 선언하지 않고
+// db/aPlanIndexes.js + scripts/indexes-a-plan.js로 확인 후 생성한다.
 
 // 메인 피드 조회(GET /api/posts)가 매번 isBlocked:false + board 필터 + createdAt 내림차순
 // 정렬을 하므로 이 조합에 복합 인덱스를 건다.

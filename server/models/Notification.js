@@ -7,7 +7,14 @@ const notificationSchema = new mongoose.Schema({
     "follow", "join", "leave", "comment", "reply", "like", "dislike", "scrap",
     "adminWarning", "adminBan", "adminCommentRestriction",
     "reportResolved", "inquiryResolved",
+    "accepted", "study_recruit", // A안: Q&A 채택, 관심 주제 스터디 모집
   ], required: true },
+  // 알림이 가리키는 댓글 (comment/reply/accepted)
+  comment: { type: mongoose.Schema.Types.ObjectId, ref: "Comment" },
+  // 같은 글 좋아요를 1시간 안에 묶을 때 모인 사람들 (sender는 가장 최근 사람).
+  // "OO님 외 N명" 표시는 actorCount - 1로 계산한다.
+  actors: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  actorCount: { type: Number, default: 1 },
   // 공강모임 참여/참여취소, 댓글 알림이 어느 게시물에 대한 것인지 표시하기 위한 참조
   post: { type: mongoose.Schema.Types.ObjectId, ref: "Post" },
   commentContent: { type: String }, // "어떤 댓글을 남겼는지" 알림에 표시하기 위한 스냅샷 (comment/reply 타입 전용)
