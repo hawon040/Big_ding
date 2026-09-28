@@ -12,6 +12,8 @@ const crypto = require("crypto");
 const auth = require("../middleware/authMiddleware");
 const isAdmin = require("../middleware/adminMiddleware");
 const { escapeRegex } = require("../utils/regex");
+const { withLegacyComments } = require("../utils/comments");
+const { detachAllFollows } = require("../services/relationService");
 
 router.use(auth, isAdmin);
 
@@ -263,12 +265,16 @@ router.post("/users/:userId/withdraw", async (req, res) => {
     const sanction = await Sanction.create({ user: userId, type: "forceWithdraw", reason: reason.trim(), admin: req.user.id, report: reportId || undefined });
     await resolveReportWithSanction({ reportId, sanctionType: "forceWithdraw", reason: reason.trim(), adminId: req.user.id, targetUserId: userId });
 
+    // 팔로우 관계는 상대방의 팔로워·팔로잉 수도 함께 줄인다.
+    await detachAllFollows(target);
     await User.updateMany(
       {},
       { $pull: { friends: userId, followers: userId, following: userId, blockedUsers: userId } }
     );
     await FriendRequest.deleteMany({ $or: [{ from: userId }, { to: userId }] });
 
+    target.followerCount = 0;
+    target.followingCount = 0;
     target.nickname = "탈퇴한 사용자";
     target.avatar = undefined;
     target.studentId = `WITHDRAWN_${target.studentId}_${Date.now()}`;
@@ -312,14 +318,14 @@ router.get("/posts", async (req, res) => {
     const [posts, total] = await Promise.all([
       Post.find(query)
         .populate("author", "nickname avatar studentId")
-        .populate("comments.author", "nickname avatar")
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit),
       Post.countDocuments(query),
     ]);
 
-    res.json({ posts, total, page, hasMore: page * limit < total });
+    // 댓글 원본은 Comment 컬렉션이므로 기존 응답 형태(comments 배열)로 붙여서 내려준다.
+    res.json({ posts: await withLegacyComments(posts), total, page, hasMore: page * limit < total });
   } catch (err) {
     res.status(500).json({ message: "서버 오류" });
   }

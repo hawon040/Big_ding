@@ -6,17 +6,38 @@ const User = require("../models/User");
 const Notification = require("../models/Notification");
 const auth = require("../middleware/authMiddleware");
 const isAdmin = require("../middleware/adminMiddleware");
+const Comment = require("../models/Comment");
+const { withLegacyComments } = require("../utils/comments");
+const v = require("../utils/validate");
 
-// POST /api/reports - 신고 접수
+const TARGET_MODELS = { post: Post, comment: Comment, user: User };
+
+// POST /api/reports - 신고 접수 { targetType, targetId, reason, detail? }
 router.post("/", auth, async (req, res) => {
   try {
     // status/sanctionApplied/sanctionType까지 req.body로 그대로 넘기면 신고자가
     // 자기 신고의 처리 상태를 직접 조작할 수 있으므로, 신고 접수에 필요한 필드만 골라 쓴다.
-    const { targetType, targetId, reason } = req.body;
-    const report = await Report.create({ targetType, targetId, reason, reporter: req.user.id });
+    const { targetType, targetId } = req.body;
+    if (!TARGET_MODELS[targetType]) v.fail("신고 대상 유형이 올바르지 않습니다.");
+    if (!v.isId(String(targetId))) v.fail("신고 대상이 올바르지 않습니다.");
+    const reason = v.requireString(req.body.reason, "신고 사유", { max: 200 });
+    const detail = req.body.detail ? v.requireString(req.body.detail, "상세 내용", { max: 500 }) : undefined;
+
+    // 기존 임베드 댓글(마이그레이션 전)도 신고할 수 있도록 댓글은 두 곳 모두 확인한다.
+    const exists = targetType === "comment"
+      ? (await Comment.exists({ _id: targetId })) || (await Post.exists({ "comments._id": targetId }))
+      : await TARGET_MODELS[targetType].exists({ _id: targetId });
+    if (!exists) return res.status(404).json({ message: "신고 대상을 찾을 수 없습니다." });
+    if (targetType === "user" && String(targetId) === String(req.user.id)) v.fail("자기 자신은 신고할 수 없습니다.");
+
+    // 같은 대상을 처리 대기 중에 다시 신고하는 것은 막는다.
+    if (await Report.exists({ reporter: req.user.id, targetType, targetId, status: "pending" })) {
+      return res.status(409).json({ message: "이미 신고한 대상입니다." });
+    }
+    const report = await Report.create({ targetType, targetId, reason, detail, reporter: req.user.id });
     res.status(201).json({ message: "신고가 접수되었습니다.", report });
   } catch (err) {
-    res.status(500).json({ message: "서버 오류" });
+    v.handleError(res, err);
   }
 });
 
@@ -49,20 +70,19 @@ router.get("/:id/target", auth, isAdmin, async (req, res) => {
     if (!report) return res.status(404).json({ message: "신고를 찾을 수 없습니다." });
 
     if (report.targetType === "post") {
-      const post = await Post.findById(report.targetId)
-        .populate("author", "nickname avatar studentId")
-        .populate("comments.author", "nickname avatar");
+      const post = await Post.findById(report.targetId).populate("author", "nickname avatar studentId");
       if (!post) return res.status(404).json({ message: "게시물을 찾을 수 없습니다. 삭제되었을 수 있습니다." });
-      return res.json({ targetType: "post", post });
+      return res.json({ targetType: "post", post: await withLegacyComments(post) });
     }
 
     if (report.targetType === "comment") {
-      // 댓글은 게시물 안에 임베드되어 있으므로, 해당 댓글을 담고 있는 게시물을 찾아서 함께 내려준다.
-      const post = await Post.findOne({ "comments._id": report.targetId })
-        .populate("author", "nickname avatar studentId")
-        .populate("comments.author", "nickname avatar");
+      // 댓글을 담고 있는 게시물을 함께 내려준다 (댓글 원본은 Comment 컬렉션, 기존 임베드 댓글도 확인)
+      const comment = await Comment.findById(report.targetId).select("post").lean();
+      const post = comment
+        ? await Post.findById(comment.post).populate("author", "nickname avatar studentId")
+        : await Post.findOne({ "comments._id": report.targetId }).populate("author", "nickname avatar studentId");
       if (!post) return res.status(404).json({ message: "댓글을 찾을 수 없습니다. 삭제되었을 수 있습니다." });
-      return res.json({ targetType: "comment", post, targetCommentId: report.targetId });
+      return res.json({ targetType: "comment", post: await withLegacyComments(post), targetCommentId: report.targetId });
     }
 
     // targetType === "user"
