@@ -107,8 +107,18 @@ router.post("/check-nickname", async (req, res) => {
 // POST /api/auth/register - 회원가입
 router.post("/register", async (req, res) => {
   try {
-    const { studentId, name, professor, code, password, phone } = req.body;
+    const { studentId, name, professor, code, password, phone, department, grade } = req.body;
     if (!studentId) return res.status(400).json({ message: "학번을 입력해주세요." });
+
+    // A안 회원가입에서 추가로 받는 학과·학년 (선택)
+    const departmentValue = typeof department === "string" && department.trim() ? department.trim() : undefined;
+    if (departmentValue && departmentValue.length > 50) {
+      return res.status(400).json({ message: "학과는 50자 이하로 입력해주세요." });
+    }
+    const gradeValue = grade === undefined || grade === null || grade === "" ? undefined : Number(grade);
+    if (gradeValue !== undefined && (!Number.isInteger(gradeValue) || gradeValue < 1 || gradeValue > 4)) {
+      return res.status(400).json({ message: "학년은 1~4 사이로 선택해주세요." });
+    }
     if (!guardCodeAttempt(res, studentId)) return;
 
     // 교수별 인증번호 검증
@@ -135,6 +145,9 @@ router.post("/register", async (req, res) => {
       nickname: name,            // 이름을 닉네임으로 저장
       professor,
       phone: normalizedPhone,
+      department: departmentValue,
+      grade: gradeValue,
+      onboardingCompleted: false, // 로그인 후 관심 분야 온보딩으로 이동
       isFirstLogin: false,       // 회원가입으로 생성 → 바로 로그인 가능
     });
 
