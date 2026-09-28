@@ -45,6 +45,9 @@
   max-width: var(--a-screen-max);
   min-height: 100dvh;
   margin: 0 auto;
+  /* Figma 프레임은 1px 테두리 안쪽(358px)에 내용이 놓인다. 테두리는 그리지 않되 같은 폭을
+     유지해야 칩 줄바꿈 등 배치가 Figma와 똑같아지므로 좌우 1px을 비워둔다. */
+  padding-inline: 1px;
   font-family: var(--a-font-sans);
   color: var(--a-color-text-primary);
   background: var(--a-color-bg);

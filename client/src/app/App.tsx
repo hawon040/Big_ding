@@ -13,7 +13,9 @@ import { useSocket } from "@/hooks/useSocket";
 import "@/styles/tokens.css";
 import { Modal } from "@/components/ui/Modal";
 import { SplashScreen } from "@/aplan/screens/SplashScreen";
+import { OnboardingScreen } from "@/aplan/screens/OnboardingScreen";
 import { meApi } from "@/api/aplan";
+import type { Me } from "@/types/aplan";
 
 const SPLASH_MIN_MS = 1000;
 
@@ -148,24 +150,27 @@ const [currentTime, setCurrentTime] = useState("");
 
   // 앱 시작: 스플래시(A-01)를 최소 1초 보여주면서 토큰을 확인한다 → 자동 로그인
   const [booting, setBooting] = useState(true);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
   useEffect(() => {
     const token = localStorage.getItem("token");
     const autoLogin = localStorage.getItem("autoLogin");
     const minDelay = new Promise((resolve) => setTimeout(resolve, SPLASH_MIN_MS));
-    let check: Promise<boolean>;
+    let check: Promise<Me | null>;
     if (token && autoLogin === "true") {
       // 토큰이 아직 유효한지 서버에 확인한다 (만료됐으면 api 인터셉터가 로그아웃 처리)
-      check = meApi.get().then(() => true).catch(() => false);
+      check = meApi.get().catch(() => null);
     } else {
       // 자동 로그인을 선택하지 않았다면 이전 토큰은 정리
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      check = Promise.resolve(false);
+      check = Promise.resolve(null);
     }
     let cancelled = false;
-    Promise.all([check, minDelay]).then(([ok]) => {
+    Promise.all([check, minDelay]).then(([me]) => {
       if (cancelled) return;
-      setLoggedIn(ok);
+      // 미로그인 → 로그인(A-02) / 온보딩 미완료 → 온보딩(A-03) / 완료 → 메인
+      setLoggedIn(!!me);
+      setNeedsOnboarding(!!me && !me.onboardingCompleted);
       setBooting(false);
     });
     return () => {
@@ -227,6 +232,11 @@ const [currentTime, setCurrentTime] = useState("");
 
   if (booting) return <SplashScreen />;
 
+  // 관심 분야 온보딩 (A-03) — 기존 사용자도 온보딩을 마치지 않았으면 로그인 후 여기로 온다.
+  if (loggedIn && needsOnboarding) {
+    return <OnboardingScreen onDone={() => setNeedsOnboarding(false)} />;
+  }
+
   // 회원가입 화면
   if (showRegister) {
     return phoneFrame(
@@ -253,8 +263,10 @@ const [currentTime, setCurrentTime] = useState("");
           />
         ) : (
           <LoginScreen
-            onLogin={() => {
+            onLogin={async () => {
               setNickname(getCurrentUser()?.nickname ?? "");
+              const me = await meApi.get().catch(() => null);
+              setNeedsOnboarding(!!me && !me.onboardingCompleted);
               setLoggedIn(true);
             }}
             onRegister={() => setShowConsentModal(true)}

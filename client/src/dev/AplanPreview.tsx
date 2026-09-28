@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { SplashScreen } from "@/aplan/screens/SplashScreen";
 import { LoginScreen } from "@/aplan/screens/LoginScreen";
 import { FindPasswordScreen } from "@/aplan/screens/FindPasswordScreen";
+import { OnboardingScreen } from "@/aplan/screens/OnboardingScreen";
 
 const noop = () => {};
 
@@ -11,6 +12,8 @@ const SCREENS: Record<string, () => ReactElement> = {
   "a01-splash": () => <SplashScreen />,
   "a02-login": () => <LoginScreen onLogin={noop} onRegister={noop} onFindPassword={noop} />,
   "a02-find-password": () => <FindPasswordScreen onBack={noop} onDone={noop} />,
+  "a03-onboarding": () => <OnboardingScreen initialInterests={["python", "sql", "ml", "dataviz"]} onDone={noop} />,
+  "a03-onboarding-edit": () => <OnboardingScreen mode="edit" initialInterests={["python", "sql"]} onDone={noop} onBack={noop} />,
 };
 
 export default function AplanPreview({ name }: { name: string }) {
