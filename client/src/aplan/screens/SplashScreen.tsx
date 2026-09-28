@@ -12,7 +12,7 @@ export function SplashScreen() {
       <main
         className="a-screen flex flex-col items-center justify-center gap-[16px] px-[20px] py-[12px]"
         style={{ background: "var(--a-color-surface-inverse)" }}
-        aria-label="빅딩 시작 화면"
+        aria-label="Big Ding 시작 화면"
       >
         {/* data-node-id 2:4 로고 */}
         <div
@@ -21,9 +21,9 @@ export function SplashScreen() {
         >
           <img src={appIcon} alt="" className="size-full object-contain" />
         </div>
-        {/* data-node-id 2:5 앱 이름 (Figma "Datalk" → "빅딩") */}
+        {/* data-node-id 2:5 앱 이름 (Figma "Datalk" → "Big Ding") */}
         <h1 className="m-0 whitespace-nowrap text-[30px] font-bold leading-[36px]" style={{ color: "var(--a-color-on-inverse)" }}>
-          빅딩
+          Big Ding
         </h1>
         {/* data-node-id 2:6 슬로건 */}
         <p className="m-0 whitespace-nowrap text-[13px] font-normal leading-[16px]" style={{ color: "var(--a-color-text-secondary)" }}>

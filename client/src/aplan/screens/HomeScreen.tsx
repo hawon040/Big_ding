@@ -39,7 +39,7 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenPost, on
       {/* 2:97 헤더: 로고 + [메시지] [알림] */}
       <header className="flex w-full shrink-0 items-center gap-[14px] px-[20px] py-[10px]">
         <h1 className="m-0 text-[22px] leading-[26px] font-bold whitespace-nowrap" style={{ color: "var(--a-color-text-primary)" }}>
-          빅딩
+          Big Ding
         </h1>
         <span className="min-w-px flex-1" aria-hidden />
         <IconButton icon={Send} label="메시지" badge={unreadMessages} onClick={onOpenMessages} />
