@@ -1,5 +1,11 @@
 const mongoose = require("mongoose");
 
+const NOTIFICATION_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+// 자동 삭제하지 않는 알림 유형
+const PERSISTENT_TYPES = [
+  "adminWarning", "adminBan", "adminCommentRestriction", "reportResolved", "inquiryResolved",
+];
+
 const notificationSchema = new mongoose.Schema({
   recipient: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   sender: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
@@ -15,6 +21,14 @@ const notificationSchema = new mongoose.Schema({
   // "OO님 외 N명" 표시는 actorCount - 1로 계산한다.
   actors: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   actorCount: { type: Number, default: 1 },
+  // TTL 인덱스(db/aPlanIndexes.js)가 이 시각에 알림을 자동 삭제한다. 제재·신고/문의 처리 결과
+  // 알림은 사용자가 사유를 계속 확인할 수 있어야 하므로 값을 비워 삭제 대상에서 뺀다.
+  expiresAt: {
+    type: Date,
+    default: function () {
+      return PERSISTENT_TYPES.includes(this.type) ? undefined : new Date(Date.now() + NOTIFICATION_TTL_MS);
+    },
+  },
   // 공강모임 참여/참여취소, 댓글 알림이 어느 게시물에 대한 것인지 표시하기 위한 참조
   post: { type: mongoose.Schema.Types.ObjectId, ref: "Post" },
   commentContent: { type: String }, // "어떤 댓글을 남겼는지" 알림에 표시하기 위한 스냅샷 (comment/reply 타입 전용)
@@ -28,3 +42,5 @@ notificationSchema.index({ recipient: 1, createdAt: -1 });
 notificationSchema.index({ recipient: 1, read: 1 });
 
 module.exports = mongoose.model("Notification", notificationSchema);
+module.exports.PERSISTENT_TYPES = PERSISTENT_TYPES;
+module.exports.NOTIFICATION_TTL_MS = NOTIFICATION_TTL_MS;

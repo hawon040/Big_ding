@@ -20,13 +20,13 @@ module.exports = [
   // User — 스터디 모집 알림 대상(관심 주제가 겹치는 사용자) 조회
   { collection: "users", key: { interests: 1 }, options: { name: "interests_1" } },
 
-  // Notification — 미읽음 목록/개수, 90일 지난 알림 자동 삭제
+  // Notification — 미읽음 목록/개수, expiresAt 시각에 자동 삭제 (제재·처리 결과 알림은 expiresAt 없음)
   { collection: "notifications", key: { recipient: 1, read: 1, createdAt: -1 }, options: { name: "recipient_1_read_1_createdAt_-1" } },
   {
     collection: "notifications",
-    key: { createdAt: 1 },
-    options: { name: "createdAt_ttl_90d", expireAfterSeconds: 90 * DAY },
-    danger: "생성 직후 90일이 지난 기존 알림(관리자 제재 알림 포함)이 자동 삭제됩니다.",
+    key: { expiresAt: 1 },
+    options: { name: "expiresAt_ttl", expireAfterSeconds: 0 },
+    danger: "생성 직후 expiresAt이 지난 알림이 자동 삭제됩니다 (migrate-a-plan.js가 기존 일반 알림에 생성일+90일을 채움).",
   },
 
   // PostView — 하루 1회 조회수 (unique + 24시간 TTL)

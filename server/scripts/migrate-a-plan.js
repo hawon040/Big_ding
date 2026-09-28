@@ -7,10 +7,12 @@
 //           isDeleted false, 인기 점수 계산. board 값은 바꾸지 않는다.
 //  2. Comment: Post에 임베드된 댓글을 같은 _id로 comments 컬렉션에 복사 (임베드 원본은 유지)
 //  3. User: interests 빈 배열, onboardingCompleted false(없을 때만), 기본 설정값, 카운트 계산
+//  4. Notification: 일반 알림에 expiresAt(생성일+90일). 제재·처리 결과 알림은 비워둠
 const { APPLY, run, bulkWriteInChunks } = require("./_lib");
 const { BOARD_KEYS } = require("../constants/boards");
 const { MAX_POST_TAGS } = require("../constants/topics");
 const { normalizeTags } = require("../utils/tags");
+const { PERSISTENT_TYPES, NOTIFICATION_TTL_MS } = require("../models/Notification");
 const { computePopularity, POPULAR_WINDOW_MS } = require("../utils/popularity");
 
 const TITLE_MAX = 100;
@@ -208,10 +210,33 @@ const migrateUsers = async (db) => {
   }
 };
 
+// 기존 일반 알림에 expiresAt(생성일+90일)을 채운다. 제재·처리 결과 알림은 비워서 영구 보관.
+const migrateNotifications = async (db, now) => {
+  const notifications = db.collection("notifications");
+  const filter = { expiresAt: { $exists: false }, type: { $nin: PERSISTENT_TYPES } };
+  const [target, alreadyExpired, persistent] = await Promise.all([
+    notifications.countDocuments(filter),
+    notifications.countDocuments({ ...filter, createdAt: { $lt: new Date(now - NOTIFICATION_TTL_MS) } }),
+    notifications.countDocuments({ type: { $in: PERSISTENT_TYPES } }),
+  ]);
+
+  console.log("\n[Notification]");
+  console.log(`  expiresAt 채울 일반 알림 ${target}개 (그중 이미 90일 지나 TTL 인덱스 생성 시 삭제될 알림 ${alreadyExpired}개)`);
+  console.log(`  영구 보관(제재·신고/문의 처리 결과) 알림 ${persistent}개`);
+
+  if (APPLY && target) {
+    const res = await notifications.updateMany(filter, [
+      { $set: { expiresAt: { $add: ["$createdAt", NOTIFICATION_TTL_MS] } } },
+    ]);
+    console.log(`  ✅ 반영: ${res.modifiedCount}개 수정`);
+  }
+};
+
 run("migrate-a-plan", async (db) => {
   const now = Date.now();
   await migratePosts(db, now);
   await migrateComments(db);
   await migrateUsers(db);
+  await migrateNotifications(db, now);
   if (!APPLY) console.log("\n변경 없음 (dry-run). 반영하려면 --apply --backup-confirmed");
 });
