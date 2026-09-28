@@ -64,7 +64,7 @@ export function MyScreen({ onOpenPost, onEditProfile, onEditInterests, onOpenSet
         <IconButton icon={Settings} label="설정" onClick={onOpenSettings} />
       </header>
 
-      <main className="flex min-h-0 w-full flex-1 flex-col items-start gap-[20px] overflow-y-auto px-[20px] py-[4px] pb-[24px]">
+      <main className="flex min-h-0 w-full flex-1 flex-col items-start gap-[16px] overflow-y-auto px-[20px] py-[4px] pb-[24px]">
         {meError && <ErrorState message={meError} onRetry={loadMe} />}
 
         {!meError && (

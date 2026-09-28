@@ -56,8 +56,10 @@ export function LoginScreen({ onLogin, onRegister, onFindPassword }: LoginScreen
         noValidate
         className="flex min-h-dvh flex-1 flex-col items-start gap-[14px] px-[20px] py-[12px]"
       >
-        {/* 2:10 위쪽 여백 */}
-        <div className="min-h-px flex-1" aria-hidden />
+        {/* 2:10 위쪽 여백. Figma 원본엔 이 아래 소셜 로그인 버튼 3개가 더 있어서(주석 참고, 넣지 않음)
+            위아래를 flex-1로 반씩 나누면 소셜 로그인만큼 위로 더 밀려 내려간다. 실제 배치와 맞도록
+            Figma 사각형 높이(119.5px) 그대로 고정하고, 아래쪽만 flex-1로 나머지 공간을 흡수한다. */}
+        <div className="h-[119.5px] shrink-0" aria-hidden />
         {/* 2:11 제목 */}
         <h1 className="m-0 w-full text-[26px] leading-[31px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
           다시 만나서
