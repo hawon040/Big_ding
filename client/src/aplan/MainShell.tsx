@@ -4,6 +4,7 @@ import { notificationApi } from "@/api/aplan";
 import { BottomTabBar, type MainTab } from "@/aplan/components/BottomTabBar";
 import { HomeScreen } from "@/aplan/screens/HomeScreen";
 import { CommunityScreen } from "@/aplan/screens/CommunityScreen";
+import { SearchScreen } from "@/aplan/screens/SearchScreen";
 import { EmptyState } from "@/aplan/components/States";
 import "@/styles/aplan-tokens.css";
 
@@ -65,8 +66,20 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
         />
       );
       break;
+    case "search":
+      content = (
+        <SearchScreen
+          onOpenPost={() => {
+            /* A-09 상세 구현 후 연결 */
+          }}
+          onOpenUser={() => {
+            /* 프로필 화면 구현 후 연결 */
+          }}
+        />
+      );
+      break;
     default:
-      // 아직 구현 전인 탭 (A-05 검색, 알림, A-07 MY)
+      // 아직 구현 전인 탭 (알림, A-07 MY)
       content = (
         <main className="flex flex-1 items-center justify-center px-[20px]">
           <EmptyState title="준비 중인 화면이에요" />

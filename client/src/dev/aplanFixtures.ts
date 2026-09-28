@@ -1,7 +1,7 @@
 // 개발 전용: A안 미리보기(/__aplan/...)에서 서버 대신 응답하는 가짜 API.
 // 내용은 Figma 시안의 예시(제목·숫자·주제)와 같게 맞춰 비교 스크린샷을 찍을 수 있게 한다.
 import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
-import type { Page, PostCard, TopicChipItem } from "@/types/aplan";
+import type { Page, PostCard, RecentSearch, TopicChipItem, TrendingKeyword, UserSummary } from "@/types/aplan";
 
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
 
@@ -45,6 +45,25 @@ export const communityPosts: PostCard[] = [
   listItem("c4", "competition", "공공데이터 활용 공모전 팀원 구해요"),
 ];
 
+const allPosts = [...feedPosts, ...communityPosts];
+
+const sampleUsers: UserSummary[] = [
+  { id: "u1", nickname: "데이터곰", department: "통계학과", profileImage: null, isWithdrawn: false, bio: "숫자로 세상 읽기", isFollowing: false },
+  { id: "u2", nickname: "판다마스터", department: "산업공학과", profileImage: null, isWithdrawn: false, bio: "Pandas 3년차", isFollowing: true },
+];
+
+let recentSearches: RecentSearch[] = [
+  { keyword: "판다스", searchedAt: minutesAgo(60) },
+  { keyword: "빅분기", searchedAt: minutesAgo(120) },
+];
+
+const trendingKeywords: TrendingKeyword[] = [
+  { keyword: "판다스", rank: 1, change: "up" },
+  { keyword: "캐글", rank: 2, change: "same" },
+  { keyword: "SQL 스터디", rank: 3, change: "new" },
+  { keyword: "빅분기", rank: 4, change: "down" },
+];
+
 const feedTopics: TopicChipItem[] = [
   { key: "all", label: "전체", shortLabel: "전체" },
   { key: "python", label: "Python", shortLabel: "Python" },
@@ -67,6 +86,41 @@ const routes: [RegExp, Handler][] = [
       return { items, nextCursor: null };
     },
   ],
+  [
+    /^\/search$/,
+    (c) => {
+      const q: string = (c.params?.q || "").trim();
+      const type: string = c.params?.type || "post";
+      const isTagQuery = q.startsWith("#");
+      const term = (isTagQuery ? q.slice(1) : q).toLowerCase();
+
+      if (type === "post") {
+        if (!c.params?.cursor) {
+          recentSearches = [{ keyword: q, searchedAt: new Date().toISOString() }, ...recentSearches.filter((r) => r.keyword !== q)].slice(0, 10);
+        }
+        const items = allPosts.filter((p) =>
+          isTagQuery ? p.tags.some((t) => t.toLowerCase() === term) : p.title.toLowerCase().includes(term) || p.tags.some((t) => t.toLowerCase().includes(term)),
+        );
+        return { items, nextCursor: null } satisfies Page<PostCard>;
+      }
+      if (type === "user") {
+        const items = sampleUsers.filter((u) => u.nickname.toLowerCase().includes(term));
+        return { items, nextCursor: null } satisfies Page<UserSummary>;
+      }
+      // type === "tag"
+      const counts = new Map<string, number>();
+      allPosts.forEach((p) => p.tags.forEach((t) => t.toLowerCase().startsWith(term) && counts.set(t, (counts.get(t) || 0) + 1)));
+      const items = [...counts.entries()].map(([tag, postCount]) => ({ tag, postCount })).sort((a, b) => b.postCount - a.postCount);
+      return { items, nextCursor: null };
+    },
+  ],
+  [/^\/search\/recent$/, (c) => (c.method === "delete" ? ((recentSearches = []), { message: "삭제되었습니다." }) : { items: recentSearches })],
+  [/^\/search\/recent\/[^/]+$/, (c) => {
+    const keyword = decodeURIComponent((c.url || "").split("?")[0].split("/").pop() || "");
+    recentSearches = recentSearches.filter((r) => r.keyword !== keyword);
+    return { message: "삭제되었습니다." };
+  }],
+  [/^\/search\/trending$/, () => ({ items: trendingKeywords, computedAt: new Date().toISOString() })],
   [/^\/notifications\/unread-count$/, () => ({ count: 0 })],
   [/^\/chat\/unread-count$/, () => ({ count: 0 })],
   [/^\/posts\/[^/]+\/(like|scrap)$/, (c) => ({ isLiked: c.method === "post", likeCount: 25, isScrapped: c.method === "post", scrapCount: 4 })],

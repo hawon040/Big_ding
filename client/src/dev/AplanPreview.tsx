@@ -21,6 +21,7 @@ const SCREENS: Record<string, () => ReactElement> = {
   "a03-onboarding": () => <OnboardingScreen initialInterests={["python", "sql", "ml", "dataviz"]} onDone={noop} />,
   "a03-onboarding-edit": () => <OnboardingScreen mode="edit" initialInterests={["python", "sql"]} onDone={noop} onBack={noop} />,
   "a04-home": () => <MainShell />,
+  "a05-search": () => <MainShell initialTab="search" />,
   "a06-community": () => <MainShell initialTab="community" />,
 };
 
