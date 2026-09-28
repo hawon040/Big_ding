@@ -2,13 +2,14 @@ import { Fragment, useEffect, useState } from "react";
 import { Settings } from "lucide-react";
 import { meApi, userApi } from "@/api/aplan";
 import { TOPIC_MAP } from "@/constants/topics";
+import { BOARDS } from "@/constants/boards";
+import { formatTime } from "@/utils";
 import { Avatar } from "@/aplan/components/Avatar";
 import { IconButton } from "@/aplan/components/IconButton";
-import { PostListItem } from "@/aplan/components/PostListItem";
 import { MyCommentListItem } from "@/aplan/components/MyCommentListItem";
 import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
 import { useInfiniteList } from "@/aplan/hooks/useInfiniteList";
-import type { Me } from "@/types/aplan";
+import type { Me, PostCard } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
 
 type MyTab = "posts" | "comments" | "scraps";
@@ -21,8 +22,8 @@ interface MyScreenProps {
   onOpenSettings: () => void;
 }
 
-// A-07 MY (Figma에 명세가 없어 A안 톤으로 구성).
-// 프로필 요약 + 관심 분야 + 내 글·내 댓글·스크랩 탭.
+// A-07 마이페이지 (Figma 2:400).
+// 프로필 요약 + 활동 통계 + 관심 분야 + 내 글·댓글·스크랩 탭.
 export function MyScreen({ onOpenPost, onEditProfile, onEditInterests, onOpenSettings }: MyScreenProps) {
   const [me, setMe] = useState<Me | null>(null);
   const [meError, setMeError] = useState<string | null>(null);
@@ -49,17 +50,17 @@ export function MyScreen({ onOpenPost, onEditProfile, onEditInterests, onOpenSet
     [tab, me?.id],
   );
 
-  const tabs: { key: MyTab; label: string; count: number | undefined }[] = [
-    { key: "posts", label: "내 글", count: me?.counts.posts },
-    { key: "comments", label: "내 댓글", count: me?.counts.comments },
-    { key: "scraps", label: "스크랩", count: me?.counts.scraps },
+  const tabs: { key: MyTab; label: string }[] = [
+    { key: "posts", label: "내 글" },
+    { key: "comments", label: "댓글" },
+    { key: "scraps", label: "스크랩" },
   ];
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex w-full shrink-0 items-center gap-[12px] px-[20px] py-[12px]">
         <h1 className="m-0 min-w-px flex-1 text-[18px] leading-[22px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
-          MY
+          마이페이지
         </h1>
         <IconButton icon={Settings} label="설정" onClick={onOpenSettings} />
       </header>
@@ -101,6 +102,32 @@ export function MyScreen({ onOpenPost, onEditProfile, onEditInterests, onOpenSet
               <p className="m-0 -mt-[8px] w-full text-[13px] leading-[16px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>{me.bio}</p>
             )}
 
+            {/* 활동 통계 (Figma 2:400) */}
+            <section
+              className="flex w-full items-stretch border border-solid"
+              style={{ borderColor: "var(--a-color-border)", borderRadius: "var(--a-radius-card)" }}
+            >
+              {([
+                { label: "게시글", value: me?.counts.posts },
+                { label: "댓글", value: me?.counts.comments },
+                { label: "스크랩", value: me?.counts.scraps },
+                { label: "팔로워", value: me?.counts.followers },
+              ] as const).map((s, i) => (
+                <div
+                  key={s.label}
+                  className="flex min-w-px flex-1 flex-col items-center gap-[2px] py-[14px]"
+                  style={i > 0 ? { borderLeft: "1px solid var(--a-color-border)" } : undefined}
+                >
+                  {s.value === undefined ? (
+                    <Skeleton className="h-[20px] w-[24px]" />
+                  ) : (
+                    <span className="text-[17px] leading-[20px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>{s.value}</span>
+                  )}
+                  <span className="text-[11px] leading-[13px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>{s.label}</span>
+                </div>
+              ))}
+            </section>
+
             {/* 관심 분야 */}
             <section className="flex w-full flex-col gap-[8px]">
               <div className="flex w-full items-center gap-[8px]">
@@ -128,8 +155,8 @@ export function MyScreen({ onOpenPost, onEditProfile, onEditInterests, onOpenSet
               </div>
             </section>
 
-            {/* 내 글 · 내 댓글 · 스크랩 탭 */}
-            <div className="flex w-full shrink-0 gap-[8px]" role="tablist" aria-label="내 활동">
+            {/* 내 글 · 댓글 · 스크랩 탭 (Figma는 언더라인 탭 스타일) */}
+            <div className="flex w-full shrink-0" role="tablist" aria-label="내 활동">
               {tabs.map((t) => {
                 const selected = t.key === tab;
                 return (
@@ -139,15 +166,14 @@ export function MyScreen({ onOpenPost, onEditProfile, onEditInterests, onOpenSet
                     role="tab"
                     aria-selected={selected}
                     onClick={() => setTab(t.key)}
-                    className="shrink-0 border-0 px-[12px] py-[6px] text-[12px] leading-[14px] font-[500] whitespace-nowrap"
+                    className="flex-1 border-0 border-b-2 border-solid bg-transparent py-[10px] text-[14px] leading-[17px] whitespace-nowrap"
                     style={{
-                      borderRadius: "var(--a-radius-pill)",
-                      background: selected ? "var(--a-color-surface-inverse)" : "var(--a-color-surface-muted)",
-                      color: selected ? "var(--a-color-on-inverse)" : "var(--a-color-icon)",
+                      borderColor: selected ? "var(--a-color-text-primary)" : "var(--a-color-border)",
+                      color: selected ? "var(--a-color-text-primary)" : "var(--a-color-text-secondary)",
+                      fontWeight: selected ? 700 : 400,
                     }}
                   >
                     {t.label}
-                    {t.count !== undefined ? ` ${t.count}` : ""}
                   </button>
                 );
               })}
@@ -162,7 +188,7 @@ export function MyScreen({ onOpenPost, onEditProfile, onEditInterests, onOpenSet
                   {posts.status === "ready" &&
                     posts.items.map((post) => (
                       <Fragment key={post.id}>
-                        <PostListItem post={post} onOpen={onOpenPost} />
+                        <MyPostRow post={post} onOpen={onOpenPost} />
                         <Divider />
                       </Fragment>
                     ))}
@@ -196,7 +222,7 @@ export function MyScreen({ onOpenPost, onEditProfile, onEditInterests, onOpenSet
                   {scraps.status === "ready" &&
                     scraps.items.map((post) => (
                       <Fragment key={post.id}>
-                        <PostListItem post={post} onOpen={onOpenPost} />
+                        <MyPostRow post={post} onOpen={onOpenPost} />
                         <Divider />
                       </Fragment>
                     ))}
@@ -212,6 +238,25 @@ export function MyScreen({ onOpenPost, onEditProfile, onEditInterests, onOpenSet
   );
 }
 
+// 마이페이지 "내 글"·"스크랩" 한 줄 (Figma 2:400): 작성자 표시 없이 제목 + "주제 · 시간 · 좋아요 N".
+// 목록 화면(PostListItem)과 달리 항상 본인 글이라 닉네임을 반복하지 않는다.
+function MyPostRow({ post, onOpen }: { post: PostCard; onOpen: (id: string) => void }) {
+  const topic = (post.topics[0] && TOPIC_MAP[post.topics[0]]?.label) || BOARDS.find((b) => b.key === post.board)?.label || "";
+  const meta = [topic, formatTime(post.createdAt), `좋아요 ${post.likeCount}`].filter(Boolean).join(" · ");
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(post.id)}
+      className="flex w-full flex-col items-start gap-[4px] border-0 bg-transparent py-[12px] px-0 text-left"
+    >
+      <span className="line-clamp-2 w-full text-[15px] leading-[18px] font-[500]" style={{ color: "var(--a-color-text-primary)" }}>
+        {post.title}
+      </span>
+      <span className="text-[12px] leading-[14px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>{meta}</span>
+    </button>
+  );
+}
+
 function Divider() {
   return <div className="h-px w-full shrink-0" style={{ background: "var(--a-color-border)" }} aria-hidden />;
 }
@@ -221,13 +266,9 @@ function ListSkeleton({ count = 4 }: { count?: number }) {
     <div className="flex w-full flex-col gap-[4px]" role="status" aria-label="불러오는 중">
       {Array.from({ length: count }, (_, i) => (
         <Fragment key={i}>
-          <div className="flex w-full items-center gap-[12px] py-[12px]">
-            <div className="flex flex-1 flex-col gap-[4px]">
-              <Skeleton className="h-[13px] w-[40px]" />
-              <Skeleton className="h-[18px] w-[80%]" />
-              <Skeleton className="h-[13px] w-[170px]" />
-            </div>
-            <Skeleton className="size-[68px]" style={{ borderRadius: 8 }} />
+          <div className="flex w-full flex-col gap-[4px] py-[12px]">
+            <Skeleton className="h-[18px] w-[80%]" />
+            <Skeleton className="h-[13px] w-[170px]" />
           </div>
           <Divider />
         </Fragment>

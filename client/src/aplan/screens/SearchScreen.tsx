@@ -17,7 +17,7 @@ interface SearchScreenProps {
   onOpenUser: (id: string) => void;
 }
 
-// A-05 검색 (Figma에 명세가 없어 A안 톤으로 구성).
+// A-05 검색 (Figma 2:245).
 // 입력 후 잠시 멈추면(디바운스) 게시글·유저·태그 3개 결과를 함께 불러온다.
 // 검색 기록은 서버가 "게시글 탭 첫 페이지 요청"에서만 남기므로(server/routes/search.js),
 // 탭을 오가도 최근 검색어에 중복으로 쌓이지 않는다.
@@ -27,6 +27,7 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
   const [tab, setTab] = useState<ResultTab>("post");
   const [recent, setRecent] = useState<RecentSearch[] | null>(null);
   const [trending, setTrending] = useState<TrendingKeyword[] | null>(null);
+  const [trendingComputedAt, setTrendingComputedAt] = useState<string | null>(null);
   const [tagState, setTagState] = useState<{ status: "idle" | "loading" | "ready" | "error"; items: TagResult[] }>({
     status: "idle",
     items: [],
@@ -48,7 +49,12 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
   }, [query, loadRecent]);
 
   useEffect(() => {
-    searchApi.trending().then((r) => setTrending(r.items)).catch(() => setTrending([]));
+    searchApi.trending()
+      .then((r) => {
+        setTrending(r.items);
+        setTrendingComputedAt(r.computedAt);
+      })
+      .catch(() => setTrending([]));
   }, []);
 
   const posts = useInfiniteList(
@@ -101,10 +107,10 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* 검색창 */}
-      <header className="flex w-full shrink-0 items-center px-[20px] py-[12px]">
+      {/* 검색창 + 취소 */}
+      <header className="flex w-full shrink-0 items-center gap-[10px] px-[20px] py-[12px]">
         <span
-          className="flex h-[40px] w-full items-center gap-[8px] px-[12px]"
+          className="flex h-[40px] min-w-px flex-1 items-center gap-[8px] px-[12px]"
           style={{ borderRadius: "var(--a-radius-pill)", background: "var(--a-color-surface-muted)" }}
         >
           <SearchIcon size={18} strokeWidth={1.5} style={{ color: "var(--a-color-icon)" }} aria-hidden />
@@ -113,7 +119,7 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && runQuery(input.trim())}
-            placeholder="게시글, 유저, 태그 검색"
+            placeholder="키워드, #태그, 사용자 검색"
             aria-label="검색어"
             className="min-w-px flex-1 border-0 bg-transparent p-0 text-[14px] leading-[17px] outline-none"
             style={{ color: "var(--a-color-text-primary)", fontFamily: "var(--a-font-sans)" }}
@@ -132,12 +138,26 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
             </button>
           )}
         </span>
+        {(input || query) && (
+          <button
+            type="button"
+            onClick={() => {
+              setInput("");
+              setQuery("");
+              inputRef.current?.blur();
+            }}
+            className="shrink-0 border-0 bg-transparent p-0 text-[14px] leading-[17px] font-normal"
+            style={{ color: "var(--a-color-text-secondary)" }}
+          >
+            취소
+          </button>
+        )}
       </header>
 
       {!query ? (
         <main className="flex min-h-0 w-full flex-1 flex-col items-start gap-[24px] overflow-y-auto px-[20px] py-[4px] pb-[24px]">
           <RecentSearches items={recent} onRun={runQuery} onRemove={removeRecent} onClear={clearRecent} />
-          <TrendingSearches items={trending} onRun={runQuery} />
+          <TrendingSearches items={trending} computedAt={trendingComputedAt} onRun={runQuery} />
         </main>
       ) : (
         <>
@@ -272,7 +292,15 @@ function RecentSearches({
   );
 }
 
-function TrendingSearches({ items, onRun }: { items: TrendingKeyword[] | null; onRun: (keyword: string) => void }) {
+function TrendingSearches({
+  items,
+  computedAt,
+  onRun,
+}: {
+  items: TrendingKeyword[] | null;
+  computedAt: string | null;
+  onRun: (keyword: string) => void;
+}) {
   if (items === null) {
     return (
       <section className="flex w-full flex-col gap-[10px]">
@@ -287,9 +315,16 @@ function TrendingSearches({ items, onRun }: { items: TrendingKeyword[] | null; o
 
   return (
     <section className="flex w-full flex-col gap-[10px]">
-      <h2 className="m-0 text-[14px] leading-[17px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
-        인기 검색어
-      </h2>
+      <div className="flex w-full items-center gap-[8px]">
+        <h2 className="m-0 min-w-px flex-1 text-[14px] leading-[17px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
+          실시간 인기 검색어
+        </h2>
+        {computedAt && (
+          <span className="shrink-0 text-[11px] leading-[13px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>
+            {hourMinute(computedAt)} 기준
+          </span>
+        )}
+      </div>
       <ol className="m-0 flex w-full flex-col gap-[14px] p-0" style={{ listStyle: "none" }}>
         {items.map((t) => (
           <li key={t.keyword}>
@@ -312,6 +347,11 @@ function TrendingSearches({ items, onRun }: { items: TrendingKeyword[] | null; o
     </section>
   );
 }
+
+const hourMinute = (iso: string) => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
 
 function RankChange({ change }: { change: TrendingKeyword["change"] }) {
   const color = "var(--a-color-text-secondary)";
