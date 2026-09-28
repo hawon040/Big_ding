@@ -1,7 +1,10 @@
 // 개발 전용: A안 미리보기(/__aplan/...)에서 서버 대신 응답하는 가짜 API.
 // 내용은 Figma 시안의 예시(제목·숫자·주제)와 같게 맞춰 비교 스크린샷을 찍을 수 있게 한다.
 import type { AxiosAdapter, InternalAxiosRequestConfig } from "axios";
-import type { Me, MyComment, NotificationItem, Page, PostCard, RecentSearch, TopicChipItem, TrendingKeyword, UserSummary } from "@/types/aplan";
+import type {
+  CommentTree, Me, MyComment, NotificationItem, Page, PostCard, PostDetail,
+  RecentSearch, TopicChipItem, TrendingKeyword, UserSummary,
+} from "@/types/aplan";
 
 const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString();
 
@@ -79,6 +82,53 @@ const myComments: MyComment[] = [
 ];
 
 const sampleActor = { id: "u2", nickname: "판다마스터", department: "산업공학과", profileImage: null, isWithdrawn: false };
+
+// A-09 상세 미리보기용 (p1: Figma 예시와 같은 Pandas EDA 글 — 코드 블록 포함)
+const postDetails: Record<string, PostDetail> = {
+  p1: {
+    ...feedPosts[0],
+    content:
+      "서울시 공공자전거 대여 데이터를 Pandas로 정리하고 시간대별·요일별 패턴을 시각화해봤어요.\n\n" +
+      "학과별 평균 점수를 구할 때는 이렇게 groupby를 씁니다.\n\n" +
+      '```python\ndf.groupby("dept")["score"]\n  .mean().plot(kind="bar")\n```\n\n' +
+      "전처리에서 막혔던 부분 위주로 정리했으니 궁금한 점은 댓글로 남겨주세요!",
+    images: [sampleImage],
+    visibility: "all",
+    acceptedCommentId: null,
+    updatedAt: feedPosts[0].createdAt,
+    isMine: false,
+    isFollowingAuthor: false,
+  },
+};
+
+const commentTrees: Record<string, CommentTree> = {
+  p1: {
+    commentCount: 2,
+    acceptedCommentId: null,
+    items: [
+      {
+        id: "cm10", parentId: null, author: { ...sampleActor, nickname: "파이썬러버" },
+        content: "시각화는 seaborn 쓰셨나요?", isDeleted: false, isHidden: false, isAccepted: false, isMine: false,
+        createdAt: minutesAgo(3), updatedAt: minutesAgo(3),
+        replies: [
+          {
+            id: "cm11", parentId: "cm10", author, content: "네 맞아요, sns.barplot 썼습니다!",
+            isDeleted: false, isHidden: false, isAccepted: false, isMine: true,
+            createdAt: minutesAgo(1), updatedAt: minutesAgo(1),
+          },
+        ],
+      },
+    ],
+  },
+};
+
+const detailOf = (id: string): PostDetail => {
+  if (postDetails[id]) return postDetails[id];
+  const card = allPosts.find((p) => p.id === id) ?? feedPosts[0];
+  return { ...card, content: card.contentPreview, images: [], visibility: "all", acceptedCommentId: null, updatedAt: card.createdAt, isMine: false, isFollowingAuthor: false };
+};
+
+const commentsOf = (id: string): CommentTree => commentTrees[id] ?? { items: [], commentCount: 0, acceptedCommentId: null };
 
 const notifications: NotificationItem[] = [
   {
@@ -193,6 +243,53 @@ const routes: [RegExp, Handler][] = [
   [/^\/notifications\/unread-count$/, () => ({ count: notifications.filter((n) => !n.isRead).length })],
   [/^\/chat\/unread-count$/, () => ({ count: 0 })],
   [/^\/posts\/[^/]+\/(like|scrap)$/, (c) => ({ isLiked: c.method === "post", likeCount: 25, isScrapped: c.method === "post", scrapCount: 4 })],
+  [/^\/posts\/[^/]+\/comments$/, (c) => {
+    const id = (c.url || "").split("?")[0].split("/")[2];
+    if (c.method !== "post") return commentsOf(id);
+    const tree = commentTrees[id] ?? (commentTrees[id] = { items: [], commentCount: 0, acceptedCommentId: null });
+    const data = typeof c.data === "string" ? JSON.parse(c.data) : c.data;
+    const node = {
+      id: `cm${Date.now()}`, parentId: data?.parentId ?? null, author,
+      content: data?.content ?? "", isDeleted: false, isHidden: false, isAccepted: false, isMine: true,
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    };
+    if (node.parentId) {
+      const parent = tree.items.find((i) => i.id === node.parentId);
+      if (parent) parent.replies = [...(parent.replies || []), node];
+    } else {
+      tree.items = [node, ...tree.items];
+    }
+    tree.commentCount += 1;
+    return {};
+  }],
+  [/^\/posts\/[^/]+$/, (c): PostDetail => detailOf((c.url || "").split("?")[0].split("/").pop() || "")],
+  [/^\/comments\/[^/]+\/accept$/, (c) => {
+    const id = (c.url || "").split("?")[0].split("/")[2];
+    for (const tree of Object.values(commentTrees)) {
+      const target = tree.items.find((i) => i.id === id) || tree.items.flatMap((i) => i.replies || []).find((r) => r.id === id);
+      if (target) {
+        target.isAccepted = true;
+        tree.acceptedCommentId = id;
+      }
+    }
+    return { postId: "p1", acceptedCommentId: id };
+  }],
+  [/^\/comments\/[^/]+$/, (c) => {
+    const id = (c.url || "").split("?")[0].split("/").pop() || "";
+    for (const tree of Object.values(commentTrees)) {
+      if (c.method === "delete") {
+        const target = tree.items.find((i) => i.id === id) || tree.items.flatMap((i) => i.replies || []).find((r) => r.id === id);
+        if (target) target.isDeleted = true;
+      } else if (c.method === "patch") {
+        const data = typeof c.data === "string" ? JSON.parse(c.data) : c.data;
+        const target = tree.items.find((i) => i.id === id) || tree.items.flatMap((i) => i.replies || []).find((r) => r.id === id);
+        if (target) target.content = data?.content ?? target.content;
+      }
+    }
+    return { id, content: "", updatedAt: new Date().toISOString() };
+  }],
+  [/^\/users\/[^/]+\/follow$/, (c) => ({ message: "ok", isFollowing: c.method === "post", followerCount: 13 })],
+  [/^\/reports$/, () => ({ message: "신고가 접수되었습니다." })],
 ];
 
 export const fixtureAdapter: AxiosAdapter = async (config) => {

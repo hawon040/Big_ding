@@ -5,6 +5,7 @@ import { SplashScreen } from "@/aplan/screens/SplashScreen";
 import { LoginScreen } from "@/aplan/screens/LoginScreen";
 import { FindPasswordScreen } from "@/aplan/screens/FindPasswordScreen";
 import { OnboardingScreen } from "@/aplan/screens/OnboardingScreen";
+import { PostDetailScreen } from "@/aplan/screens/PostDetailScreen";
 import { MainShell } from "@/aplan/MainShell";
 import api from "@/api";
 import { fixtureAdapter } from "./aplanFixtures";
@@ -24,6 +25,11 @@ const SCREENS: Record<string, () => ReactElement> = {
   "a05-search": () => <MainShell initialTab="search" />,
   "a06-community": () => <MainShell initialTab="community" />,
   "a07-my": () => <MainShell initialTab="my" />,
+  "a09-detail": () => (
+    <div className="a-screen flex h-dvh flex-col overflow-hidden">
+      <PostDetailScreen postId="p1" onBack={noop} onOpenUser={noop} />
+    </div>
+  ),
   // Figma 번호 없음 (Figma의 A-08은 설정 화면)
   "notifications": () => <MainShell initialTab="notifications" />,
 };

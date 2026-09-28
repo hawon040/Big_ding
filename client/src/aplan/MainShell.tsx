@@ -7,6 +7,7 @@ import { CommunityScreen } from "@/aplan/screens/CommunityScreen";
 import { SearchScreen } from "@/aplan/screens/SearchScreen";
 import { MyScreen } from "@/aplan/screens/MyScreen";
 import { NotificationScreen } from "@/aplan/screens/NotificationScreen";
+import { PostDetailScreen } from "@/aplan/screens/PostDetailScreen";
 import { EmptyState } from "@/aplan/components/States";
 import "@/styles/aplan-tokens.css";
 
@@ -24,6 +25,12 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
   const [tab, setTab] = useState<MainTab>(initialTab);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  // 탭 위에 쌓이는 상세 화면(A-09). null이면 탭 콘텐츠를 그대로 보여준다.
+  const [openPostId, setOpenPostId] = useState<string | null>(null);
+  const openPost = (id: string) => setOpenPostId(id);
+  const openUser = () => {
+    /* 프로필 화면 구현 후 연결 */
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -46,9 +53,7 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
         <HomeScreen
           unreadMessages={unreadMessages}
           unreadNotifications={unreadNotifications}
-          onOpenPost={() => {
-            /* A-09 상세 구현 후 연결 */
-          }}
+          onOpenPost={openPost}
           onOpenMessages={() => onOpenLegacy?.("messages")}
           onOpenNotifications={() => setTab("notifications")}
           onMore={() => setTab("community")}
@@ -58,9 +63,7 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
     case "community":
       content = (
         <CommunityScreen
-          onOpenPost={() => {
-            /* A-09 상세 구현 후 연결 */
-          }}
+          onOpenPost={openPost}
           onOpenSearch={() => setTab("search")}
           onWrite={() => {
             /* 글쓰기(7-2) 구현 후 연결 */
@@ -70,22 +73,13 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
       break;
     case "search":
       content = (
-        <SearchScreen
-          onOpenPost={() => {
-            /* A-09 상세 구현 후 연결 */
-          }}
-          onOpenUser={() => {
-            /* 프로필 화면 구현 후 연결 */
-          }}
-        />
+        <SearchScreen onOpenPost={openPost} onOpenUser={openUser} />
       );
       break;
     case "my":
       content = (
         <MyScreen
-          onOpenPost={() => {
-            /* A-09 상세 구현 후 연결 */
-          }}
+          onOpenPost={openPost}
           onEditProfile={() => {
             /* 프로필 수정 화면 구현 후 연결 */
           }}
@@ -100,14 +94,7 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
       break;
     case "notifications":
       content = (
-        <NotificationScreen
-          onOpenPost={() => {
-            /* A-09 상세 구현 후 연결 */
-          }}
-          onOpenUser={() => {
-            /* 프로필 화면 구현 후 연결 */
-          }}
-        />
+        <NotificationScreen onOpenPost={openPost} onOpenUser={openUser} />
       );
       break;
     default:
@@ -117,6 +104,14 @@ export function MainShell({ initialTab = "home", onOpenLegacy }: MainShellProps)
           <EmptyState title="준비 중인 화면이에요" />
         </main>
       );
+  }
+
+  if (openPostId) {
+    return (
+      <div className="a-screen flex h-dvh flex-col overflow-hidden">
+        <PostDetailScreen postId={openPostId} onBack={() => setOpenPostId(null)} onOpenUser={openUser} />
+      </div>
+    );
   }
 
   return (
