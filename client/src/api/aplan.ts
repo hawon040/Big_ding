@@ -3,7 +3,7 @@ import api from "./index";
 import type { BoardKey } from "@/constants/boards";
 import type { TopicKey } from "@/constants/topics";
 import type {
-  AuthorSummary, CommentTree, FeedComment, FeedItem, StoryItem, StoryTrayItem, Me, MyComment, NotificationItem, Page, PostCard, PostDetail, RecentSearch,
+  AuthorSummary, CommentTree, FeedComment, FeedItem, StoryItem, StoryText, StoryTrayItem, Me, MyComment, NotificationItem, Page, PostCard, PostDetail, RecentSearch,
   TagResult, TopicChipItem, TrendingKeyword, UserProfile, UserSummary,
 } from "@/types/aplan";
 
@@ -53,10 +53,10 @@ export const storyApi = {
   tray: () => api.get<{ items: StoryTrayItem[] }>("/stories").then((r) => r.data.items),
   ofUser: (userId: string) =>
     api.get<{ user: AuthorSummary | null; items: StoryItem[] }>(`/stories/user/${userId}`).then((r) => r.data),
-  create: (image: File, caption: string) => {
+  create: (image: File, texts: StoryText[]) => {
     const form = new FormData();
     form.append("image", image);
-    if (caption) form.append("caption", caption);
+    if (texts.length) form.append("texts", JSON.stringify(texts));
     return api.post<StoryItem>("/stories", form).then((r) => r.data);
   },
   view: (id: string) => api.post(`/stories/${id}/view`),

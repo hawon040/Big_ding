@@ -203,10 +203,20 @@ export interface StoryTrayItem {
   latestAt: string | null;
 }
 
+/** 사진 위에 얹은 글. x·y는 사진 가로·세로 대비 0~1(글의 중심), size는 사진 가로 대비 글자 크기 비율 */
+export interface StoryText {
+  text: string;
+  x: number;
+  y: number;
+  size: number;
+  color: string;
+}
+
 export interface StoryItem {
   id: string;
   image: string;
   caption: string;
+  texts: StoryText[];
   createdAt: string;
   isMine: boolean;
   viewed: boolean;

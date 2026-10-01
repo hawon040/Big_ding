@@ -6,6 +6,7 @@ import { formatTime } from "@/utils";
 import type { AuthorSummary, StoryItem, StoryTrayItem } from "@/types/aplan";
 import { Avatar } from "./Avatar";
 import { BottomSheet } from "./BottomSheet";
+import { StoryCanvas } from "./StoryCanvas";
 
 const STORY_MS = 5000;
 const TAP_MAX_MS = 220;
@@ -162,7 +163,7 @@ export function StoryViewer({ users, startIndex, onClose }: StoryViewerProps) {
             onPointerLeave={() => setHolding(false)}
             onPointerCancel={() => setHolding(false)}
           >
-            <img src={resolveAssetUrl(story.image)} alt={story.caption || "스토리 사진"} draggable={false} className="size-full object-contain" />
+            <StoryCanvas src={resolveAssetUrl(story.image) ?? ""} texts={story.texts ?? []} alt={story.caption || "스토리 사진"} />
           </div>
         )}
 

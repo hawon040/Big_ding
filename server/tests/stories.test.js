@@ -8,9 +8,10 @@ jest.mock("../config/cloudinary", () => ({
 setupDb();
 
 const png = Buffer.from("89504e470d0a1a0a", "hex");
-const postStory = (token, caption) => {
+const postStory = (token, caption, texts) => {
   let req = api(token).post("/api/stories").attach("image", png, { filename: "s.png", contentType: "image/png" });
   if (caption !== undefined) req = req.field("caption", caption);
+  if (texts !== undefined) req = req.field("texts", JSON.stringify(texts));
   return req;
 };
 const follow = (token, targetId) => api(token).post(`/api/users/follow/${targetId}`);
@@ -24,6 +25,33 @@ describe("스토리 작성", () => {
     expect(ok.status).toBe(201);
     expect(ok.body).toMatchObject({ caption: "오늘 하루", isMine: true, viewed: true, viewerCount: 0 });
     expect((await postStory(null)).status).toBe(401);
+  });
+});
+
+describe("사진 위 글", () => {
+  const ok = { text: "안녕", x: 0.5, y: 0.25, size: 0.08, color: "#FFE066" };
+
+  test("글(위치·크기·색)을 저장하고 조회에서 그대로 돌려준다", async () => {
+    const me = await createUser();
+    const res = await postStory(me.token, undefined, [ok, { text: "둘째", x: 0, y: 1, size: 0.2, color: "bad" }]);
+    expect(res.status).toBe(201);
+    expect(res.body.texts).toEqual([
+      { text: "안녕", x: 0.5, y: 0.25, size: 0.08, color: "#ffe066" }, // 색은 소문자로 정규화
+      { text: "둘째", x: 0, y: 1, size: 0.2, color: "#ffffff" }, // 잘못된 색은 흰색으로
+    ]);
+    const list = (await api(me.token).get(`/api/stories/user/${me.id}`)).body.items;
+    expect(list[0].texts[0].text).toBe("안녕");
+  });
+
+  test("6개 이상·빈 글·범위 밖 위치·크기·잘못된 형식은 400", async () => {
+    const me = await createUser();
+    expect((await postStory(me.token, undefined, Array.from({ length: 6 }, () => ok))).status).toBe(400);
+    expect((await postStory(me.token, undefined, [{ ...ok, text: "  " }])).status).toBe(400);
+    expect((await postStory(me.token, undefined, [{ ...ok, text: "가".repeat(101) }])).status).toBe(400);
+    expect((await postStory(me.token, undefined, [{ ...ok, x: 1.2 }])).status).toBe(400);
+    expect((await postStory(me.token, undefined, [{ ...ok, size: 0.5 }])).status).toBe(400);
+    expect((await postStory(me.token, undefined, [{ ...ok, y: "0.5" }])).status).toBe(400);
+    expect((await postStory(me.token, undefined, { not: "array" })).status).toBe(400);
   });
 });
 

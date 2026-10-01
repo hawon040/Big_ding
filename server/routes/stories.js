@@ -14,6 +14,30 @@ const v = require("../utils/validate");
 
 const STORY_TTL_MS = 24 * 60 * 60 * 1000;
 const CAPTION_MAX = 100;
+const MAX_TEXTS = 5;
+const TEXT_MAX = 100;
+const SIZE_MIN = 0.03;
+const SIZE_MAX = 0.2;
+const COLOR_RE = /^#[0-9a-f]{6}$/i;
+
+// 사진 위 글 검증: [{ text, x, y, size, color }] — 좌표·크기는 사진 대비 비율
+const parseTexts = (raw) => {
+  const list = v.parseJsonField(raw, "글");
+  if (list === undefined) return [];
+  if (!Array.isArray(list)) v.fail("글 형식이 올바르지 않습니다.");
+  if (list.length > MAX_TEXTS) v.fail(`사진 위 글은 최대 ${MAX_TEXTS}개까지 넣을 수 있습니다.`);
+  return list.map((t) => {
+    const text = v.requireString(t?.text, "글", { max: TEXT_MAX });
+    const num = (value) => (typeof value === "number" && Number.isFinite(value) ? value : v.fail("글 위치·크기가 올바르지 않습니다."));
+    const x = num(t.x);
+    const y = num(t.y);
+    const size = num(t.size);
+    if (x < 0 || x > 1 || y < 0 || y > 1) v.fail("글 위치가 사진 밖입니다.");
+    if (size < SIZE_MIN || size > SIZE_MAX) v.fail("글 크기가 올바르지 않습니다.");
+    const color = COLOR_RE.test(t.color) ? t.color.toLowerCase() : "#ffffff";
+    return { text: filterProfanity(text), x, y, size, color };
+  });
+};
 
 const activeFilter = () => ({ isDeleted: { $ne: true }, createdAt: { $gte: new Date(Date.now() - STORY_TTL_MS) } });
 
@@ -23,6 +47,7 @@ const toStory = (s, meId) => {
     id: String(s._id),
     image: s.image,
     caption: s.caption || "",
+    texts: (s.texts || []).map(({ text, x, y, size, color }) => ({ text, x, y, size, color })),
     createdAt: s.createdAt,
     isMine: mine,
     viewed: mine || includesId(s.viewers, meId),
@@ -95,14 +120,15 @@ router.get("/user/:userId", auth, async (req, res) => {
   }
 });
 
-// POST /api/stories — multipart/form-data: image(필수 1장), caption(선택, 100자 이하)
+// POST /api/stories — multipart/form-data: image(필수 1장), caption(선택, 100자 이하), texts(선택, JSON 배열: 사진 위 글)
 router.post("/", auth, upload.single("image"), async (req, res) => {
   try {
     if (!req.file) v.fail("사진을 선택해주세요.");
     const raw = typeof req.body.caption === "string" ? req.body.caption.trim() : "";
     if (raw.length > CAPTION_MAX) v.fail(`문구는 ${CAPTION_MAX}자 이하로 입력해주세요.`);
+    const texts = parseTexts(req.body.texts);
     const { secure_url: image } = await uploadImage(req.file.buffer, "stories");
-    const story = await Story.create({ author: req.user.id, image, caption: filterProfanity(raw) });
+    const story = await Story.create({ author: req.user.id, image, caption: filterProfanity(raw), texts });
     res.status(201).json(toStory(story, req.user.id));
   } catch (err) {
     v.handleError(res, err);
