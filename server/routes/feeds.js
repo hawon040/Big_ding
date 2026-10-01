@@ -9,24 +9,30 @@ const auth = require("../middleware/authMiddleware");
 const upload = require("../middleware/upload");
 const { uploadImage } = require("../config/cloudinary");
 const { filterProfanity } = require("../middleware/profanityFilter");
-const { TOPIC_KEYS, MAX_POST_TOPICS } = require("../constants/topics");
+const { MAX_POST_TAGS } = require("../constants/topics");
+const { normalizeTag, normalizeTags } = require("../utils/tags");
 const { getViewerContext, isBlockedBetween, sameId, includesId } = require("../utils/access");
 const { parseLimit, decodeCursor, pageBy } = require("../utils/pagination");
 const { AUTHOR_FIELDS, toAuthor } = require("../utils/serializers");
-const { notifySafely } = require("../utils/notify");
+const { notifySafely, notifyFeedTags } = require("../utils/notify");
 const v = require("../utils/validate");
 
 const MAX_IMAGES = 10;
 const CONTENT_MAX = 1000;
 const COMMENT_MAX = 300;
 const COMMENT_LIMIT = 200;
+const TAG_MAX_LEN = 30;
+const MAX_TAG_ALERTS = 30;
+
+// 본문의 #해시태그(한글·영문·숫자·_)를 소문자·중복 제거해서 뽑는다.
+const extractTags = (content) => normalizeTags([...content.matchAll(/#([\p{L}\p{N}_]+)/gu)].map((m) => m[1]));
 
 const toFeed = (f, meId) => ({
   id: String(f._id),
   author: toAuthor(f.author),
   images: f.images || [],
   content: f.content || "",
-  topics: f.topics || [],
+  tags: f.tags || [],
   createdAt: f.createdAt,
   likeCount: f.likeCount || 0,
   commentCount: f.commentCount || 0,
@@ -54,11 +60,10 @@ const findVisible = async (id, meId) => {
   return feed;
 };
 
-// GET /api/feeds?topic=all|<key>&cursor=&limit= — 최신순
+// GET /api/feeds?tag=<태그>&cursor=&limit= — 최신순 (tag를 주면 그 #태그가 달린 피드만)
 router.get("/", auth, async (req, res) => {
   try {
-    const topic = req.query.topic || "all";
-    if (topic !== "all" && !TOPIC_KEYS.includes(topic)) v.fail("알 수 없는 주제입니다.");
+    const tag = req.query.tag ? normalizeTag(req.query.tag) : null;
     const limit = parseLimit(req.query.limit);
     const cursor = decodeCursor(req.query.cursor);
     const { excluded } = await getViewerContext(req.user.id);
@@ -67,7 +72,7 @@ router.get("/", auth, async (req, res) => {
       isBlocked: { $ne: true },
       isDeleted: { $ne: true },
       ...(excluded.length ? { author: { $nin: excluded } } : {}),
-      ...(topic !== "all" ? { topics: topic } : {}),
+      ...(tag ? { tags: tag } : {}),
     };
     const { docs, nextCursor } = await pageBy({
       model: Feed,
@@ -82,21 +87,57 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
-// POST /api/feeds — multipart/form-data: images(1~10장, 필수), content(선택), topics(JSON 배열, 선택)
+// POST /api/feeds — multipart/form-data: images(1~10장, 필수), content(선택, #해시태그는 태그로 저장)
 router.post("/", auth, upload.array("images", MAX_IMAGES), async (req, res) => {
   try {
     if (!req.files?.length) v.fail("사진을 1장 이상 올려주세요.");
     const raw = typeof req.body.content === "string" ? req.body.content.trim() : "";
     if (raw.length > CONTENT_MAX) v.fail(`내용은 ${CONTENT_MAX}자 이하로 입력해주세요.`);
     const content = filterProfanity(raw);
-    const topicsRaw = v.parseJsonField(req.body.topics, "주제");
-    const topics = topicsRaw === undefined ? [] : v.postTopics(topicsRaw);
-    if (topics.length > MAX_POST_TOPICS) v.fail(`주제는 최대 ${MAX_POST_TOPICS}개까지 선택할 수 있습니다.`);
+    const tags = extractTags(content);
+    if (tags.length > MAX_POST_TAGS) v.fail(`태그는 최대 ${MAX_POST_TAGS}개까지 달 수 있습니다.`);
+    if (tags.some((t) => t.length > TAG_MAX_LEN)) v.fail(`태그는 ${TAG_MAX_LEN}자 이하로 입력해주세요.`);
 
     const images = (await Promise.all(req.files.map((file) => uploadImage(file.buffer, "feeds")))).map((r) => r.secure_url);
-    const feed = await Feed.create({ author: req.user.id, images, content, topics });
+    const feed = await Feed.create({ author: req.user.id, images, content, tags });
+    notifyFeedTags(feed).catch((err) => console.error("태그 알림 실패:", err.message));
     await feed.populate("author", AUTHOR_FIELDS);
     res.status(201).json(toFeed(feed, req.user.id));
+  } catch (err) {
+    v.handleError(res, err);
+  }
+});
+
+// 태그 알림 구독: GET 목록 / POST { tag } 추가 / DELETE /:tag 해제. /:id보다 먼저 선언한다.
+router.get("/tag-alerts", auth, async (req, res) => {
+  try {
+    const me = await User.findById(req.user.id).select("tagAlerts").lean();
+    res.json({ items: me?.tagAlerts || [] });
+  } catch (err) {
+    v.handleError(res, err);
+  }
+});
+
+router.post("/tag-alerts", auth, async (req, res) => {
+  try {
+    const tag = normalizeTag(v.requireString(req.body.tag, "태그", { max: TAG_MAX_LEN + 1 }));
+    if (!tag || !/^[\p{L}\p{N}_]+$/u.test(tag)) v.fail("태그는 글자·숫자·밑줄만 쓸 수 있어요.");
+    if (tag.length > TAG_MAX_LEN) v.fail(`태그는 ${TAG_MAX_LEN}자 이하로 입력해주세요.`);
+    const me = await User.findById(req.user.id).select("tagAlerts").lean();
+    if (!me.tagAlerts?.includes(tag) && (me.tagAlerts?.length || 0) >= MAX_TAG_ALERTS) v.fail(`태그 알림은 최대 ${MAX_TAG_ALERTS}개까지 설정할 수 있어요.`);
+    await User.updateOne({ _id: req.user.id }, { $addToSet: { tagAlerts: tag } });
+    const fresh = await User.findById(req.user.id).select("tagAlerts").lean();
+    res.json({ items: fresh.tagAlerts });
+  } catch (err) {
+    v.handleError(res, err);
+  }
+});
+
+router.delete("/tag-alerts/:tag", auth, async (req, res) => {
+  try {
+    await User.updateOne({ _id: req.user.id }, { $pull: { tagAlerts: normalizeTag(req.params.tag) } });
+    const fresh = await User.findById(req.user.id).select("tagAlerts").lean();
+    res.json({ items: fresh.tagAlerts });
   } catch (err) {
     v.handleError(res, err);
   }

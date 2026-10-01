@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Heart, MessageCircle } from "lucide-react";
 import { resolveAssetUrl } from "@/api";
 import { formatTime } from "@/utils";
-import { TOPIC_MAP } from "@/constants/topics";
 import type { FeedItem } from "@/types/aplan";
 import { Avatar } from "./Avatar";
 
@@ -44,15 +43,16 @@ interface FeedCardProps {
   /** 댓글·본문을 누르면 상세(댓글)로 */
   onOpen: (id: string) => void;
   onOpenUser: (id: string) => void;
+  /** #태그를 누르면 그 태그 피드만 보기 */
+  onTagClick?: (tag: string) => void;
   /** 상세 화면에서는 본문을 줄이지 않는다 */
   expanded?: boolean;
 }
 
 // 홈 피드 카드: 작성자 → 사진(여러 장 스와이프) → 좋아요·댓글 → 본문 → 주제. 커뮤니티 PostCard와 다른 게시물이다.
-export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, expanded = false }: FeedCardProps) {
+export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, onTagClick, expanded = false }: FeedCardProps) {
   const author = feed.author;
   const idle = "var(--a-color-text-secondary)";
-  const topics = feed.topics.map((t) => TOPIC_MAP[t]?.label).filter(Boolean);
 
   return (
     <article className="flex w-full flex-col gap-[10px]">
@@ -105,8 +105,21 @@ export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, expanded = fa
           {feed.content}
         </p>
       )}
-      {topics.length > 0 && (
-        <p className="m-0 text-[12px] leading-[14px]" style={{ color: idle }}>{topics.map((t) => `#${t}`).join(" ")}</p>
+      {feed.tags.length > 0 && (
+        <p className="m-0 flex flex-wrap gap-x-[8px] gap-y-[2px]">
+          {feed.tags.map((t) => (
+            <button
+              key={t}
+              type="button"
+              disabled={!onTagClick}
+              onClick={() => onTagClick?.(t)}
+              className="border-0 bg-transparent p-0 text-[12px] leading-[14px] font-[500] disabled:cursor-default"
+              style={{ color: "var(--a-color-icon)" }}
+            >
+              #{t}
+            </button>
+          ))}
+        </p>
       )}
     </article>
   );

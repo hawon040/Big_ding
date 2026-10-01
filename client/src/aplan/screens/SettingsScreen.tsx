@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
-import { meApi } from "@/api/aplan";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { meApi, tagAlertApi } from "@/api/aplan";
 import { Toggle } from "@/aplan/components/Toggle";
 import { TextField } from "@/aplan/components/TextField";
 import { BottomSheet } from "@/aplan/components/BottomSheet";
@@ -88,6 +88,8 @@ export function SettingsScreen({ onBack, onEditProfile, onChangePassword, onOpen
               </>
             )}
 
+            <TagAlertSection />
+
             <Divider />
 
             <SectionTitle>앱 설정</SectionTitle>
@@ -116,6 +118,48 @@ export function SettingsScreen({ onBack, onEditProfile, onChangePassword, onOpen
       </main>
 
       <WithdrawSheet open={withdrawOpen} onClose={() => setWithdrawOpen(false)} />
+    </div>
+  );
+}
+
+// 피드 #태그 알림: 구독한 태그가 달린 새 피드가 올라오면 알림을 받는다 (홈에서 태그를 눌러 켜고 끌 수도 있다)
+function TagAlertSection() {
+  const [tags, setTags] = useState<string[] | null>(null);
+  const [input, setInput] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    tagAlertApi.list().then(setTags).catch(() => setTags([]));
+  }, []);
+
+  const add = () => {
+    const tag = input.trim().replace(/^#+/, "");
+    if (!tag) return;
+    setError(null);
+    tagAlertApi.add(tag).then((items) => { setTags(items); setInput(""); }).catch((err) => setError(err?.response?.data?.message || "추가하지 못했어요."));
+  };
+  const remove = (tag: string) => tagAlertApi.remove(tag).then(setTags).catch(() => {});
+
+  return (
+    <div className="flex w-full flex-col gap-[8px] pt-[8px]">
+      <span className="text-[15px] leading-[18px] font-normal" style={{ color: "var(--a-color-text-primary)" }}>태그 알림</span>
+      <span className="text-[12px] leading-[14px]" style={{ color: "var(--a-color-text-secondary)" }}>이 #태그가 달린 새 피드가 올라오면 알려줘요.</span>
+      {tags && tags.length > 0 && (
+        <ul className="m-0 flex list-none flex-wrap gap-[8px] p-0">
+          {tags.map((t) => (
+            <li key={t} className="flex items-center gap-[4px] py-[6px] pr-[8px] pl-[12px] text-[13px] leading-[16px] font-[500]" style={{ borderRadius: "var(--a-radius-pill)", background: "var(--a-color-surface-muted)", color: "var(--a-color-text-primary)" }}>
+              #{t}
+              <button type="button" aria-label={`#${t} 알림 끄기`} onClick={() => remove(t)} className="flex border-0 bg-transparent p-0">
+                <X size={14} strokeWidth={1.5} style={{ color: "var(--a-color-icon)" }} aria-hidden />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form onSubmit={(e) => { e.preventDefault(); add(); }} className="flex w-full items-start gap-[8px]">
+        <TextField label="추가할 태그" placeholder="#태그 추가" value={input} maxLength={31} error={error} onChange={(e) => setInput(e.target.value)} className="min-w-px flex-1" />
+        <button type="submit" disabled={!input.trim()} className="shrink-0 border-0 px-[16px] py-[13px] text-[14px] leading-[17px] font-bold disabled:opacity-40" style={{ borderRadius: "var(--a-radius-control)", background: "var(--a-color-surface-inverse)", color: "var(--a-color-on-inverse)" }}>추가</button>
+      </form>
     </div>
   );
 }

@@ -77,6 +77,8 @@ const userSchema = new mongoose.Schema({
 
   // ── A안 ──
   // 관심 주제 key (온보딩에서 3개 이상 선택 — API에서 검증. 온보딩 전엔 빈 배열)
+  // 피드 태그 알림: 여기 있는 #태그가 달린 새 피드가 올라오면 알림을 받는다 (소문자, 최대 30개)
+  tagAlerts: { type: [String], default: [] },
   interests: { type: [{ type: String, enum: TOPIC_KEYS }], default: [] },
   // false면 로그인 후 온보딩 화면으로 보낸다 (기존 가입자도 다음 로그인 때 온보딩)
   onboardingCompleted: { type: Boolean, default: false },

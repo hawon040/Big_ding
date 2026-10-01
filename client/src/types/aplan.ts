@@ -127,7 +127,7 @@ export interface MyComment {
 }
 
 export type NotificationType =
-  | "comment" | "reply" | "like" | "dislike" | "scrap" | "follow" | "accepted" | "study_recruit"
+  | "comment" | "reply" | "like" | "dislike" | "scrap" | "follow" | "accepted" | "study_recruit" | "feed_tag"
   | "join" | "leave" | "adminWarning" | "adminBan" | "adminCommentRestriction"
   | "reportResolved" | "inquiryResolved";
 
@@ -138,6 +138,8 @@ export interface NotificationItem {
   actorCount: number;
   post: { id: string; title: string; board: BoardKey } | null;
   feedId?: string | null;
+  /** feed_tag 알림: 구독한 해시태그 */
+  tag?: string | null;
   commentId: string | null;
   commentContent: string | null;
   message: string | null;
@@ -174,7 +176,8 @@ export interface FeedItem {
   author: AuthorSummary | null;
   images: string[];
   content: string;
-  topics: TopicKey[];
+  /** 본문 #해시태그 (소문자) */
+  tags: string[];
   createdAt: string;
   likeCount: number;
   commentCount: number;

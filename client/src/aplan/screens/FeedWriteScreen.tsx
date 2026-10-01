@@ -1,25 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, Plus, X } from "lucide-react";
 import { feedPostApi } from "@/api/aplan";
-import { MAX_POST_TOPICS, TOPICS, type TopicKey } from "@/constants/topics";
 import { PrimaryButton } from "@/aplan/components/PrimaryButton";
-import { TopicSelectChip } from "@/aplan/components/TopicSelectChip";
 import "@/styles/aplan-tokens.css";
 
 const MAX_IMAGES = 10;
 const CONTENT_MAX = 1000;
+const MAX_TAGS = 10;
 
 interface FeedWriteScreenProps {
   onBack: () => void;
   onDone: () => void;
 }
 
-// 피드 올리기: 사진 1~10장이 반드시 있어야 올릴 수 있다. 글(최대 1000자)과 주제(최대 3개)는 선택.
+// 피드 올리기: 사진 1~10장이 반드시 있어야 올릴 수 있다. 글(최대 1000자)은 선택이고, 본문의 #단어는 태그로 저장된다.
 // 커뮤니티 글쓰기(WriteScreen)와 달리 게시판·제목이 없고, 저장도 별도 컬렉션(feeds)에 된다.
 export function FeedWriteScreen({ onBack, onDone }: FeedWriteScreenProps) {
   const [images, setImages] = useState<File[]>([]);
   const [content, setContent] = useState("");
-  const [topics, setTopics] = useState<TopicKey[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -35,15 +33,18 @@ export function FeedWriteScreen({ onBack, onDone }: FeedWriteScreenProps) {
     setImages((prev) => [...prev, ...incoming].slice(0, MAX_IMAGES));
   };
 
-  const toggleTopic = (key: TopicKey) =>
-    setTopics((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : prev.length < MAX_POST_TOPICS ? [...prev, key] : prev));
+  // 본문의 #단어 미리보기 (서버가 저장하는 태그와 같은 규칙: 글자·숫자·밑줄, 소문자, 중복 제거)
+  const tags = useMemo(
+    () => [...new Set([...content.matchAll(/#([\p{L}\p{N}_]+)/gu)].map((m) => m[1].toLowerCase()))],
+    [content],
+  );
 
   const submit = async () => {
     if (images.length === 0 || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
-      await feedPostApi.create({ images, content: content.trim(), topics });
+      await feedPostApi.create({ images, content: content.trim() });
       onDone();
     } catch (err: any) {
       setError(err?.response?.data?.message || "올리지 못했어요. 잠시 후 다시 시도해주세요.");
@@ -101,7 +102,7 @@ export function FeedWriteScreen({ onBack, onDone }: FeedWriteScreenProps) {
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          placeholder="사진에 대한 이야기를 적어보세요 (선택)"
+          placeholder="사진에 대한 이야기를 적어보세요 (선택) — #태그를 붙이면 태그가 돼요"
           rows={5}
           maxLength={CONTENT_MAX}
           aria-label="내용"
@@ -109,22 +110,17 @@ export function FeedWriteScreen({ onBack, onDone }: FeedWriteScreenProps) {
           style={{ borderRadius: "var(--a-radius-control)", color: "var(--a-color-text-primary)", background: "var(--a-color-bg)", fontFamily: "var(--a-font-sans)" }}
         />
 
-        <section className="flex w-full flex-col gap-[8px]">
-          <span className="text-[12px] leading-[14px] font-[500]" style={{ color: "var(--a-color-text-secondary)" }}>주제 (선택, 최대 {MAX_POST_TOPICS}개)</span>
-          <div className="flex w-full flex-wrap gap-[8px]">
-            {TOPICS.map((t) => (
-              <TopicSelectChip key={t.key} selected={topics.includes(t.key)} onClick={() => toggleTopic(t.key)}>
-                {t.label}
-              </TopicSelectChip>
-            ))}
-          </div>
-        </section>
+        {tags.length > 0 && (
+          <p className="m-0 text-[12px] leading-[16px]" style={{ color: tags.length > MAX_TAGS ? "var(--a-color-danger)" : "var(--a-color-icon)" }}>
+            태그 {tags.length}개: {tags.map((t) => `#${t}`).join(" ")}{tags.length > MAX_TAGS ? ` (최대 ${MAX_TAGS}개)` : ""}
+          </p>
+        )}
 
         {error && <p role="alert" className="m-0 text-[12px] leading-[14px]" style={{ color: "var(--a-color-danger)" }}>{error}</p>}
       </main>
 
       <div className="shrink-0 px-[20px] pt-[8px] pb-[20px]">
-        <PrimaryButton disabled={images.length === 0} loading={submitting} onClick={submit}>
+        <PrimaryButton disabled={images.length === 0 || tags.length > MAX_TAGS} loading={submitting} onClick={submit}>
           {images.length === 0 ? "사진을 선택해주세요" : "올리기"}
         </PrimaryButton>
       </div>

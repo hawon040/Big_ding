@@ -19,11 +19,12 @@ module.exports = [
 
   // Feed(홈 피드) — 최신순 / 주제별 최신순, FeedComment — 피드별 댓글
   { collection: "feeds", key: { createdAt: -1 }, options: { name: "createdAt_-1" } },
-  { collection: "feeds", key: { topics: 1, createdAt: -1 }, options: { name: "topics_1_createdAt_-1" } },
+  { collection: "feeds", key: { tags: 1, createdAt: -1 }, options: { name: "tags_1_createdAt_-1" } },
   { collection: "feedcomments", key: { feed: 1, createdAt: 1 }, options: { name: "feed_1_createdAt_1" } },
 
   // User — 스터디 모집 알림 대상(관심 주제가 겹치는 사용자) 조회
   { collection: "users", key: { interests: 1 }, options: { name: "interests_1" } },
+  { collection: "users", key: { tagAlerts: 1 }, options: { name: "tagAlerts_1" } },
 
   // Notification — 미읽음 목록/개수, expiresAt 시각에 자동 삭제 (제재·처리 결과 알림은 expiresAt 없음)
   { collection: "notifications", key: { recipient: 1, read: 1, createdAt: -1 }, options: { name: "recipient_1_read_1_createdAt_-1" } },

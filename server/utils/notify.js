@@ -72,7 +72,30 @@ const notifyStudyRecruit = async (post) => {
   return recipients.length;
 };
 
+// 피드 해시태그 알림: 그 태그를 구독(User.tagAlerts)한 사람에게 보낸다. 작성자 본인·차단 관계·탈퇴자는 제외.
+// 한 사람이 여러 태그를 구독해도 알림은 1개(가장 먼저 겹치는 태그 기준).
+const notifyFeedTags = async (feed) => {
+  if (!feed.tags?.length) return 0;
+  const author = await User.findById(feed.author).select("blockedUsers").lean();
+  const recipients = await User.find({
+    _id: { $ne: feed.author, $nin: author?.blockedUsers || [] },
+    blockedUsers: { $ne: feed.author },
+    tagAlerts: { $in: feed.tags },
+    isWithdrawn: { $ne: true },
+  }).select("tagAlerts").lean();
+  if (!recipients.length) return 0;
+  await Notification.insertMany(recipients.map((r) => ({
+    recipient: r._id,
+    sender: feed.author,
+    type: "feed_tag",
+    feed: feed._id,
+    tag: feed.tags.find((t) => r.tagAlerts.includes(t)),
+    actors: [feed.author],
+  })));
+  return recipients.length;
+};
+
 // 알림 실패가 본 작업(댓글 작성 등)을 실패시키지 않도록 로그만 남긴다.
 const notifySafely = (params) => notify(params).catch((err) => console.error("알림 생성 실패:", err.message));
 
-module.exports = { notify, notifySafely, notifyStudyRecruit };
+module.exports = { notify, notifySafely, notifyStudyRecruit, notifyFeedTags };

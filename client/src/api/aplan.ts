@@ -31,14 +31,13 @@ export const feedApi = {
 
 // ── 홈 피드 게시물 (사진 필수, 커뮤니티 글과 별개) ──
 export const feedPostApi = {
-  list: (topic: TopicKey | "all", cursor?: string | null) =>
-    api.get<Page<FeedItem>>("/feeds", { params: { topic, ...pageParams(cursor) } }).then((r) => r.data),
+  list: (tag: string | null, cursor?: string | null) =>
+    api.get<Page<FeedItem>>("/feeds", { params: { tag: tag ?? undefined, ...pageParams(cursor) } }).then((r) => r.data),
   get: (id: string) => api.get<FeedItem>(`/feeds/${id}`).then((r) => r.data),
-  create: (input: { images: File[]; content: string; topics: TopicKey[] }) => {
+  create: (input: { images: File[]; content: string }) => {
     const form = new FormData();
     input.images.forEach((file) => form.append("images", file));
     if (input.content) form.append("content", input.content);
-    form.append("topics", JSON.stringify(input.topics));
     return api.post<FeedItem>("/feeds", form).then((r) => r.data);
   },
   remove: (id: string) => api.delete(`/feeds/${id}`),
@@ -47,6 +46,13 @@ export const feedPostApi = {
   comments: (id: string) => api.get<{ items: FeedComment[] }>(`/feeds/${id}/comments`).then((r) => r.data.items),
   addComment: (id: string, content: string) => api.post<FeedComment>(`/feeds/${id}/comments`, { content }).then((r) => r.data),
   removeComment: (commentId: string) => api.delete(`/feeds/comments/${commentId}`),
+};
+
+// ── 피드 태그 알림: 구독한 #태그가 달린 새 피드가 올라오면 알림 ──
+export const tagAlertApi = {
+  list: () => api.get<{ items: string[] }>("/feeds/tag-alerts").then((r) => r.data.items),
+  add: (tag: string) => api.post<{ items: string[] }>("/feeds/tag-alerts", { tag }).then((r) => r.data.items),
+  remove: (tag: string) => api.delete<{ items: string[] }>(`/feeds/tag-alerts/${encodeURIComponent(tag)}`).then((r) => r.data.items),
 };
 
 // ── 게시글 ──

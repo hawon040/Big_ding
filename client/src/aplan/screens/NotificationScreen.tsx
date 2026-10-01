@@ -112,6 +112,8 @@ function notifTail(n: NotificationItem): string {
       return "님이 회원님의 댓글을 채택했어요.";
     case "study_recruit":
       return "님이 관심 분야에 맞는 모집글을 올렸어요.";
+    case "feed_tag":
+      return n.tag ? `님이 #${n.tag} 태그가 달린 피드를 올렸어요.` : "님이 구독한 태그의 피드를 올렸어요.";
     case "adminWarning":
       return `에게 경고를 받았어요.${n.post ? ` (게시물: "${n.post.title}")` : ""} 사유: ${n.message ?? "-"}`;
     case "adminBan":

@@ -9,7 +9,8 @@ const feedSchema = new mongoose.Schema({
     validate: { validator: (v) => Array.isArray(v) && v.length >= 1 && v.length <= 10, message: "사진은 1~10장이어야 합니다." },
   },
   content: { type: String, default: "", maxlength: 1000 },
-  topics: { type: [String], default: [] },
+  // 본문의 #해시태그에서 서버가 뽑아 저장한다(소문자, 중복 제거). 태그 알림·태그별 목록에 쓴다.
+  tags: { type: [String], default: [] },
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   likeCount: { type: Number, default: 0 },
   commentCount: { type: Number, default: 0 },
