@@ -5,6 +5,9 @@ import { Toggle } from "@/aplan/components/Toggle";
 import { TextField } from "@/aplan/components/TextField";
 import { BottomSheet } from "@/aplan/components/BottomSheet";
 import { ErrorState, Skeleton } from "@/aplan/components/States";
+import { BlockedUsersScreen } from "@/aplan/screens/BlockedUsersScreen";
+import { InquiryScreen, MyReportsScreen } from "@/aplan/screens/InquiryScreen";
+import { AdminScreen } from "@/aplan/screens/AdminScreen";
 import type { Me } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
 
@@ -21,6 +24,8 @@ export function SettingsScreen({ onBack, onEditProfile, onChangePassword, onOpen
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  // 설정 위에 쌓이는 하위 화면
+  const [sub, setSub] = useState<"blocked" | "inquiry" | "reports" | "admin" | null>(null);
 
   const load = () => {
     setError(null);
@@ -43,6 +48,14 @@ export function SettingsScreen({ onBack, onEditProfile, onChangePassword, onOpen
     localStorage.removeItem("token");
     window.location.reload();
   };
+
+  if (sub) {
+    const close = () => setSub(null);
+    return sub === "blocked" ? <BlockedUsersScreen onBack={close} />
+      : sub === "inquiry" ? <InquiryScreen onBack={close} />
+      : sub === "reports" ? <MyReportsScreen onBack={close} />
+      : <AdminScreen onBack={close} />;
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -103,6 +116,14 @@ export function SettingsScreen({ onBack, onEditProfile, onChangePassword, onOpen
               />
             )}
             <StaticRow label="언어" value="한국어" />
+
+            <Divider />
+
+            <SectionTitle>안전·지원</SectionTitle>
+            <LinkRow label="차단 내역" onClick={() => setSub("blocked")} />
+            <LinkRow label="신고 내역" onClick={() => setSub("reports")} />
+            <LinkRow label="건의사항" onClick={() => setSub("inquiry")} />
+            {me?.isAdmin && <LinkRow label="관리자" onClick={() => setSub("admin")} />}
 
             <Divider />
 

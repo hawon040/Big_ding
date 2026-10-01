@@ -3,7 +3,7 @@ import api from "./index";
 import type { BoardKey } from "@/constants/boards";
 import type { TopicKey } from "@/constants/topics";
 import type {
-  AuthorSummary, CommentTree, FeedComment, FeedItem, StoryItem, StoryText, StoryTrayItem, Me, MyComment, NotificationItem, Page, PostCard, PostDetail, RecentSearch,
+  AdminReportTarget, AdminUser, AuthorSummary, BlockedUser, CommentTree, InquiryItem, ReportItem, SanctionItem, SanctionType, FeedComment, FeedItem, StoryItem, StoryText, StoryTrayItem, Me, MyComment, NotificationItem, Page, PostCard, PostDetail, RecentSearch,
   TagResult, TopicChipItem, TrendingKeyword, UserProfile, UserSummary,
 } from "@/types/aplan";
 
@@ -18,7 +18,7 @@ export const meApi = {
     api.patch<Me>("/users/me", data).then((r) => r.data),
   updateSettings: (data: { notificationSettings?: Partial<Me["notificationSettings"]>; appSettings?: Partial<Me["appSettings"]> }) =>
     api.patch<Me>("/users/me/settings", data).then((r) => r.data),
-  blocks: () => api.get<Page<{ id: string; nickname: string; profileImage: string | null; department: string | null }>>("/users/me/blocks").then((r) => r.data),
+  blocks: () => api.get<Page<BlockedUser>>("/users/me/blocks").then((r) => r.data),
   withdraw: (password: string) => api.delete("/users/account", { data: { password } }),
 };
 
@@ -80,6 +80,10 @@ export interface PostInput {
   content: string;
   images?: File[];
   recruit?: { capacity: number };
+  poll?: { question: string; options: string[] };
+  /** 전공 강의평가 */
+  rating?: number;
+  lectureGrade?: string;
 }
 
 const toFormData = (input: PostInput) => {
@@ -90,6 +94,9 @@ const toFormData = (input: PostInput) => {
   form.append("topics", JSON.stringify(input.topics));
   form.append("tags", JSON.stringify(input.tags));
   if (input.recruit) form.append("recruit", JSON.stringify(input.recruit));
+  if (input.poll) form.append("poll", JSON.stringify(input.poll));
+  if (input.rating !== undefined) form.append("rating", String(input.rating));
+  if (input.lectureGrade) form.append("lectureGrade", input.lectureGrade);
   input.images?.forEach((file) => form.append("images", file));
   return form;
 };
@@ -106,6 +113,7 @@ export const postApi = {
   unlike: (id: string) => api.delete<{ likeCount: number; isLiked: boolean }>(`/posts/${id}/like`).then((r) => r.data),
   scrap: (id: string) => api.post<{ scrapCount: number; isScrapped: boolean }>(`/posts/${id}/scrap`).then((r) => r.data),
   unscrap: (id: string) => api.delete<{ scrapCount: number; isScrapped: boolean }>(`/posts/${id}/scrap`).then((r) => r.data),
+  vote: (id: string, optionIndex: number) => api.post(`/posts/${id}/poll/vote`, { optionIndex }).then((r) => r.data),
   updateRecruit: (id: string, data: { status?: "open" | "closed"; capacity?: number; current?: number }) =>
     api.patch(`/posts/${id}/recruit`, data).then((r) => r.data),
 };
@@ -164,4 +172,47 @@ export const notificationApi = {
 export const reportApi = {
   create: (data: { targetType: "post" | "comment" | "user"; targetId: string; reason: string; detail?: string }) =>
     api.post("/reports", data),
+};
+
+// ── 건의사항 ──
+export const inquiryApi = {
+  create: (data: { title: string; content: string }) => api.post("/inquiries", data),
+  mine: () => api.get<InquiryItem[]>("/inquiries/mine").then((r) => r.data),
+  cancel: (id: string) => api.delete(`/inquiries/${id}`),
+  // 관리자
+  all: () => api.get<InquiryItem[]>("/inquiries").then((r) => r.data),
+  resolve: (id: string, response?: string) => api.patch(`/inquiries/${id}`, { status: "resolved", response }),
+};
+
+export const myReportApi = {
+  mine: () => api.get<ReportItem[]>("/reports/mine").then((r) => r.data),
+};
+
+// ── 관리자 (서버가 isAdmin이 아니면 403) ──
+export type SanctionInput =
+  | { type: "warning"; reason: string }
+  | { type: "ban"; reason: string; banType: "permanent" | "temporary"; days?: number }
+  | { type: "commentRestriction"; reason: string; days: number }
+  | { type: "forceWithdraw"; reason: string };
+
+const SANCTION_PATH: Record<SanctionType, string> = {
+  warning: "warn",
+  ban: "ban",
+  commentRestriction: "restrict-comments",
+  forceWithdraw: "withdraw",
+};
+
+export const adminApi = {
+  reports: () => api.get<ReportItem[]>("/reports").then((r) => r.data),
+  reportTarget: (id: string) => api.get<AdminReportTarget>(`/reports/${id}/target`).then((r) => r.data),
+  resolveReport: (id: string, note?: string) => api.patch(`/reports/${id}`, { status: "resolved", note }),
+  users: (q: string, page = 1) =>
+    api.get<{ users: AdminUser[]; total: number; hasMore: boolean }>("/admin/users", { params: { q, page, limit: 30 } }).then((r) => r.data),
+  sanction: (userId: string, input: SanctionInput, reportId?: string) => {
+    const { type, ...body } = input;
+    return api.post(`/admin/users/${userId}/${SANCTION_PATH[type]}`, { ...body, reportId });
+  },
+  sanctions: () => api.get<SanctionItem[]>("/admin/sanctions").then((r) => r.data),
+  liftSanction: (id: string) => api.patch(`/admin/sanctions/${id}/lift`),
+  setEventAdmin: (userId: string, canPostEvents: boolean) => api.patch(`/admin/users/${userId}/event-admin`, { canPostEvents }),
 };

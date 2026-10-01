@@ -35,7 +35,7 @@ const cardProjection = (meId) => {
   return {
     board: 1, title: 1, content: 1, images: 1, author: 1, topics: 1, tags: 1, createdAt: 1,
     likeCount: 1, commentCount: 1, scrapCount: 1, viewCount: 1, recruit: 1, acceptedCommentId: 1,
-    visibility: 1, popularityScore: 1,
+    visibility: 1, popularityScore: 1, rating: 1, lectureGrade: 1,
     likes: { $elemMatch: { $eq: me } },
     scraps: { $elemMatch: { $eq: me } },
   };
@@ -60,14 +60,27 @@ const toPostCard = (p, meId) => ({
   isLiked: includesId(p.likes, meId),
   isScrapped: includesId(p.scraps, meId),
   recruit: p.recruit || null,
+  rating: p.rating ?? null,
+  lectureGrade: p.lectureGrade || null,
   isAnswered: !!p.acceptedCommentId,
 });
+
+// 투표는 누가 골랐는지(votes의 사용자 id)는 숨기고 옵션별 득표 수와 내가 고른 옵션만 내려준다.
+const toPoll = (poll, meId) => {
+  if (!poll) return null;
+  const options = (poll.options || []).map((opt) => ({
+    text: opt.text,
+    count: opt.votes?.length || 0,
+    voted: includesId(opt.votes, meId),
+  }));
+  return { question: poll.question, options, totalVotes: options.reduce((n, o) => n + o.count, 0) };
+};
 
 const toPostDetail = (p, meId, { isFollowingAuthor = false } = {}) => ({
   ...toPostCard(p, meId),
   content: p.content,
   images: p.images || [],
-  poll: p.poll || null,
+  poll: toPoll(p.poll, meId),
   visibility: p.visibility || "all",
   acceptedCommentId: p.acceptedCommentId ? String(p.acceptedCommentId) : null,
   updatedAt: p.updatedAt,

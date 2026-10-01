@@ -61,6 +61,7 @@ function StatusBadges({ post }: { post: PostCard }) {
     badges.push({ text: `${open ? "모집중" : "마감"} ${post.recruit.current}/${post.recruit.capacity}명`, strong: open });
   }
   if (post.isAnswered) badges.push({ text: "채택 완료", strong: true });
+  if (post.rating) badges.push({ text: `★ ${post.rating.toFixed(1)}`, strong: false });
   return (
     <>
       {badges.map((b) => (

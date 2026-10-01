@@ -7,7 +7,8 @@ import { Avatar } from "@/aplan/components/Avatar";
 import { IconButton } from "@/aplan/components/IconButton";
 import { BottomSheet, SheetItem } from "@/aplan/components/BottomSheet";
 import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
-import type { CommentNode, PostDetail } from "@/types/aplan";
+import { StarRating } from "@/aplan/components/StarRating";
+import type { CommentNode, Poll, PostDetail } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
 
 interface PostDetailScreenProps {
@@ -61,6 +62,18 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
     loadComments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [postId]);
+
+  // 투표: 다른 선택지를 누르면 옮기고, 같은 선택지를 다시 누르면 취소(서버와 같은 규칙). 낙관적 반영 후 실패하면 다시 불러온다.
+  const vote = (index: number) => {
+    if (!post?.poll) return;
+    const options = post.poll.options.map((o, i) => {
+      const was = o.voted;
+      const now = i === index ? !was : false;
+      return { ...o, voted: now, count: o.count + (now ? 1 : 0) - (was ? 1 : 0) };
+    });
+    setPost({ ...post, poll: { ...post.poll, options, totalVotes: options.reduce((n, o) => n + o.count, 0) } });
+    postApi.vote(postId, index).catch(loadPost);
+  };
 
   const toggleLike = () => {
     if (!post || likeBusy) return;
@@ -192,6 +205,13 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
               {/* 제목 */}
               <h1 className="m-0 w-full text-[20px] leading-[24px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>{post.title}</h1>
 
+              {post.rating != null && (
+                <div className="flex items-center gap-[6px]">
+                  <StarRating value={post.rating} size={16} />
+                  <span className="text-[13px] leading-[16px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>{post.rating.toFixed(1)}</span>
+                </div>
+              )}
+
               {/* 모집 상태 · 채택 완료 (Figma 예시엔 없지만, 목록(PostListItem)엔 있는 배지라 상세에도 맞춘다) */}
               {(post.recruit || post.isAnswered) && (
                 <div className="flex items-center gap-[6px]">
@@ -246,7 +266,8 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
               ))}
 
               {/* 본문 (```코드``` 구간은 코드 블록으로 표시) */}
-              <PostBody content={post.content} />
+              {post.content.trim() && <PostBody content={post.content} />}
+              {post.poll && <PollView poll={post.poll} onVote={vote} />}
 
               {/* 좋아요 · 스크랩 */}
               <div className="flex w-full items-center gap-[16px]">
@@ -519,5 +540,32 @@ function CommentSkeleton() {
         </div>
       ))}
     </div>
+  );
+}
+
+// 투표: 선택지별 득표 비율 막대. 내가 고른 선택지는 굵은 테두리로 표시한다.
+function PollView({ poll, onVote }: { poll: Poll; onVote: (index: number) => void }) {
+  return (
+    <section className="flex w-full flex-col gap-[8px] border border-solid p-[14px]" style={{ borderColor: "var(--a-color-border)", borderRadius: "var(--a-radius-card)" }} aria-label="투표">
+      <h2 className="m-0 text-[15px] leading-[18px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>{poll.question}</h2>
+      {poll.options.map((o, i) => {
+        const pct = poll.totalVotes ? Math.round((o.count / poll.totalVotes) * 100) : 0;
+        return (
+          <button
+            key={i}
+            type="button"
+            aria-pressed={o.voted}
+            onClick={() => onVote(i)}
+            className="relative flex w-full items-center gap-[8px] overflow-hidden border border-solid bg-transparent px-[12px] py-[11px] text-left"
+            style={{ borderColor: o.voted ? "var(--a-color-text-primary)" : "var(--a-color-border)", borderWidth: o.voted ? 2 : 1, borderRadius: "var(--a-radius-control)" }}
+          >
+            <span className="absolute inset-y-0 left-0" style={{ width: `${pct}%`, background: "var(--a-color-surface-muted)" }} aria-hidden />
+            <span className={`relative min-w-px flex-1 text-[14px] leading-[17px] ${o.voted ? "font-bold" : "font-normal"}`} style={{ color: "var(--a-color-text-primary)" }}>{o.text}</span>
+            <span className="relative shrink-0 text-[12px] leading-[14px]" style={{ color: "var(--a-color-text-secondary)" }}>{o.count}표 · {pct}%</span>
+          </button>
+        );
+      })}
+      <span className="text-[12px] leading-[14px]" style={{ color: "var(--a-color-text-secondary)" }}>총 {poll.totalVotes}명 참여</span>
+    </section>
   );
 }

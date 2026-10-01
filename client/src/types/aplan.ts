@@ -39,11 +39,21 @@ export interface PostCard {
   isLiked: boolean;
   isScrapped: boolean;
   recruit: Recruit | null;
+  /** 전공 강의평가 글만: 0.5~5 별점과 교과군 */
+  rating?: number | null;
+  lectureGrade?: string | null;
   isAnswered: boolean;
+}
+
+export interface Poll {
+  question: string;
+  options: { text: string; count: number; voted: boolean }[];
+  totalVotes: number;
 }
 
 export interface PostDetail extends PostCard {
   content: string;
+  poll?: Poll | null;
   images: string[];
   visibility: "all" | "followers" | "private";
   acceptedCommentId: string | null;
@@ -222,4 +232,72 @@ export interface StoryItem {
   viewed: boolean;
   /** 내 스토리일 때만 */
   viewerCount: number | null;
+}
+
+// ── 건의 / 신고 / 차단 내역 ──
+export interface BlockedUser {
+  id: string;
+  nickname: string;
+  profileImage: string | null;
+  department: string | null;
+}
+
+export interface InquiryItem {
+  _id: string;
+  title: string;
+  content: string;
+  status: "pending" | "resolved";
+  adminResponse?: string;
+  createdAt: string;
+  user?: { _id: string; nickname: string; studentId: string } | null;
+}
+
+export interface ReportItem {
+  _id: string;
+  targetType: "post" | "comment" | "user";
+  targetId: string;
+  reason: string;
+  detail?: string;
+  status: "pending" | "resolved";
+  sanctionApplied?: boolean;
+  sanctionType?: SanctionType;
+  createdAt: string;
+  reporter?: { _id: string; nickname: string; studentId: string } | null;
+}
+
+// ── 관리자 ──
+export type SanctionType = "warning" | "ban" | "commentRestriction" | "forceWithdraw";
+
+export interface AdminUser {
+  _id: string;
+  nickname: string;
+  studentId: string;
+  isAdmin: boolean;
+  canPostEvents: boolean;
+  banned: boolean;
+  banType?: "permanent" | "temporary";
+  banUntil?: string;
+  commentRestrictedUntil?: string;
+  isWithdrawn: boolean;
+  warningCount: number;
+  banCount: number;
+}
+
+export interface SanctionItem {
+  _id: string;
+  type: SanctionType;
+  reason: string;
+  active: boolean;
+  expiresAt?: string;
+  liftedAt?: string;
+  createdAt: string;
+  user?: { _id: string; nickname: string; studentId: string } | null;
+  admin?: { nickname: string } | null;
+}
+
+export interface AdminReportTarget {
+  targetType: "post" | "comment" | "user";
+  post?: { _id: string; title: string; content: string; board: string; author?: { _id: string; nickname: string; studentId: string } | null };
+  targetCommentId?: string;
+  user?: { _id: string; nickname: string; studentId: string };
 }

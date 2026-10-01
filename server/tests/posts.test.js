@@ -224,3 +224,33 @@ describe("PATCH /api/posts/:id/recruit", () => {
     expect(notes.map((n) => String(n.recipient))).toEqual([fan.id]);
   });
 });
+
+describe("투표·강의평가 응답", () => {
+  test("투표는 득표 수와 내 선택만 내려주고 투표자 id는 숨긴다", async () => {
+    const author = await createUser();
+    const voter = await createUser();
+    const post = await createPost(author.token, { poll: JSON.stringify({ question: "점심?", options: ["김밥", "라면"] }) });
+
+    expect((await api(voter.token).post(`/api/posts/${post._id}/poll/vote`).send({ optionIndex: 1 })).status).toBe(200);
+
+    const mine = (await api(voter.token).get(`/api/posts/${post._id}`)).body.poll;
+    expect(mine).toEqual({
+      question: "점심?",
+      options: [{ text: "김밥", count: 0, voted: false }, { text: "라면", count: 1, voted: true }],
+      totalVotes: 1,
+    });
+    const others = (await api(author.token).get(`/api/posts/${post._id}`)).body.poll;
+    expect(others.options.map((o) => o.voted)).toEqual([false, false]);
+    expect(JSON.stringify(others)).not.toContain(voter.id);
+  });
+
+  test("강의평가 글의 별점·교과군이 목록과 상세에 포함된다", async () => {
+    const { token } = await createUser();
+    const post = await createPost(token, { board: "lecture", title: "자료구조론", content: "가".repeat(25), rating: "4.5", lectureGrade: "핵심교과군" });
+    const detail = (await api(token).get(`/api/posts/${post._id}`)).body;
+    expect(detail.rating).toBe(4.5);
+    expect(detail.lectureGrade).toBe("핵심교과군");
+    const list = (await api(token).get("/api/posts?board=lecture&limit=10")).body;
+    expect(list.items[0].rating).toBe(4.5);
+  });
+});
