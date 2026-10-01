@@ -8,6 +8,7 @@ import "@/styles/aplan-tokens.css";
 
 interface NotificationScreenProps {
   onOpenPost: (id: string) => void;
+  onOpenFeed: (id: string) => void;
   onOpenUser: (id: string) => void;
 }
 
@@ -15,7 +16,7 @@ const ADMIN_TYPES: NotificationType[] = ["adminWarning", "adminBan", "adminComme
 
 // 알림 (Figma에 없는 신규 화면 — Figma의 A-08은 설정 화면이다. A안 톤으로 새로 구성).
 // 유형별 문구는 기존 앱(app/components/CommunityScreen.tsx 알림 패널)의 표현을 A안 말투("~해요")로 옮겼다.
-export function NotificationScreen({ onOpenPost, onOpenUser }: NotificationScreenProps) {
+export function NotificationScreen({ onOpenPost, onOpenFeed, onOpenUser }: NotificationScreenProps) {
   const list = useInfiniteList((cursor) => notificationApi.list(cursor), []);
 
   const markAllRead = () => {
@@ -29,6 +30,7 @@ export function NotificationScreen({ onOpenPost, onOpenUser }: NotificationScree
       notificationApi.read(n.id).catch(() => {});
     }
     if (n.type === "follow" && n.actor) onOpenUser(n.actor.id);
+    else if (n.feedId) onOpenFeed(n.feedId);
     else if (n.post) onOpenPost(n.post.id);
   };
 
@@ -96,6 +98,7 @@ function notifTail(n: NotificationItem): string {
     case "leave":
       return "님이 회원님의 모임 참여를 취소했어요.";
     case "comment":
+      if (n.feedId) return preview ? `님이 피드에 "${preview}"라는 댓글을 남겼어요.` : "님이 피드에 댓글을 남겼어요.";
       return preview ? `님이 "${preview}"라는 댓글을 남겼어요.` : "님이 글에 댓글을 남겼어요.";
     case "reply":
       return preview ? `님이 댓글에 "${preview}"라는 답글을 남겼어요.` : "님이 댓글에 답글을 남겼어요.";

@@ -137,6 +137,7 @@ export interface NotificationItem {
   actor: AuthorSummary | null;
   actorCount: number;
   post: { id: string; title: string; board: BoardKey } | null;
+  feedId?: string | null;
   commentId: string | null;
   commentContent: string | null;
   message: string | null;
@@ -165,4 +166,26 @@ export interface TrendingKeyword {
 export interface TagResult {
   tag: string;
   postCount: number;
+}
+
+// 홈 피드 게시물(사진 필수) — 커뮤니티 글(PostCard)과는 별개 데이터 (server/routes/feeds.js)
+export interface FeedItem {
+  id: string;
+  author: AuthorSummary | null;
+  images: string[];
+  content: string;
+  topics: TopicKey[];
+  createdAt: string;
+  likeCount: number;
+  commentCount: number;
+  isLiked: boolean;
+  isMine: boolean;
+}
+
+export interface FeedComment {
+  id: string;
+  author: AuthorSummary | null;
+  content: string;
+  createdAt: string;
+  isMine: boolean;
 }

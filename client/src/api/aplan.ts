@@ -3,7 +3,7 @@ import api from "./index";
 import type { BoardKey } from "@/constants/boards";
 import type { TopicKey } from "@/constants/topics";
 import type {
-  CommentTree, Me, MyComment, NotificationItem, Page, PostCard, PostDetail, RecentSearch,
+  CommentTree, FeedComment, FeedItem, Me, MyComment, NotificationItem, Page, PostCard, PostDetail, RecentSearch,
   TagResult, TopicChipItem, TrendingKeyword, UserProfile, UserSummary,
 } from "@/types/aplan";
 
@@ -27,6 +27,26 @@ export const feedApi = {
   topics: () => api.get<{ items: TopicChipItem[] }>("/feed/topics").then((r) => r.data.items),
   list: (topic: TopicKey | "all", cursor?: string | null) =>
     api.get<Page<PostCard>>("/feed", { params: { topic, ...pageParams(cursor) } }).then((r) => r.data),
+};
+
+// ── 홈 피드 게시물 (사진 필수, 커뮤니티 글과 별개) ──
+export const feedPostApi = {
+  list: (topic: TopicKey | "all", cursor?: string | null) =>
+    api.get<Page<FeedItem>>("/feeds", { params: { topic, ...pageParams(cursor) } }).then((r) => r.data),
+  get: (id: string) => api.get<FeedItem>(`/feeds/${id}`).then((r) => r.data),
+  create: (input: { images: File[]; content: string; topics: TopicKey[] }) => {
+    const form = new FormData();
+    input.images.forEach((file) => form.append("images", file));
+    if (input.content) form.append("content", input.content);
+    form.append("topics", JSON.stringify(input.topics));
+    return api.post<FeedItem>("/feeds", form).then((r) => r.data);
+  },
+  remove: (id: string) => api.delete(`/feeds/${id}`),
+  like: (id: string) => api.post<{ likeCount: number; isLiked: boolean }>(`/feeds/${id}/like`).then((r) => r.data),
+  unlike: (id: string) => api.delete<{ likeCount: number; isLiked: boolean }>(`/feeds/${id}/like`).then((r) => r.data),
+  comments: (id: string) => api.get<{ items: FeedComment[] }>(`/feeds/${id}/comments`).then((r) => r.data.items),
+  addComment: (id: string, content: string) => api.post<FeedComment>(`/feeds/${id}/comments`, { content }).then((r) => r.data),
+  removeComment: (commentId: string) => api.delete(`/feeds/comments/${commentId}`),
 };
 
 // ── 게시글 ──

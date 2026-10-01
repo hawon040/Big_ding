@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { LoginScreen } from "@/aplan/screens/LoginScreen";
 import { FindPasswordScreen } from "@/aplan/screens/FindPasswordScreen";
 import { MainShell } from "@/aplan/MainShell";
-import { CommunityScreen } from "./components/CommunityScreen";
 import { PasswordChangeScreen } from "./components/PasswordChangeScreen";
 import "@/styles/tokens.css";
 import { Modal } from "@/components/ui/Modal";
@@ -15,7 +14,6 @@ const SPLASH_MIN_MS = 1000;
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
-  const [showChatPanel, setShowChatPanel] = useState(false);
   const [showRegister, setShowRegister] = useState(false); // 회원가입 화면
   const [showConsentModal, setShowConsentModal] = useState(false); // 개인정보 동의 팝업
   const [authView, setAuthView] = useState<"login" | "findPassword">("login");
@@ -152,36 +150,10 @@ export default function App() {
     );
   }
 
-  // 메인 화면(A안): 하단 5탭(홈·검색·커뮤니티·알림·MY)은 MainShell이 전부 그린다.
-  // 채팅만 아직 A안으로 옮기지 않아서(MainShell의 onOpenLegacy 참고), 예전 방식대로
-  // 레거시 CommunityScreen을 전체화면 오버레이로 띄워 채팅 패널만 보여준다.
+  // 메인 화면(A안): 하단 5탭(홈·검색·커뮤니티·알림·MY)과 채팅은 MainShell이 전부 그린다.
   return (
     <div className="relative min-h-dvh">
-      <MainShell onOpenLegacy={(target) => target === "messages" && setShowChatPanel(true)} />
-      {showChatPanel && (
-        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "var(--bg-base)" }}>
-          <button
-            type="button"
-            onClick={() => setShowChatPanel(false)}
-            aria-label="닫기"
-            className="shrink-0 self-start px-4 py-3 text-sm font-semibold"
-            style={{ color: "var(--text-strong)", background: "transparent", border: 0 }}
-          >
-            ‹ 닫기
-          </button>
-          <div className="relative flex-1 overflow-hidden">
-            <CommunityScreen
-              showChat
-              setShowChat={setShowChatPanel}
-              isActive
-              onViewOwnProfile={() => {}}
-              openWriteSignal={0}
-              navSignal={0}
-              onDetailViewChange={() => {}}
-            />
-          </div>
-        </div>
-      )}
+      <MainShell />
     </div>
   );
 }
