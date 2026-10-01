@@ -31,6 +31,8 @@ const notificationSchema = new mongoose.Schema({
   },
   // 공강모임 참여/참여취소, 댓글 알림이 어느 게시물에 대한 것인지 표시하기 위한 참조
   post: { type: mongoose.Schema.Types.ObjectId, ref: "Post" },
+  // 피드(홈 게시물) 좋아요·댓글 알림이 가리키는 피드. post와 동시에 쓰이지 않는다.
+  feed: { type: mongoose.Schema.Types.ObjectId, ref: "Feed" },
   commentContent: { type: String }, // "어떤 댓글을 남겼는지" 알림에 표시하기 위한 스냅샷 (comment/reply 타입 전용)
   message: { type: String }, // 관리자 제재 알림의 사유 텍스트 (adminWarning/adminBan/adminCommentRestriction 전용)
   until: { type: Date }, // 차단(기간제)/댓글제한 알림의 만료 시각 (영구 차단이면 없음)

@@ -13,6 +13,7 @@ const toItem = (n) => ({
   actor: toAuthor(n.sender),
   actorCount: n.actorCount || 1,
   post: n.post ? { id: String(n.post._id), title: n.post.title, board: n.post.board } : null,
+  feedId: n.feed ? String(n.feed) : null,
   commentId: n.comment ? String(n.comment) : null,
   commentContent: n.commentContent || null,
   message: n.message || null,

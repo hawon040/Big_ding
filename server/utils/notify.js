@@ -16,7 +16,7 @@ const toId = (v) => new mongoose.Types.ObjectId(String(v?._id || v));
 
 // 알림 하나를 만든다. 본인에게·탈퇴한 사람에게·나를 차단한 사람에게는 보내지 않는다.
 // 같은 글 좋아요는 1시간 안이면 기존 알림에 묶는다 ("OO님 외 N명이 좋아요").
-const notify = async ({ recipient, sender, type, post, comment, commentContent, message }) => {
+const notify = async ({ recipient, sender, type, post, feed, comment, commentContent, message }) => {
   if (!recipient || sameId(recipient, sender)) return null;
   const target = await User.findById(recipient).select("notificationSettings isWithdrawn blockedUsers").lean();
   if (!target || target.isWithdrawn) return null;
@@ -24,10 +24,10 @@ const notify = async ({ recipient, sender, type, post, comment, commentContent, 
   const settingKey = SETTING_BY_TYPE[type];
   if (settingKey && target.notificationSettings?.[settingKey] === false) return null;
 
-  if (type === "like" && post) {
+  if (type === "like" && (post || feed)) {
     const senderId = toId(sender);
     const bundled = await Notification.findOneAndUpdate(
-      { recipient, type: "like", post, createdAt: { $gte: new Date(Date.now() - LIKE_BUNDLE_MS) } },
+      { recipient, type: "like", ...(post ? { post } : { feed }), createdAt: { $gte: new Date(Date.now() - LIKE_BUNDLE_MS) } },
       [
         {
           $set: {
@@ -44,7 +44,7 @@ const notify = async ({ recipient, sender, type, post, comment, commentContent, 
   }
 
   return Notification.create({
-    recipient, sender, type, post, comment, commentContent, message,
+    recipient, sender, type, post, feed, comment, commentContent, message,
     actors: sender ? [sender] : [],
     actorCount: 1,
   });
