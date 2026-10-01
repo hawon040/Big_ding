@@ -22,6 +22,9 @@ module.exports = [
   { collection: "feeds", key: { tags: 1, createdAt: -1 }, options: { name: "tags_1_createdAt_-1" } },
   { collection: "feedcomments", key: { feed: 1, createdAt: 1 }, options: { name: "feed_1_createdAt_1" } },
 
+  // Story(스토리) — 작성자별 최신순 조회
+  { collection: "stories", key: { author: 1, createdAt: -1 }, options: { name: "author_1_createdAt_-1" } },
+
   // User — 스터디 모집 알림 대상(관심 주제가 겹치는 사용자) 조회
   { collection: "users", key: { interests: 1 }, options: { name: "interests_1" } },
   { collection: "users", key: { tagAlerts: 1 }, options: { name: "tagAlerts_1" } },

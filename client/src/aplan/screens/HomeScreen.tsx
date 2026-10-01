@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
 import { Bell, BellOff, Plus, Send } from "lucide-react";
-import { feedPostApi, tagAlertApi } from "@/api/aplan";
+import { feedPostApi, storyApi, tagAlertApi } from "@/api/aplan";
+import type { StoryTrayItem } from "@/types/aplan";
 import { IconButton } from "@/aplan/components/IconButton";
 import { TopicSelectChip } from "@/aplan/components/TopicSelectChip";
 import { FeedCard } from "@/aplan/components/FeedCard";
+import { StoryAdd } from "@/aplan/components/StoryAdd";
+import { StoryTray } from "@/aplan/components/StoryTray";
+import { StoryViewer } from "@/aplan/components/StoryViewer";
 import { EmptyState, ErrorState, PostCardSkeleton, PostListSkeleton } from "@/aplan/components/States";
 import { useInfiniteList } from "@/aplan/hooks/useInfiniteList";
 import { useFeedActions } from "@/aplan/hooks/useFeedActions";
@@ -26,6 +30,22 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
   const [tag, setTag] = useState<string | null>(null);
   const [alertTags, setAlertTags] = useState<string[]>([]);
   const [alertBusy, setAlertBusy] = useState(false);
+
+  // 스토리: 상단 줄(내 스토리 + 팔로우하는 사람들) / 보는 중(트레이 인덱스) / 올리는 중
+  const [tray, setTray] = useState<StoryTrayItem[]>([]);
+  const [viewerStart, setViewerStart] = useState<number | null>(null);
+  const [addingStory, setAddingStory] = useState(false);
+  const loadTray = () => storyApi.tray().then(setTray).catch(() => {});
+  useEffect(() => {
+    loadTray();
+  }, []);
+  // 뷰어는 스토리가 있는 사람만 순서대로 넘긴다
+  const viewable = tray.filter((t) => t.count > 0 && t.user);
+  const openStory = (trayIndex: number) => {
+    const id = tray[trayIndex]?.user?.id;
+    const at = viewable.findIndex((t) => t.user?.id === id);
+    if (at >= 0) setViewerStart(at);
+  };
 
   useEffect(() => {
     tagAlertApi.list().then(setAlertTags).catch(() => {});
@@ -62,6 +82,8 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
 
       {/* 2:181 Body (스크롤) */}
       <main className="flex min-h-0 w-full flex-1 flex-col items-start gap-[16px] overflow-y-auto px-[20px] py-[12px]">
+        <StoryTray items={tray} onOpen={openStory} onAdd={() => setAddingStory(true)} />
+
         {/* 태그 칩 (가로 스크롤) */}
         <div className="-mx-[20px] w-[calc(100%+40px)] shrink-0 overflow-x-auto px-[20px] [scrollbar-width:none]">
           <div className="flex w-max gap-[8px]" role="group" aria-label="태그">
@@ -102,6 +124,25 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
         {feed.loadingMore && <PostCardSkeleton />}
         {feed.hasMore && <div ref={feed.sentinelRef} className="h-px w-full shrink-0" aria-hidden />}
       </main>
+      {viewerStart !== null && viewable.length > 0 && (
+        <StoryViewer
+          users={viewable}
+          startIndex={viewerStart}
+          onClose={(changed) => {
+            setViewerStart(null);
+            if (changed) loadTray();
+          }}
+        />
+      )}
+      {addingStory && (
+        <StoryAdd
+          onClose={() => setAddingStory(false)}
+          onPosted={() => {
+            setAddingStory(false);
+            loadTray();
+          }}
+        />
+      )}
     </div>
   );
 }

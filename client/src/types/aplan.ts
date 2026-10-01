@@ -192,3 +192,24 @@ export interface FeedComment {
   createdAt: string;
   isMine: boolean;
 }
+
+// 24시간 스토리 (server/routes/stories.js)
+export interface StoryTrayItem {
+  user: AuthorSummary | null;
+  isMe: boolean;
+  count: number;
+  /** 내가 아직 안 본 스토리가 있음 → 그라데이션 링 */
+  hasUnseen: boolean;
+  latestAt: string | null;
+}
+
+export interface StoryItem {
+  id: string;
+  image: string;
+  caption: string;
+  createdAt: string;
+  isMine: boolean;
+  viewed: boolean;
+  /** 내 스토리일 때만 */
+  viewerCount: number | null;
+}

@@ -3,7 +3,7 @@ import api from "./index";
 import type { BoardKey } from "@/constants/boards";
 import type { TopicKey } from "@/constants/topics";
 import type {
-  CommentTree, FeedComment, FeedItem, Me, MyComment, NotificationItem, Page, PostCard, PostDetail, RecentSearch,
+  AuthorSummary, CommentTree, FeedComment, FeedItem, StoryItem, StoryTrayItem, Me, MyComment, NotificationItem, Page, PostCard, PostDetail, RecentSearch,
   TagResult, TopicChipItem, TrendingKeyword, UserProfile, UserSummary,
 } from "@/types/aplan";
 
@@ -46,6 +46,22 @@ export const feedPostApi = {
   comments: (id: string) => api.get<{ items: FeedComment[] }>(`/feeds/${id}/comments`).then((r) => r.data.items),
   addComment: (id: string, content: string) => api.post<FeedComment>(`/feeds/${id}/comments`, { content }).then((r) => r.data),
   removeComment: (commentId: string) => api.delete(`/feeds/comments/${commentId}`),
+};
+
+// ── 스토리 (24시간, 팔로우하는 사람 + 내 것) ──
+export const storyApi = {
+  tray: () => api.get<{ items: StoryTrayItem[] }>("/stories").then((r) => r.data.items),
+  ofUser: (userId: string) =>
+    api.get<{ user: AuthorSummary | null; items: StoryItem[] }>(`/stories/user/${userId}`).then((r) => r.data),
+  create: (image: File, caption: string) => {
+    const form = new FormData();
+    form.append("image", image);
+    if (caption) form.append("caption", caption);
+    return api.post<StoryItem>("/stories", form).then((r) => r.data);
+  },
+  view: (id: string) => api.post(`/stories/${id}/view`),
+  viewers: (id: string) => api.get<{ items: AuthorSummary[] }>(`/stories/${id}/viewers`).then((r) => r.data.items),
+  remove: (id: string) => api.delete(`/stories/${id}`),
 };
 
 // ── 피드 태그 알림: 구독한 #태그가 달린 새 피드가 올라오면 알림 ──

@@ -45,6 +45,7 @@ app.use("/api/auth", require("./routes/auth")); // authLimiter는 위에서 이�
 app.use("/api/posts", require("./routes/posts"));
 app.use("/api/comments", require("./routes/comments"));
 app.use("/api/feed", require("./routes/feed"));
+app.use("/api/stories", require("./routes/stories")); // 24시간 스토리
 app.use("/api/feeds", require("./routes/feeds")); // 홈 피드 게시물(사진 필수) — 커뮤니티 글과 별개 컬렉션
 app.use("/api/search", require("./routes/search"));
 app.use("/api/chat", require("./routes/chat"));
