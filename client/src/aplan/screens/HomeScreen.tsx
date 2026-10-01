@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Bell, BellOff, Plus, Send } from "lucide-react";
 import { feedPostApi, storyApi, tagAlertApi } from "@/api/aplan";
 import type { StoryTrayItem } from "@/types/aplan";
@@ -34,9 +34,8 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
   // 스토리: 상단 줄(내 스토리 + 팔로우하는 사람들) / 보는 중(트레이 인덱스) / 올리는 중
   const [tray, setTray] = useState<StoryTrayItem[]>([]);
   const [viewerStart, setViewerStart] = useState<number | null>(null);
-  // + 를 누르는 즉시 갤러리 선택창을 연다(비동기로 열면 모바일 브라우저가 막는다). 사진을 고르면 올리기 화면이 뜬다.
+  // + 를 눌러 갤러리에서 고른 사진 (StoryTray의 투명 파일 입력창이 선택창을 연다). 고르면 올리기 화면이 뜬다.
   const [storyFile, setStoryFile] = useState<File | null>(null);
-  const storyFileRef = useRef<HTMLInputElement>(null);
   const loadTray = () => storyApi.tray().then(setTray).catch(() => {});
   useEffect(() => {
     loadTray();
@@ -84,16 +83,7 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
 
       {/* 2:181 Body (스크롤) */}
       <main className="flex min-h-0 w-full flex-1 flex-col items-start gap-[16px] overflow-y-auto px-[20px] py-[12px]">
-        <StoryTray items={tray} onOpen={openStory} onAdd={() => storyFileRef.current?.click()} />
-        <input
-          ref={storyFileRef}
-          type="file"
-          accept="image/*"
-          hidden
-          aria-hidden
-          tabIndex={-1}
-          onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) setStoryFile(f); }}
-        />
+        <StoryTray items={tray} onOpen={openStory} onPickPhoto={setStoryFile} />
 
         {/* 태그 칩 (가로 스크롤) */}
         <div className="-mx-[20px] w-[calc(100%+40px)] shrink-0 overflow-x-auto px-[20px] [scrollbar-width:none]">
