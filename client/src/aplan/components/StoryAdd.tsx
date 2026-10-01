@@ -6,13 +6,15 @@ import { PrimaryButton } from "./PrimaryButton";
 const CAPTION_MAX = 100;
 
 interface StoryAddProps {
+  /** 홈에서 +를 누르는 순간 이미 고른 사진 (선택창은 탭 직후에 열어야 모바일 브라우저가 막지 않는다) */
+  initialFile: File;
   onClose: () => void;
   onPosted: () => void;
 }
 
-// 스토리에 추가: 갤러리에서 사진 1장을 고르고(열자마자 선택창이 뜬다), 문구(선택)를 적어 공유한다.
-export function StoryAdd({ onClose, onPosted }: StoryAddProps) {
-  const [file, setFile] = useState<File | null>(null);
+// 스토리에 추가: 미리보기를 보며 문구(선택)를 적어 공유한다. 사진은 "다시 선택"으로 바꿀 수 있다.
+export function StoryAdd({ initialFile, onClose, onPosted }: StoryAddProps) {
+  const [file, setFile] = useState<File | null>(initialFile);
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,10 +22,6 @@ export function StoryAdd({ onClose, onPosted }: StoryAddProps) {
 
   const preview = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
-  useEffect(() => {
-    fileRef.current?.click();
-  }, []);
-
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);

@@ -40,10 +40,11 @@ export function StoryTray({ items, onOpen, onAdd }: StoryTrayProps) {
                     type="button"
                     onClick={onAdd}
                     aria-label="스토리 올리기"
-                    className="absolute -right-[2px] -bottom-[2px] flex size-[22px] items-center justify-center border-0 p-0"
-                    style={{ borderRadius: "50%", background: "var(--a-color-surface-inverse)", boxShadow: "0 0 0 2px var(--a-color-bg)" }}
+                    className="absolute -right-[8px] -bottom-[8px] flex size-[34px] items-center justify-center border-0 bg-transparent p-0"
                   >
-                    <Plus size={14} strokeWidth={2.5} style={{ color: "var(--a-color-on-inverse)" }} aria-hidden />
+                    <span className="flex size-[22px] items-center justify-center" style={{ borderRadius: "50%", background: "var(--a-color-surface-inverse)", boxShadow: "0 0 0 2px var(--a-color-bg)" }}>
+                      <Plus size={14} strokeWidth={2.5} style={{ color: "var(--a-color-on-inverse)" }} aria-hidden />
+                    </span>
                   </button>
                 )}
               </span>
