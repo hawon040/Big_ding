@@ -3,6 +3,8 @@ const { runInTransaction } = require("../utils/transaction");
 const { notifySafely } = require("../utils/notify");
 const { isBlockedBetween, sameId } = require("../utils/access");
 const { HttpError, isId } = require("../utils/validate");
+// 팔로우 관계가 바뀌면 양쪽에 알려서 열려 있는 마이페이지·프로필의 숫자를 바로 다시 불러오게 한다.
+const { announceCounts } = require("./profileCounts");
 
 // 팔로우·차단 관계는 User 문서의 배열(following/followers/blockedUsers)이 원본이다.
 // 배열을 바꿀 때 실제로 바뀐 경우에만 카운트를 $inc해서 두 값이 어긋나지 않게 한다.
@@ -47,18 +49,21 @@ const follow = async (meId, targetId) => {
   if (await isBlockedBetween(meId, targetId)) throw new HttpError(403, "차단 관계인 사용자는 팔로우할 수 없습니다.");
   const added = await runInTransaction((session) => link(meId, targetId, session));
   if (added) notifySafely({ recipient: targetId, sender: meId, type: "follow" });
+  announceCounts(meId, targetId);
   return added;
 };
 
 const unfollow = async (meId, targetId) => {
   if (!isId(String(targetId))) throw new HttpError(404, "사용자를 찾을 수 없습니다.");
   await runInTransaction((session) => unlink(meId, targetId, session));
+  announceCounts(meId, targetId);
 };
 
 // 나를 팔로우하는 사람을 내 팔로워 목록에서 삭제
 const removeFollower = async (meId, followerId) => {
   if (!isId(String(followerId))) throw new HttpError(404, "사용자를 찾을 수 없습니다.");
   await runInTransaction((session) => unlink(followerId, meId, session));
+  announceCounts(meId, followerId);
 };
 
 // 차단: 친구 관계와 서로의 팔로우를 모두 끊는다.
@@ -70,6 +75,7 @@ const block = async (meId, targetId) => {
     await unlink(meId, targetId, session);
     await unlink(targetId, meId, session);
   });
+  announceCounts(meId, targetId);
 };
 
 const unblock = async (meId, targetId) => {

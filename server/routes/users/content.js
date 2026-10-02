@@ -1,13 +1,14 @@
-// /api/users/:id/posts, /comments, /scraps — 마이페이지·타인 프로필 탭
+// /api/users/:id/posts, /feeds, /comments, /scraps — 마이페이지·타인 프로필 탭
 const express = require("express");
 const router = express.Router();
 const Post = require("../../models/Post");
 const User = require("../../models/User");
 const Comment = require("../../models/Comment");
+const Feed = require("../../models/Feed");
 const auth = require("../../middleware/authMiddleware");
 const { getViewerContext, visiblePostsFilter, includesId, sameId } = require("../../utils/access");
 const { parseLimit, decodeCursor, pageBy } = require("../../utils/pagination");
-const { AUTHOR_FIELDS, cardProjection, toPostCard } = require("../../utils/serializers");
+const { AUTHOR_FIELDS, cardProjection, toPostCard, toFeed } = require("../../utils/serializers");
 const v = require("../../utils/validate");
 
 // 대상 사용자를 확인한다. 차단 관계면 403, 비공개 계정은 본인·맞팔로우만 (기존 규칙과 동일)
@@ -38,6 +39,24 @@ router.get("/:id/posts", auth, async (req, res) => {
     const { target } = await loadTarget(req.params.id, ctx);
     const { docs, nextCursor } = await postPage(req, { $and: [visiblePostsFilter(ctx), { author: target._id }] });
     res.json({ items: docs.map((p) => toPostCard(p, req.user.id)), nextCursor });
+  } catch (err) {
+    v.handleError(res, err);
+  }
+});
+
+// GET /api/users/:id/feeds — 올린 피드(사진 게시물, 최신순). 비공개·차단 규칙은 글 탭과 같다.
+router.get("/:id/feeds", auth, async (req, res) => {
+  try {
+    const ctx = await getViewerContext(req.user.id);
+    const { target } = await loadTarget(req.params.id, ctx);
+    const { docs, nextCursor } = await pageBy({
+      model: Feed,
+      filter: { author: target._id, isDeleted: { $ne: true }, isBlocked: { $ne: true } },
+      cursor: decodeCursor(req.query.cursor),
+      limit: parseLimit(req.query.limit),
+      build: (q) => q.populate("author", AUTHOR_FIELDS).lean(),
+    });
+    res.json({ items: docs.map((f) => toFeed(f, req.user.id)), nextCursor });
   } catch (err) {
     v.handleError(res, err);
   }

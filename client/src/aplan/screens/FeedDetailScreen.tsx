@@ -9,6 +9,7 @@ import { IconButton } from "@/aplan/components/IconButton";
 import { TextField } from "@/aplan/components/TextField";
 import { ErrorState } from "@/aplan/components/States";
 import { useFeedActions } from "@/aplan/hooks/useFeedActions";
+import { alertDialog, confirmDialog } from "@/aplan/components/Dialog";
 import "@/styles/aplan-tokens.css";
 
 interface FeedDetailScreenProps {
@@ -57,23 +58,23 @@ export function FeedDetailScreen({ feedId, onBack, onOpenUser }: FeedDetailScree
   };
 
   const removeComment = async (c: FeedComment) => {
-    if (!window.confirm("댓글을 삭제할까요?")) return;
+        if (!(await confirmDialog({ title: "댓글을 삭제할까요?", confirmText: "삭제", danger: true }))) return;
     try {
       await feedPostApi.removeComment(c.id);
       setComments((prev) => prev.filter((x) => x.id !== c.id));
       setFeedList(([f]) => [{ ...f, commentCount: Math.max(0, f.commentCount - 1) }]);
     } catch (err: any) {
-      window.alert(err?.response?.data?.message || "삭제하지 못했어요.");
+            alertDialog(err?.response?.data?.message || "삭제하지 못했어요.");
     }
   };
 
   const removeFeed = async () => {
-    if (!window.confirm("이 피드를 삭제할까요?")) return;
+        if (!(await confirmDialog({ title: "이 피드를 삭제할까요?", message: "삭제하면 되돌릴 수 없어요.", confirmText: "삭제", danger: true }))) return;
     try {
       await feedPostApi.remove(feedId);
       onBack();
     } catch (err: any) {
-      window.alert(err?.response?.data?.message || "삭제하지 못했어요.");
+            alertDialog(err?.response?.data?.message || "삭제하지 못했어요.");
     }
   };
 

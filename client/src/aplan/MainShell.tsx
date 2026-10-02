@@ -18,6 +18,8 @@ import { FeedDetailScreen } from "@/aplan/screens/FeedDetailScreen";
 import { ChatListScreen } from "@/aplan/screens/ChatListScreen";
 import { ChatRoomScreen } from "@/aplan/screens/ChatRoomScreen";
 import { GroupChatPickerScreen } from "@/aplan/screens/GroupChatPickerScreen";
+import { FollowListScreen, type FollowTab } from "@/aplan/screens/FollowListScreen";
+import { EditProfileScreen } from "@/aplan/screens/EditProfileScreen";
 import { EmptyState } from "@/aplan/components/States";
 import type { BoardKey } from "@/constants/boards";
 import type { TopicKey } from "@/constants/topics";
@@ -31,6 +33,13 @@ type ChatView =
   | { view: "room"; target: ChatTarget }
   | { view: "create" }
   | { view: "invite"; chat: GroupChat };
+
+// 프로필 쪽 화면은 서로 타고 들어갈 수 있어서(프로필 → 팔로워 목록 → 다른 프로필 → 피드 …) 스택으로 쌓고
+// 뒤로 가기는 하나씩 꺼낸다. 맨 위 화면만 그린다.
+type StackView =
+  | { view: "user"; userId: string }
+  | { view: "follows"; userId: string; tab: FollowTab }
+  | { view: "feed"; feedId: string };
 
 const UNREAD_POLL_MS = 30_000;
 
@@ -48,23 +57,27 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
   const [openPostId, setOpenPostId] = useState<string | null>(null);
   // 상세 위에 또 쌓이는 글쓰기/수정 화면
   const [writeTarget, setWriteTarget] = useState<WriteTarget | null>(null);
-  // 홈 피드(사진 필수 게시물): 올리기 / 상세(댓글)
+  // 홈 피드(사진 필수 게시물) 올리기
   const [feedWriting, setFeedWriting] = useState(false);
-  const [openFeedId, setOpenFeedId] = useState<string | null>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [chatView, setChatView] = useState<ChatView | null>(null);
   const [myId, setMyId] = useState<string | null>(null);
   // 온보딩(edit 모드) 재진입 — 여는 시점의 관심 분야를 들고 있는다
   const [editingInterests, setEditingInterests] = useState<TopicKey[] | null>(null);
-  // 프로필 위에서 다른 글을 열면(openPost) 프로필을 닫는다 — 실제 내비게이션 스택이 없어서
-  // 열려 있는 화면이 openUserId > openPostId 우선순위로만 하나 쌓이기 때문
-  const [openUserId, setOpenUserId] = useState<string | null>(null);
+  // 프로필·팔로우 목록·피드 상세 스택. 커뮤니티 글(openPost)을 열면 스택을 비운다 —
+  // 글 상세는 스택 아래에 그려져서, 스택이 남아 있으면 글이 가려지기 때문
+  const [stack, setStack] = useState<StackView[]>([]);
+  const push = (v: StackView) => setStack((s) => [...s, v]);
+  const pop = () => setStack((s) => s.slice(0, -1));
   const openPost = (id: string) => {
-    setOpenUserId(null);
-    setOpenFeedId(null);
+    setStack([]);
     setOpenPostId(id);
   };
-  const openUser = (id: string) => setOpenUserId(id);
+  const openUser = (userId: string) => push({ view: "user", userId });
+  const openFeed = (feedId: string) => push({ view: "feed", feedId });
+  const openFollows = (userId: string, tab: FollowTab) => push({ view: "follows", userId, tab });
+  const top = stack[stack.length - 1];
 
   // 채팅 화면은 내 id가 있어야 말풍선 좌우를 정할 수 있어서, 처음 채팅을 열 때 한 번 불러온다.
   useEffect(() => {
@@ -92,7 +105,7 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
         <HomeScreen
           unreadMessages={unreadMessages}
           unreadNotifications={unreadNotifications}
-          onOpenFeed={setOpenFeedId}
+          onOpenFeed={openFeed}
           onOpenUser={openUser}
           onWriteFeed={() => setFeedWriting(true)}
           onOpenMessages={() => setChatView({ view: "list" })}
@@ -118,17 +131,17 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
       content = (
         <MyScreen
           onOpenPost={openPost}
-          onEditProfile={() => {
-            /* 프로필 수정 화면 구현 후 연결 */
-          }}
+          onOpenFeed={openFeed}
+          onEditProfile={() => setEditingProfile(true)}
           onEditInterests={setEditingInterests}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenFollows={openFollows}
         />
       );
       break;
     case "notifications":
       content = (
-        <NotificationScreen onOpenPost={openPost} onOpenFeed={setOpenFeedId} onOpenUser={openUser} />
+        <NotificationScreen onOpenPost={openPost} onOpenFeed={openFeed} onOpenUser={openUser} />
       );
       break;
     default:
@@ -164,18 +177,38 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
     );
   }
 
-  if (openUserId) {
+  if (editingProfile) {
     return (
       <div className="a-screen flex h-dvh flex-col overflow-hidden">
-        <ProfileScreen userId={openUserId} onBack={() => setOpenUserId(null)} onOpenPost={openPost} />
+        <EditProfileScreen onBack={() => setEditingProfile(false)} onDone={() => setEditingProfile(false)} />
       </div>
     );
   }
 
-  if (openFeedId) {
+  if (top) {
+    // key: 같은 종류 화면이 연달아 쌓여도(프로필 → 다른 프로필) 새로 마운트되게
     return (
       <div className="a-screen flex h-dvh flex-col overflow-hidden">
-        <FeedDetailScreen feedId={openFeedId} onBack={() => setOpenFeedId(null)} onOpenUser={openUser} />
+        {top.view === "user" ? (
+          <ProfileScreen
+            key={`user-${stack.length}-${top.userId}`}
+            userId={top.userId}
+            onBack={pop}
+            onOpenPost={openPost}
+            onOpenFeed={openFeed}
+            onOpenFollows={openFollows}
+          />
+        ) : top.view === "follows" ? (
+          <FollowListScreen
+            key={`follows-${stack.length}-${top.userId}`}
+            userId={top.userId}
+            initialTab={top.tab}
+            onBack={pop}
+            onOpenUser={openUser}
+          />
+        ) : (
+          <FeedDetailScreen key={`feed-${stack.length}-${top.feedId}`} feedId={top.feedId} onBack={pop} onOpenUser={openUser} />
+        )}
       </div>
     );
   }

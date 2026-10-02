@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import { LoginScreen } from "@/aplan/screens/LoginScreen";
 import { FindPasswordScreen } from "@/aplan/screens/FindPasswordScreen";
 import { MainShell } from "@/aplan/MainShell";
-import { PasswordChangeScreen } from "./components/PasswordChangeScreen";
+import { RegisterScreen } from "@/aplan/screens/RegisterScreen";
+import { alertDialog, confirmDialog } from "@/aplan/components/Dialog";
 import "@/styles/tokens.css";
-import { Modal } from "@/components/ui/Modal";
 import { SplashScreen } from "@/aplan/screens/SplashScreen";
 import { OnboardingScreen } from "@/aplan/screens/OnboardingScreen";
 import { meApi } from "@/api/aplan";
@@ -14,10 +14,8 @@ const SPLASH_MIN_MS = 1000;
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
-  const [showRegister, setShowRegister] = useState(false); // 회원가입 화면
-  const [showConsentModal, setShowConsentModal] = useState(false); // 개인정보 동의 팝업
-  const [authView, setAuthView] = useState<"login" | "findPassword">("login");
-  const [authNotice, setAuthNotice] = useState<string | null>(null);
+  // 로그인 전 화면: 로그인(A-02) / 비밀번호 찾기 / 회원가입
+  const [authView, setAuthView] = useState<"login" | "findPassword" | "register">("login");
 
   // 앱 시작: 스플래시(A-01)를 최소 1초 보여주면서 토큰을 확인한다 → 자동 로그인
   const [booting, setBooting] = useState(true);
@@ -49,50 +47,15 @@ export default function App() {
     };
   }, []);
 
-  // 개인정보 수집 동의 팝업 (로그인 화면의 "회원가입" → 동의 → 회원가입 화면)
-  const consentModal = (
-    <Modal
-      open={showConsentModal}
-      title="개인정보 수집 동의"
-      onClose={() => setShowConsentModal(false)}
-      cancelText="취소"
-      onCancel={() => setShowConsentModal(false)}
-      confirmText="확인"
-      onConfirm={() => {
-        setShowConsentModal(false);
-        setShowRegister(true);
-      }}
-    >
-      이름, 학번, 전화번호에 대한 개인 정보 수집 및 이용에 동의하시겠습니까?
-    </Modal>
-  );
-
-  const phoneFrame = (children: React.ReactNode) => (
-    <div
-      className="flex items-center justify-center min-h-screen"
-      style={{ background: "linear-gradient(135deg, #0a0f1f 0%, #05070f 100%)" }}
-    >
-      <div
-        className="relative flex flex-col overflow-hidden shadow-2xl"
-        style={{
-          width: "390px",
-          height: "844px",
-          borderRadius: "44px",
-          border: "8px solid #05070f",
-          background: "var(--bg-base)",
-          boxShadow: "0 40px 80px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.1)",
-        }}
-      >
-        {/* Notch */}
-        <div
-          className="absolute top-0 left-1/2 -translate-x-1/2 z-50"
-          style={{ width: "126px", height: "30px", background: "#05070f", borderRadius: "0 0 20px 20px" }}
-        />
-        {children}
-        {consentModal}
-      </div>
-    </div>
-  );
+  // 로그인 화면의 "회원가입" → 개인정보 수집 동의(공용 확인 창) → 회원가입 화면
+  const openRegister = async () => {
+    const agreed = await confirmDialog({
+      title: "개인정보 수집 동의",
+      message: "이름, 학번, 전화번호에 대한 개인 정보 수집 및 이용에 동의하시겠습니까?",
+      confirmText: "동의",
+    });
+    if (agreed) setAuthView("register");
+  };
 
   if (booting) return <SplashScreen />;
 
@@ -101,28 +64,18 @@ export default function App() {
     return <OnboardingScreen onDone={() => setNeedsOnboarding(false)} />;
   }
 
-  // 회원가입 화면
-  if (showRegister) {
-    return phoneFrame(
-      <div className="flex-1 mt-7">
-        <PasswordChangeScreen
-          onComplete={() => setShowRegister(false)} // 완료 → 로그인 화면
-          onSkip={() => setShowRegister(false)}
-        />
-      </div>
-    );
-  }
-
-  // 로그인 (A-02) / 비밀번호 찾기 — A안 화면이라 폰 목업 프레임 없이 그린다.
+  // 로그인 (A-02) / 비밀번호 찾기 / 회원가입 — 모두 A안 화면이라 폰 목업 프레임 없이 그린다.
   if (!loggedIn) {
     return (
       <div className="relative min-h-dvh">
-        {authView === "findPassword" ? (
+        {authView === "register" ? (
+          <RegisterScreen onBack={() => setAuthView("login")} onDone={() => setAuthView("login")} />
+        ) : authView === "findPassword" ? (
           <FindPasswordScreen
             onBack={() => setAuthView("login")}
             onDone={(message) => {
               setAuthView("login");
-              setAuthNotice(message);
+              alertDialog(message);
             }}
           />
         ) : (
@@ -132,20 +85,10 @@ export default function App() {
               setNeedsOnboarding(!!me && !me.onboardingCompleted);
               setLoggedIn(true);
             }}
-            onRegister={() => setShowConsentModal(true)}
+            onRegister={openRegister}
             onFindPassword={() => setAuthView("findPassword")}
           />
         )}
-        <Modal
-          open={!!authNotice}
-          title="알림"
-          onClose={() => setAuthNotice(null)}
-          confirmText="확인"
-          onConfirm={() => setAuthNotice(null)}
-        >
-          {authNotice}
-        </Modal>
-        {consentModal}
       </div>
     );
   }

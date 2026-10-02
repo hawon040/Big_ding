@@ -147,12 +147,17 @@ export const userApi = {
   profile: (id: string) => api.get<UserProfile>(`/users/${id}`).then((r) => r.data),
   posts: (id: string, cursor?: string | null) =>
     api.get<Page<PostCard>>(`/users/${id}/posts`, { params: pageParams(cursor) }).then((r) => r.data),
+  feeds: (id: string, cursor?: string | null) =>
+    api.get<Page<FeedItem>>(`/users/${id}/feeds`, { params: pageParams(cursor) }).then((r) => r.data),
   comments: (id: string, cursor?: string | null) =>
     api.get<Page<MyComment>>(`/users/${id}/comments`, { params: pageParams(cursor) }).then((r) => r.data),
   scraps: (id: string, cursor?: string | null) =>
     api.get<Page<PostCard>>(`/users/${id}/scraps`, { params: pageParams(cursor) }).then((r) => r.data),
+  // 서버가 목록 전체를 한 번에 내려준다 (nextCursor는 항상 null)
   followers: (id: string) => api.get<Page<UserSummary>>(`/users/${id}/followers`, { params: { limit: 50 } }).then((r) => r.data),
   following: (id: string) => api.get<Page<UserSummary>>(`/users/${id}/following`, { params: { limit: 50 } }).then((r) => r.data),
+  /** 나를 팔로우하는 사람을 내 팔로워에서 삭제 */
+  removeFollower: (id: string) => api.delete(`/users/followers/${id}`),
   follow: (id: string) => api.post<{ isFollowing: boolean; followerCount: number }>(`/users/${id}/follow`).then((r) => r.data),
   unfollow: (id: string) => api.delete<{ isFollowing: boolean; followerCount: number }>(`/users/${id}/follow`).then((r) => r.data),
   block: (id: string) => api.post(`/users/${id}/block`),

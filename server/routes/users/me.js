@@ -6,6 +6,7 @@ const auth = require("../../middleware/authMiddleware");
 const upload = require("../../middleware/upload");
 const { uploadImage } = require("../../config/cloudinary");
 const v = require("../../utils/validate");
+const { liveCounts } = require("../../services/profileCounts");
 
 const ME_FIELDS = [
   "studentId", "nickname", "avatar", "department", "grade", "bio", "interests", "onboardingCompleted",
@@ -13,7 +14,7 @@ const ME_FIELDS = [
   "postCount", "commentCount", "scrapCount", "followerCount", "followingCount", "createdAt",
 ].join(" ");
 
-const toMe = (u) => ({
+const toMe = (u, live) => ({
   id: String(u._id),
   studentId: u.studentId,
   nickname: u.nickname,
@@ -33,11 +34,12 @@ const toMe = (u) => ({
   isAdmin: !!u.isAdmin,
   canPostEvents: !!u.canPostEvents,
   counts: {
-    posts: u.postCount || 0,
+    posts: live.posts,
+    feeds: live.feeds,
     comments: u.commentCount || 0,
     scraps: u.scrapCount || 0,
-    followers: u.followerCount || 0,
-    following: u.followingCount || 0,
+    followers: live.followers,
+    following: live.following,
   },
   createdAt: u.createdAt,
 });
@@ -45,7 +47,7 @@ const toMe = (u) => ({
 const sendMe = async (res, userId) => {
   const me = await User.findById(userId).select(ME_FIELDS).lean();
   if (!me) return res.status(404).json({ message: "사용자를 찾을 수 없습니다." });
-  return res.json(toMe(me));
+  return res.json(toMe(me, await liveCounts(userId)));
 };
 
 // GET /api/users/me — 내 정보 + 활동 수 + 설정

@@ -11,6 +11,7 @@ import { PrimaryButton } from "@/aplan/components/PrimaryButton";
 import { TextField } from "@/aplan/components/TextField";
 import { ErrorState } from "@/aplan/components/States";
 import { useChatSocket } from "@/aplan/hooks/useChatSocket";
+import { alertDialog, confirmDialog } from "@/aplan/components/Dialog";
 import "@/styles/aplan-tokens.css";
 
 const REFRESH_MS = 5000;
@@ -205,20 +206,25 @@ export function ChatRoomScreen({ myId, target, onBack, onOpenUser, onInvite }: C
       await job();
       return true;
     } catch (err: any) {
-      window.alert(err?.response?.data?.message || fallback);
+            alertDialog(err?.response?.data?.message || fallback);
       return false;
     }
   };
 
   const leave = async () => {
     setSheet(null);
-    if (!window.confirm(isGroup ? "채팅방을 나갈까요? 나가면 대화 내용을 다시 볼 수 없어요." : "이 대화를 삭제할까요? 상대에게는 \"나갔습니다\"가 표시돼요.")) return;
+        const ok = await confirmDialog(
+      isGroup
+        ? { title: "채팅방을 나갈까요?", message: "나가면 대화 내용을 다시 볼 수 없어요.", confirmText: "나가기", danger: true }
+        : { title: "이 대화를 삭제할까요?", message: "상대에게는 \"나갔습니다\"가 표시돼요.", confirmText: "삭제", danger: true },
+    );
+    if (!ok) return;
     if (await run(() => (isGroup ? chatApi.leaveGroup(roomId) : chatApi.leaveDirect(roomId)), "나가지 못했어요.")) onBack();
   };
 
   const deleteRoom = async () => {
     setSheet(null);
-    if (!window.confirm("채팅방을 삭제할까요? 모든 멤버의 대화 내용이 사라져요.")) return;
+        if (!(await confirmDialog({ title: "채팅방을 삭제할까요?", message: "모든 멤버의 대화 내용이 사라져요.", confirmText: "삭제", danger: true }))) return;
     if (await run(() => chatApi.deleteGroup(roomId), "삭제하지 못했어요.")) onBack();
   };
 

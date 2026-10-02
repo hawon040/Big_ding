@@ -1,33 +1,39 @@
-import { Fragment, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, MoreVertical } from "lucide-react";
 import { userApi, reportApi } from "@/api/aplan";
 import { TOPIC_MAP } from "@/constants/topics";
 import { Avatar } from "@/aplan/components/Avatar";
 import { IconButton } from "@/aplan/components/IconButton";
-import { CompactPostRow } from "@/aplan/components/CompactPostRow";
-import { MyCommentListItem } from "@/aplan/components/MyCommentListItem";
+import { FeedGrid, PostRows, ProfileStats, UnderlineTabs, type ProfileTab } from "@/aplan/components/ProfileParts";
 import { BottomSheet, SheetItem } from "@/aplan/components/BottomSheet";
 import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
 import { useInfiniteList } from "@/aplan/hooks/useInfiniteList";
+import { useProfileCountsLive } from "@/aplan/hooks/useProfileCountsLive";
 import type { UserProfile } from "@/types/aplan";
+import { alertDialog } from "@/aplan/components/Dialog";
 import "@/styles/aplan-tokens.css";
 
-type ProfileTab = "posts" | "comments";
+const TABS: { key: ProfileTab; label: string }[] = [
+  { key: "feeds", label: "피드글" },
+  { key: "posts", label: "커뮤니티 글" },
+];
 const REPORT_REASONS = ["스팸/광고", "욕설·혐오 표현", "음란물", "기타"];
 
 interface ProfileScreenProps {
   userId: string;
   onBack: () => void;
   onOpenPost: (id: string) => void;
+  onOpenFeed: (id: string) => void;
+  onOpenFollows: (userId: string, tab: "followers" | "following") => void;
 }
 
 // 다른 사용자 프로필 (Figma에 없는 화면 — 5개 시안 모두 09-상세까지만 있다).
 // 마이페이지(A-07)와 같은 톤으로 구성하되 프로필 수정 대신 팔로우 버튼, 차단·신고 메뉴를 둔다.
-// 스크랩 탭은 본인만 볼 수 있어(server/routes/users/content.js) 여기서는 뺐다.
-export function ProfileScreen({ userId, onBack, onOpenPost }: ProfileScreenProps) {
+// 탭은 마이페이지와 같이 피드글 / 커뮤니티 글. 팔로워·팔로잉 숫자를 누르면 목록으로 간다.
+export function ProfileScreen({ userId, onBack, onOpenPost, onOpenFeed, onOpenFollows }: ProfileScreenProps) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<ProfileTab>("posts");
+  const [tab, setTab] = useState<ProfileTab>("feeds");
   const [followBusy, setFollowBusy] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
@@ -42,22 +48,33 @@ export function ProfileScreen({ userId, onBack, onOpenPost }: ProfileScreenProps
 
   const empty = { items: [], nextCursor: null };
   const canViewContent = !!profile && !profile.isWithdrawn && (profile.isMe || !profile.isPrivate || profile.isMutualFollow);
+  const feeds = useInfiniteList(
+    (cursor) => (tab === "feeds" && canViewContent ? userApi.feeds(userId, cursor) : Promise.resolve(empty)),
+    [tab, userId, canViewContent],
+  );
   const posts = useInfiniteList(
     (cursor) => (tab === "posts" && canViewContent ? userApi.posts(userId, cursor) : Promise.resolve(empty)),
     [tab, userId, canViewContent],
   );
-  const comments = useInfiniteList(
-    (cursor) => (tab === "comments" && canViewContent ? userApi.comments(userId, cursor) : Promise.resolve(empty)),
-    [tab, userId, canViewContent],
-  );
 
+  // 숫자·팔로우 상태만 조용히 새로 고친다 (팔로우 직후, 실시간 이벤트, 앱 복귀)
+  const refreshProfile = useCallback(() => {
+    userApi.profile(userId).then((next) => setProfile((prev) => (prev ? next : prev))).catch(() => {});
+  }, [userId]);
+  useProfileCountsLive(refreshProfile);
+
+  // 버튼은 바로 바꾸고(낙관적), 서버 응답이 오면 실제 숫자·맞팔 여부로 다시 맞춘다.
   const toggleFollow = () => {
     if (!profile || followBusy) return;
     const next = !profile.isFollowing;
-    setProfile({ ...profile, isFollowing: next, followerCount: profile.followerCount + (next ? 1 : -1) });
+    setProfile({ ...profile, isFollowing: next, followerCount: Math.max(0, profile.followerCount + (next ? 1 : -1)) });
     setFollowBusy(true);
     (next ? userApi.follow(userId) : userApi.unfollow(userId))
-      .catch(load)
+      .then(refreshProfile)
+      .catch((err) => {
+                alertDialog(err?.response?.data?.message || "팔로우 상태를 바꾸지 못했어요.");
+        refreshProfile();
+      })
       .finally(() => setFollowBusy(false));
   };
 
@@ -116,18 +133,15 @@ export function ProfileScreen({ userId, onBack, onOpenPost }: ProfileScreenProps
               <p className="m-0 -mt-[8px] w-full text-[13px] leading-[16px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>{profile.bio}</p>
             )}
 
-            <section className="flex w-full items-stretch border border-solid" style={{ borderColor: "var(--a-color-border)", borderRadius: "var(--a-radius-card)" }}>
-              {([
+            {/* 비공개 계정은 맞팔로우가 아니면 목록을 볼 수 없어서(서버 403) 숫자만 보여준다 */}
+            <ProfileStats
+              stats={[
+                { label: "피드글", value: profile.feedCount },
                 { label: "게시글", value: profile.postCount },
-                { label: "팔로워", value: profile.followerCount },
-                { label: "팔로잉", value: profile.followingCount },
-              ] as const).map((s, i) => (
-                <div key={s.label} className="flex min-w-px flex-1 flex-col items-center gap-[2px] py-[14px]" style={i > 0 ? { borderLeft: "1px solid var(--a-color-border)" } : undefined}>
-                  <span className="text-[17px] leading-[20px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>{s.value}</span>
-                  <span className="text-[11px] leading-[13px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>{s.label}</span>
-                </div>
-              ))}
-            </section>
+                { label: "팔로워", value: profile.followerCount, onClick: canViewContent ? () => onOpenFollows(userId, "followers") : undefined },
+                { label: "팔로잉", value: profile.followingCount, onClick: canViewContent ? () => onOpenFollows(userId, "following") : undefined },
+              ]}
+            />
 
             {profile.interests.length > 0 && (
               <section className="flex w-full flex-col gap-[8px]">
@@ -146,56 +160,11 @@ export function ProfileScreen({ userId, onBack, onOpenPost }: ProfileScreenProps
               <EmptyState title="비공개 계정이에요" description="맞팔로우하면 글을 볼 수 있어요" />
             ) : (
               <>
-                <div className="flex w-full shrink-0" role="tablist" aria-label="게시물">
-                  {([{ key: "posts", label: "글" }, { key: "comments", label: "댓글" }] as const).map((t) => {
-                    const selected = t.key === tab;
-                    return (
-                      <button
-                        key={t.key}
-                        type="button"
-                        role="tab"
-                        aria-selected={selected}
-                        onClick={() => setTab(t.key)}
-                        className="flex-1 border-0 border-b-2 border-solid bg-transparent py-[10px] text-[14px] leading-[17px]"
-                        style={{ borderColor: selected ? "var(--a-color-text-primary)" : "var(--a-color-border)", color: selected ? "var(--a-color-text-primary)" : "var(--a-color-text-secondary)", fontWeight: selected ? 700 : 400 }}
-                      >
-                        {t.label}
-                      </button>
-                    );
-                  })}
-                </div>
+                <UnderlineTabs tabs={TABS} active={tab} onChange={setTab} label="게시물" />
 
                 <div className="flex w-full flex-1 flex-col items-start gap-[4px]">
-                  {tab === "posts" && (
-                    <>
-                      {posts.status === "loading" && <ListSkeleton />}
-                      {posts.status === "error" && <ErrorState message={posts.error ?? undefined} onRetry={posts.reload} />}
-                      {posts.status === "ready" && posts.items.length === 0 && <EmptyState title="작성한 글이 없어요" />}
-                      {posts.status === "ready" && posts.items.map((post) => (
-                        <Fragment key={post.id}>
-                          <CompactPostRow post={post} onOpen={onOpenPost} />
-                          <Divider />
-                        </Fragment>
-                      ))}
-                      {posts.loadingMore && <ListSkeleton count={1} />}
-                      {posts.hasMore && <div ref={posts.sentinelRef} className="h-px w-full shrink-0" aria-hidden />}
-                    </>
-                  )}
-                  {tab === "comments" && (
-                    <>
-                      {comments.status === "loading" && <ListSkeleton />}
-                      {comments.status === "error" && <ErrorState message={comments.error ?? undefined} onRetry={comments.reload} />}
-                      {comments.status === "ready" && comments.items.length === 0 && <EmptyState title="작성한 댓글이 없어요" />}
-                      {comments.status === "ready" && comments.items.map((c) => (
-                        <Fragment key={c.id}>
-                          <MyCommentListItem comment={c} onOpen={onOpenPost} />
-                          <Divider />
-                        </Fragment>
-                      ))}
-                      {comments.loadingMore && <ListSkeleton count={1} />}
-                      {comments.hasMore && <div ref={comments.sentinelRef} className="h-px w-full shrink-0" aria-hidden />}
-                    </>
-                  )}
+                  {tab === "feeds" && <FeedGrid list={feeds} emptyTitle="올린 피드가 없어요" onOpen={onOpenFeed} />}
+                  {tab === "posts" && <PostRows list={posts} emptyTitle="작성한 커뮤니티 글이 없어요" onOpen={onOpenPost} />}
                 </div>
               </>
             )}
@@ -219,10 +188,6 @@ export function ProfileScreen({ userId, onBack, onOpenPost }: ProfileScreenProps
   );
 }
 
-function Divider() {
-  return <div className="h-px w-full shrink-0" style={{ background: "var(--a-color-border)" }} aria-hidden />;
-}
-
 function ProfileSkeleton() {
   return (
     <div className="flex w-full flex-col items-start gap-[20px]">
@@ -234,22 +199,6 @@ function ProfileSkeleton() {
         </div>
       </div>
       <Skeleton className="h-[64px] w-full" style={{ borderRadius: 14 }} />
-    </div>
-  );
-}
-
-function ListSkeleton({ count = 4 }: { count?: number }) {
-  return (
-    <div className="flex w-full flex-col gap-[4px]" role="status" aria-label="불러오는 중">
-      {Array.from({ length: count }, (_, i) => (
-        <Fragment key={i}>
-          <div className="flex w-full flex-col gap-[4px] py-[12px]">
-            <Skeleton className="h-[18px] w-[80%]" />
-            <Skeleton className="h-[13px] w-[170px]" />
-          </div>
-          <Divider />
-        </Fragment>
-      ))}
     </div>
   );
 }

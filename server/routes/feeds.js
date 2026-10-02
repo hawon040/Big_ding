@@ -13,9 +13,10 @@ const { MAX_POST_TAGS } = require("../constants/topics");
 const { normalizeTag, normalizeTags } = require("../utils/tags");
 const { getViewerContext, isBlockedBetween, sameId, includesId } = require("../utils/access");
 const { parseLimit, decodeCursor, pageBy } = require("../utils/pagination");
-const { AUTHOR_FIELDS, toAuthor } = require("../utils/serializers");
+const { AUTHOR_FIELDS, toAuthor, toFeed } = require("../utils/serializers");
 const { notifySafely, notifyFeedTags } = require("../utils/notify");
 const v = require("../utils/validate");
+const { announceCounts } = require("../services/profileCounts");
 
 const MAX_IMAGES = 10;
 const CONTENT_MAX = 1000;
@@ -26,19 +27,6 @@ const MAX_TAG_ALERTS = 30;
 
 // 본문의 #해시태그(한글·영문·숫자·_)를 소문자·중복 제거해서 뽑는다.
 const extractTags = (content) => normalizeTags([...content.matchAll(/#([\p{L}\p{N}_]+)/gu)].map((m) => m[1]));
-
-const toFeed = (f, meId) => ({
-  id: String(f._id),
-  author: toAuthor(f.author),
-  images: f.images || [],
-  content: f.content || "",
-  tags: f.tags || [],
-  createdAt: f.createdAt,
-  likeCount: f.likeCount || 0,
-  commentCount: f.commentCount || 0,
-  isLiked: includesId(f.likes, meId),
-  isMine: sameId(f.author?._id || f.author, meId),
-});
 
 const toComment = (c, meId) => ({
   id: String(c._id),
@@ -102,6 +90,7 @@ router.post("/", auth, upload.array("images", MAX_IMAGES), async (req, res) => {
     const feed = await Feed.create({ author: req.user.id, images, content, tags });
     notifyFeedTags(feed).catch((err) => console.error("태그 알림 실패:", err.message));
     await feed.populate("author", AUTHOR_FIELDS);
+    announceCounts(req.user.id);
     res.status(201).json(toFeed(feed, req.user.id));
   } catch (err) {
     v.handleError(res, err);
@@ -175,6 +164,7 @@ router.delete("/:id", auth, async (req, res) => {
     feed.isDeleted = true;
     feed.deletedAt = new Date();
     await feed.save();
+    announceCounts(feed.author._id);
     res.json({ deleted: true });
   } catch (err) {
     v.handleError(res, err);

@@ -94,6 +94,20 @@ const toUserSummary = (u, { isFollowing = false } = {}) => ({
   isFollowing,
 });
 
+// 홈 피드 게시물(사진 필수) — /api/feeds와 프로필 피드 탭 공용
+const toFeed = (f, meId) => ({
+  id: String(f._id),
+  author: toAuthor(f.author),
+  images: f.images || [],
+  content: f.content || "",
+  tags: f.tags || [],
+  createdAt: f.createdAt,
+  likeCount: f.likeCount || 0,
+  commentCount: f.commentCount || 0,
+  isLiked: includesId(f.likes, meId),
+  isMine: String(f.author?._id || f.author) === String(meId),
+});
+
 module.exports = {
   AUTHOR_FIELDS,
   stripMarkdown,
@@ -103,4 +117,5 @@ module.exports = {
   toPostCard,
   toPostDetail,
   toUserSummary,
+  toFeed,
 };

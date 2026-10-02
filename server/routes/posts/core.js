@@ -20,6 +20,7 @@ const { refreshPostPopularity } = require("../../utils/popularity");
 const { runInTransaction } = require("../../utils/transaction");
 const { notifyStudyRecruit } = require("../../utils/notify");
 const v = require("../../utils/validate");
+const { announceCounts } = require("../../services/profileCounts");
 
 const TITLE_MAX = 100;
 const CONTENT_MAX = 20000;
@@ -140,6 +141,7 @@ router.post("/", auth, upload.array("images", 5), profanityFilter, async (req, r
       notifyStudyRecruit(post).catch((err) => console.error("스터디 모집 알림 실패:", err.message));
     }
 
+    announceCounts(req.user.id);
     res.status(201).json({ ...post.toObject(), comments: [], id: String(post._id) });
   } catch (err) {
     v.handleError(res, err);
@@ -232,6 +234,7 @@ router.delete("/:id", auth, async (req, res) => {
         await User.updateOne({ _id: post.author }, { $inc: { postCount: -1 } }, { session });
       }
     });
+    announceCounts(post.author);
     res.json({ message: "삭제되었습니다." });
   } catch (err) {
     v.handleError(res, err);

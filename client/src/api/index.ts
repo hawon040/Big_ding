@@ -1,4 +1,5 @@
 import axios from "axios";
+import { alertDialog } from "@/aplan/components/Dialog";
 
 // .env에 박혀있는 값(보통 http://localhost:5000/api)을 그대로 쓰면, 개발자 본인 PC에서만
 // 정상 동작하고 다른 사람의 휴대폰/PC에서 접속했을 때는 "localhost"가 그 사람 자신의 기기를
@@ -82,8 +83,8 @@ api.interceptors.response.use(
     if (err.response?.status === 403 && err.response?.data?.banned) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      alert(err.response.data.message);
-      window.location.reload();
+            // 제재 안내를 A안 알림 창으로 보여주고, 확인을 누르면 로그인 화면으로 돌아간다
+      alertDialog("이용이 제한된 계정이에요", err.response.data.message).then(() => window.location.reload());
     }
     return Promise.reject(err);
   }

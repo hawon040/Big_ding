@@ -9,6 +9,7 @@ import { BottomSheet, SheetItem } from "@/aplan/components/BottomSheet";
 import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
 import { StarRating } from "@/aplan/components/StarRating";
 import type { CommentNode, Poll, PostDetail } from "@/types/aplan";
+import { confirmDialog } from "@/aplan/components/Dialog";
 import "@/styles/aplan-tokens.css";
 
 interface PostDetailScreenProps {
@@ -130,8 +131,8 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
     });
   };
 
-  const removeComment = (id: string) => {
-    if (!window.confirm("댓글을 삭제할까요?")) return;
+    const removeComment = async (id: string) => {
+    if (!(await confirmDialog({ title: "댓글을 삭제할까요?", confirmText: "삭제", danger: true }))) return;
     commentApi.remove(id).then(loadComments);
   };
 
@@ -142,8 +143,8 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
     });
   };
 
-  const removePost = () => {
-    if (!window.confirm("게시물을 삭제할까요? 되돌릴 수 없어요.")) return;
+    const removePost = async () => {
+    if (!(await confirmDialog({ title: "게시물을 삭제할까요?", message: "삭제하면 되돌릴 수 없어요.", confirmText: "삭제", danger: true }))) return;
     postApi.remove(postId).then(onBack);
   };
 

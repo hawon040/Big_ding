@@ -49,7 +49,7 @@ export function InquiryScreen({ onBack }: { onBack: () => void }) {
             aria-label="건의 내용"
             rows={5}
             maxLength={1000}
-            className="a-text-field w-full resize-none border border-solid px-[14px] py-[13px] text-[14px] leading-[18px] outline-none"
+                        className="a-text-field w-full shrink-0 resize-none border border-solid px-[14px] py-[13px] text-[14px] leading-[18px] outline-none"
             style={{ borderRadius: "var(--a-radius-control)", color: "var(--a-color-text-primary)", background: "var(--a-color-bg)", fontFamily: "var(--a-font-sans)" }}
           />
           {formError && <p role="alert" className="m-0 text-[12px] leading-[14px]" style={{ color: "var(--a-color-danger)" }}>{formError}</p>}

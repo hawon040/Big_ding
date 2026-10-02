@@ -1,5 +1,6 @@
   import { createRoot } from "react-dom/client";
-  import App from "./app/App.tsx";
+    import App from "./app/App.tsx";
+  import { DialogHost } from "./aplan/components/Dialog";
   import "./styles/index.css";
 
   const root = createRoot(document.getElementById("root")!);
@@ -11,5 +12,11 @@
       root.render(<AplanPreview name={previewMatch[1]} />);
     });
   } else {
-    root.render(<App />);
+        // DialogHost: 앱 어디서든 confirmDialog/alertDialog로 띄우는 공용 확인·알림 창
+    root.render(
+      <>
+        <App />
+        <DialogHost />
+      </>,
+    );
   }

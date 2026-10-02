@@ -9,6 +9,7 @@ const upload = require("../../middleware/upload");
 const { uploadImage } = require("../../config/cloudinary");
 const { escapeRegex } = require("../../utils/regex");
 const relations = require("../../services/relationService");
+const { liveCounts } = require("../../services/profileCounts");
 const { isBlockedBetween, includesId } = require("../../utils/access");
 const { wantsPage } = require("../../utils/pagination");
 const { handleError, isId } = require("../../utils/validate");
@@ -29,9 +30,10 @@ router.get("/profile", auth, async (req, res) => {
   }
 });
 
+// 팔로우/언팔로우 응답: 상대 팔로워 수는 배열 길이(프로필 화면과 같은 기준)로 내려준다.
 const followState = async (targetId) => {
-  const target = await User.findById(targetId).select("followerCount").lean();
-  return { followerCount: target?.followerCount || 0 };
+  const target = await User.findById(targetId).select("followers").lean();
+  return { followerCount: target?.followers?.length || 0 };
 };
 
 // 팔로우 / 언팔로우. 기존 경로(/follow/:targetId)와 A안 경로(/:id/follow) 모두 지원한다.
@@ -80,6 +82,8 @@ const withIsFollowedByMe = async (users, viewerId) => {
       avatar: u.avatar,
       profileImage: u.avatar || null,
       department: u.department || null,
+      bio: u.bio || null,
+      isWithdrawn: !!u.isWithdrawn,
       studentId: u.studentId,
       isFollowedByMe: myFollowingIds.has(u._id.toString()),
       isFollowing: myFollowingIds.has(u._id.toString()),
@@ -98,8 +102,9 @@ const withIsFollowedByMe = async (users, viewerId) => {
       if (!canViewFollowLists(user, req.user.id)) {
         return res.status(403).json({ message: "비공개 계정입니다." });
       }
-      await user.populate({ path: field, select: "nickname avatar studentId department", match: { isWithdrawn: { $ne: true } } });
-      const list = await withIsFollowedByMe(user[field], req.user.id);
+      await user.populate({ path: field, select: "nickname avatar studentId department bio isWithdrawn", match: { isWithdrawn: { $ne: true } } });
+      // 최근에 팔로우한 사람이 위로 오도록 배열(추가 순)을 뒤집는다
+      const list = await withIsFollowedByMe([...user[field]].reverse(), req.user.id);
       res.json(wantsPage(req.query) ? { items: list, nextCursor: null } : list);
     } catch (err) {
       handleError(res, err);
@@ -316,6 +321,7 @@ router.get("/:id", auth, async (req, res) => {
     if (await isBlockedBetween(req.user.id, user._id)) {
       return res.status(403).json({ message: "차단된 사용자입니다." });
     }
+    const counts = await liveCounts(user._id);
     const isFollowedByMe = user.followers.some((id) => String(id) === String(req.user.id));
     const followsMeBack = user.following.some((id) => String(id) === String(req.user.id));
     res.json({
@@ -332,11 +338,12 @@ router.get("/:id", auth, async (req, res) => {
       isPrivate: !!user.isPrivate,
       isWithdrawn: !!user.isWithdrawn,
       isMe: String(user._id) === String(req.user.id),
-      postCount: user.postCount || 0,
+      postCount: counts.posts,
+      feedCount: counts.feeds,
       commentCount: user.commentCount || 0,
       scrapCount: user.scrapCount || 0,
-      followerCount: user.followers.length,
-      followingCount: user.following.length,
+      followerCount: counts.followers,
+      followingCount: counts.following,
       isFollowedByMe,
       isFollowing: isFollowedByMe,
       // 비공개 계정의 글/북마크는 "맞팔로우"(서로 팔로우)일 때만 공개한다.

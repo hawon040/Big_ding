@@ -7,6 +7,7 @@ import { Toggle } from "@/aplan/components/Toggle";
 import { ScreenHeader, StatusBadge, formatDate } from "@/aplan/components/ScreenHeader";
 import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
 import type { AdminReportTarget, AdminUser, InquiryItem, ReportItem, SanctionItem, SanctionType } from "@/types/aplan";
+import { confirmDialog } from "@/aplan/components/Dialog";
 import "@/styles/aplan-tokens.css";
 
 type Tab = "reports" | "inquiries" | "users" | "sanctions";
@@ -294,9 +295,12 @@ function SanctionSheet({ target, onClose, onDone }: {
 
   const needsDays = type === "commentRestriction" || (type === "ban" && banType === "temporary");
 
-  const submit = () => {
+    const submit = async () => {
     if (!target || !reason.trim() || submitting) return;
-    if (type === "forceWithdraw" && !window.confirm(`${target.nickname}님을 강제 탈퇴시킬까요? 되돌릴 수 없어요.`)) return;
+    if (
+      type === "forceWithdraw" &&
+      !(await confirmDialog({ title: `${target.nickname}님을 강제 탈퇴시킬까요?`, message: "되돌릴 수 없어요.", confirmText: "강제 탈퇴", danger: true }))
+    ) return;
     const input: SanctionInput =
       type === "ban" ? { type, reason: reason.trim(), banType, days: banType === "temporary" ? days : undefined }
       : type === "commentRestriction" ? { type, reason: reason.trim(), days }

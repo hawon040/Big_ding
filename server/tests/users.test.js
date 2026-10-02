@@ -13,7 +13,7 @@ describe("온보딩·내 정보·설정", () => {
     const res = await api(me.token).put("/api/users/me/interests").send({ interests: ["ml", "sql", "r"] });
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ onboardingCompleted: true, interests: ["ml", "sql", "r"] });
-    expect(res.body.counts).toEqual({ posts: 0, comments: 0, scraps: 0, followers: 0, following: 0 });
+    expect(res.body.counts).toEqual({ posts: 0, feeds: 0, comments: 0, scraps: 0, followers: 0, following: 0 });
     expect(res.body.studentId).toBeDefined();
     expect(res.body.password).toBeUndefined();
     expect(res.body.phone).toBeUndefined();

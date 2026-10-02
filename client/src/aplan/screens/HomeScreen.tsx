@@ -11,6 +11,7 @@ import { StoryViewer } from "@/aplan/components/StoryViewer";
 import { EmptyState, ErrorState, PostCardSkeleton, PostListSkeleton } from "@/aplan/components/States";
 import { useInfiniteList } from "@/aplan/hooks/useInfiniteList";
 import { useFeedActions } from "@/aplan/hooks/useFeedActions";
+import { alertDialog } from "@/aplan/components/Dialog";
 import "@/styles/aplan-tokens.css";
 
 interface HomeScreenProps {
@@ -61,7 +62,7 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
     setAlertBusy(true);
     (subscribed ? tagAlertApi.remove(tag) : tagAlertApi.add(tag))
       .then(setAlertTags)
-      .catch((err) => window.alert(err?.response?.data?.message || "알림을 바꾸지 못했어요."))
+            .catch((err) => alertDialog(err?.response?.data?.message || "알림을 바꾸지 못했어요."))
       .finally(() => setAlertBusy(false));
   };
 

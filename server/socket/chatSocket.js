@@ -4,7 +4,10 @@ const Message = require("../models/Message");
 const User = require("../models/User");
 const { filterProfanity } = require("../middleware/profanityFilter");
 
-const onlineUsers = new Map(); // userId -> socketId
+// userId -> 연결된 소켓 수. 한 사람이 여러 탭/화면에서 동시에 연결할 수 있어서 수를 센다.
+// 이벤트는 사용자별 방(user_<id>)으로 보내므로 연결된 소켓 모두가 받는다.
+const onlineUsers = new Map();
+const userRoom = (userId) => `user_${userId}`;
 let ioInstance = null;
 
 // 나와 상대방 중 한쪽이라도 상대를 차단했다면 채팅을 주고받을 수 없다.
@@ -44,8 +47,10 @@ const initSocket = (server) => {
 
   io.on("connection", (socket) => {
     const userId = socket.user.id;
-    onlineUsers.set(userId, socket.id);
-    io.emit("online_users", Array.from(onlineUsers.keys()));
+    socket.join(userRoom(userId));
+    const connections = (onlineUsers.get(userId) || 0) + 1;
+    onlineUsers.set(userId, connections);
+    if (connections === 1) io.emit("online_users", Array.from(onlineUsers.keys()));
 
     console.log(`🟢 ${userId} 접속`);
 
@@ -62,10 +67,7 @@ const initSocket = (server) => {
       await msg.populate("from", "nickname avatar studentId");
 
       // 수신자에게 실시간 전달
-      const toSocketId = onlineUsers.get(toId);
-      if (toSocketId) {
-        io.to(toSocketId).emit("receive_message", msg);
-      }
+      io.to(userRoom(toId)).emit("receive_message", msg);
 
       // 발신자에게도 echo
       socket.emit("message_sent", msg);
@@ -81,8 +83,13 @@ const initSocket = (server) => {
     });
 
     socket.on("disconnect", () => {
-      onlineUsers.delete(userId);
-      io.emit("online_users", Array.from(onlineUsers.keys()));
+      const left = (onlineUsers.get(userId) || 1) - 1;
+      if (left > 0) {
+        onlineUsers.set(userId, left);
+      } else {
+        onlineUsers.delete(userId);
+        io.emit("online_users", Array.from(onlineUsers.keys()));
+      }
       console.log(`🔴 ${userId} 접속 종료`);
     });
   });
@@ -92,10 +99,7 @@ const initSocket = (server) => {
 
 // 다른 라우터(REST)에서 특정 사용자가 온라인이면 실시간 이벤트를 보낼 때 쓴다.
 const emitToUser = (userId, event, payload) => {
-  const socketId = onlineUsers.get(String(userId));
-  if (socketId && ioInstance) {
-    ioInstance.to(socketId).emit(event, payload);
-  }
+  if (ioInstance) ioInstance.to(userRoom(String(userId))).emit(event, payload);
 };
 
 module.exports = initSocket;

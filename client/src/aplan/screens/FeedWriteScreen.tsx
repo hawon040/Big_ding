@@ -106,7 +106,7 @@ export function FeedWriteScreen({ onBack, onDone }: FeedWriteScreenProps) {
           rows={5}
           maxLength={CONTENT_MAX}
           aria-label="내용"
-          className="a-text-field w-full resize-none border border-solid px-[14px] py-[13px] text-[14px] leading-[18px] font-normal outline-none"
+                    className="a-text-field w-full shrink-0 resize-none border border-solid px-[14px] py-[13px] text-[14px] leading-[18px] font-normal outline-none"
           style={{ borderRadius: "var(--a-radius-control)", color: "var(--a-color-text-primary)", background: "var(--a-color-bg)", fontFamily: "var(--a-font-sans)" }}
         />
 

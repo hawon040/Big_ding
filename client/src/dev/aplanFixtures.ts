@@ -66,7 +66,7 @@ const sampleMe: Me = {
   interests: ["python", "sql", "ml", "dataviz"], onboardingCompleted: true,
   notificationSettings: { comment: true, studyRecruit: true, marketing: false },
   appSettings: { darkMode: false }, isPrivate: false, isAdmin: false, canPostEvents: false,
-  counts: { posts: 2, comments: 2, scraps: 1, followers: 12, following: 8 },
+  counts: { posts: 2, feeds: 0, comments: 2, scraps: 1, followers: 12, following: 8 },
   createdAt: minutesAgo(60 * 24 * 30),
 };
 
@@ -261,19 +261,21 @@ const routes: [RegExp, Handler][] = [
     const id = (c.url || "").split("?")[0].split("/")[2];
     return { items: id === sampleMe.id ? myComments : [], nextCursor: null };
   }],
+  [/^\/users\/[^/]+\/feeds$/, () => ({ items: [], nextCursor: null })],
+  [/^\/users\/[^/]+\/(followers|following)$/, (): Page<UserSummary> => ({ items: sampleUsers, nextCursor: null })],
   [/^\/users\/[^/]+\/scraps$/, (): Page<PostCard> => ({ items: communityPosts.slice(0, 1), nextCursor: null })],
   [/^\/users\/[^/]+\/block$/, (c) => ({ message: "ok", isBlocked: c.method === "post" })],
   [/^\/users\/[^/]+$/, (c): UserProfile => {
     const id = (c.url || "").split("?")[0].split("/").pop() || "";
     if (id === sampleMe.id) {
-      return { ...sampleMe, isPrivate: false, isWithdrawn: false, isMe: true, postCount: sampleMe.counts.posts, commentCount: sampleMe.counts.comments, scrapCount: sampleMe.counts.scraps, followerCount: sampleMe.counts.followers, followingCount: sampleMe.counts.following, isFollowing: false, isMutualFollow: false, isFriend: false };
+      return { ...sampleMe, isPrivate: false, isWithdrawn: false, isMe: true, postCount: sampleMe.counts.posts, feedCount: sampleMe.counts.feeds, commentCount: sampleMe.counts.comments, scrapCount: sampleMe.counts.scraps, followerCount: sampleMe.counts.followers, followingCount: sampleMe.counts.following, isFollowing: false, isMutualFollow: false, isFriend: false };
     }
     const u = sampleUsers.find((u) => u.id === id);
     return {
       id, nickname: u?.nickname ?? "알 수 없음", profileImage: u?.profileImage ?? null,
       department: u?.department ?? null, grade: 3, bio: u?.bio ?? null, interests: ["python", "ml"],
       isPrivate: false, isWithdrawn: false, isMe: false,
-      postCount: allPosts.filter((p) => p.author?.id === id).length, commentCount: 4, scrapCount: 2,
+      postCount: allPosts.filter((p) => p.author?.id === id).length, feedCount: 0, commentCount: 4, scrapCount: 2,
       followerCount: 20, followingCount: 15, isFollowing: u?.isFollowing ?? false, isMutualFollow: false, isFriend: false,
     };
   }],

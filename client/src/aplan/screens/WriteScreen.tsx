@@ -211,7 +211,7 @@ function WriteForm({
           placeholder={isLecture ? `강의 평가를 ${LECTURE_MIN_CONTENT}자 이상 적어주세요` : hasPoll ? "내용 (투표만 올릴 땐 비워도 돼요)" : "내용을 입력하세요"}
           rows={8}
           aria-label="내용"
-          className="a-text-field w-full resize-none border border-solid px-[14px] py-[13px] text-[14px] leading-[18px] font-normal outline-none"
+                    className="a-text-field w-full shrink-0 resize-none border border-solid px-[14px] py-[13px] text-[14px] leading-[18px] font-normal outline-none"
           style={{ borderRadius: "var(--a-radius-control)", color: "var(--a-color-text-primary)", background: "var(--a-color-bg)", fontFamily: "var(--a-font-sans)" }}
         />
 

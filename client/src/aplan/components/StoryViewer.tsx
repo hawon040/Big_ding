@@ -7,6 +7,7 @@ import type { AuthorSummary, StoryItem, StoryTrayItem } from "@/types/aplan";
 import { Avatar } from "./Avatar";
 import { BottomSheet } from "./BottomSheet";
 import { StoryCanvas } from "./StoryCanvas";
+import { alertDialog, confirmDialog } from "@/aplan/components/Dialog";
 
 const STORY_MS = 5000;
 const TAP_MAX_MS = 220;
@@ -136,8 +137,14 @@ export function StoryViewer({ users, startIndex, onClose }: StoryViewerProps) {
   };
 
   const remove = async () => {
-    if (!story || !window.confirm("이 스토리를 삭제할까요?")) return;
+        if (!story) return;
+    // 확인 창이 떠 있는 동안 스토리가 다음 장으로 넘어가지 않게 먼저 멈춘다
+    // (window.confirm은 실행 자체를 멈췄지만 confirmDialog는 멈추지 않는다)
     setHolding(true);
+    if (!(await confirmDialog({ title: "이 스토리를 삭제할까요?", confirmText: "삭제", danger: true }))) {
+      setHolding(false);
+      return;
+    }
     try {
       await storyApi.remove(story.id);
       changed.current = true;
@@ -146,7 +153,7 @@ export function StoryViewer({ users, startIndex, onClose }: StoryViewerProps) {
       setStories(rest);
       setStoryIdx(Math.min(storyIdx, rest.length - 1));
     } catch (err: any) {
-      window.alert(err?.response?.data?.message || "삭제하지 못했어요.");
+            alertDialog(err?.response?.data?.message || "삭제하지 못했어요.");
     } finally {
       setHolding(false);
     }

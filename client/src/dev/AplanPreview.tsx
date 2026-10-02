@@ -39,7 +39,7 @@ const SCREENS: Record<string, () => ReactElement> = {
   ),
   "profile": () => (
     <div className="a-screen flex h-dvh flex-col overflow-hidden">
-      <ProfileScreen userId="u2" onBack={noop} onOpenPost={noop} />
+      <ProfileScreen userId="u2" onBack={noop} onOpenPost={noop} onOpenFeed={noop} onOpenFollows={noop} />
     </div>
   ),
   // Figma 번호 없음 (Figma의 A-08은 설정 화면)

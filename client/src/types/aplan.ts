@@ -97,7 +97,7 @@ export interface Me {
   isPrivate: boolean;
   isAdmin: boolean;
   canPostEvents: boolean;
-  counts: { posts: number; comments: number; scraps: number; followers: number; following: number };
+  counts: { posts: number; feeds: number; comments: number; scraps: number; followers: number; following: number };
   createdAt: string;
 }
 
@@ -113,6 +113,7 @@ export interface UserProfile {
   isWithdrawn: boolean;
   isMe: boolean;
   postCount: number;
+  feedCount: number;
   commentCount: number;
   scrapCount: number;
   followerCount: number;
