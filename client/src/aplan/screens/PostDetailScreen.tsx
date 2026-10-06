@@ -38,6 +38,7 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<{ id: string; nickname: string } | null>(null);
+  const [viewer, setViewer] = useState<{ images: string[]; index: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [input, setInput] = useState("");
@@ -154,6 +155,47 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+            {viewer && (
+        <div className="fixed inset-0 z-[80]" style={{ background: "rgba(0,0,0,0.92)" }} onClick={() => setViewer(null)}>
+          <button
+            type="button"
+            aria-label="닫기"
+            onClick={() => setViewer(null)}
+            className="absolute top-[16px] right-[16px] z-10 flex size-[36px] items-center justify-center rounded-full border-0 text-[20px] leading-none text-white"
+            style={{ background: "rgba(255,255,255,0.15)" }}
+          >
+            ✕
+          </button>
+          <div
+            ref={(el) => {
+              if (el && !el.dataset.init) {
+                el.dataset.init = "1";
+                el.scrollLeft = el.clientWidth * viewer.index;
+              }
+            }}
+            className="flex h-full snap-x snap-mandatory overflow-x-auto [scrollbar-width:none]"
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              const idx = Math.round(el.scrollLeft / el.clientWidth);
+              setViewer((v) => (v && v.index !== idx ? { ...v, index: idx } : v));
+            }}
+          >
+            {viewer.images.map((src, i) => (
+              <div key={i} className="flex h-full w-full shrink-0 snap-center items-center justify-center">
+                <img src={src} alt="" className="max-h-full max-w-full object-contain" onClick={(e) => e.stopPropagation()} />
+              </div>
+            ))}
+          </div>
+          {viewer.images.length > 1 && (
+            <span
+              className="absolute bottom-[24px] left-1/2 -translate-x-1/2 rounded-full px-[12px] py-[4px] text-[12px] font-semibold text-white"
+              style={{ background: "rgba(255,255,255,0.18)" }}
+            >
+              {viewer.index + 1} / {viewer.images.length}
+            </span>
+          )}
+        </div>
+      )}
       <header className="flex w-full shrink-0 items-center gap-[12px] px-[20px] py-[12px]">
         <button type="button" onClick={onBack} aria-label="뒤로 가기" className="flex size-[26px] shrink-0 items-center justify-center border-0 bg-transparent p-0">
           <ChevronLeft size={26} strokeWidth={1.5} style={{ color: "var(--a-color-text-primary)" }} />
@@ -169,7 +211,7 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
       )}
 
       {!postError && (
-        <main className="flex min-h-0 w-full flex-1 flex-col items-start gap-[14px] overflow-y-auto px-[20px] py-[12px]">
+                <main className="flex min-h-0 w-full flex-1 flex-col items-start gap-[14px] overflow-y-auto no-scrollbar px-[20px] py-[12px]">
           {!post ? (
             <PostSkeleton />
           ) : (
@@ -254,22 +296,27 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
                 </div>
               )}
 
-              {/* 첨부 이미지 (Figma는 본문 중간에 있지만, images는 content와 분리된 필드라
-                  삽입 위치를 알 수 없다 — 본문 바로 앞에 모아서 보여준다) */}
-              {post.images.map((img) => (
-                <span
-                  key={img}
-                  className="block h-[150px] w-full shrink-0 overflow-hidden border border-solid"
-                  style={{ borderColor: "var(--a-color-border)", borderRadius: "var(--a-radius-image)", background: "var(--a-color-surface-muted)" }}
-                >
-                  <img src={resolveAssetUrl(img)} alt="" loading="lazy" className="block size-full object-cover" />
-                </span>
-              ))}
+              
 
               {/* 본문 (```코드``` 구간은 코드 블록으로 표시) */}
               {post.content.trim() && <PostBody content={post.content} />}
               {post.poll && <PollView poll={post.poll} onVote={vote} />}
-
+              {/* 첨부 이미지: 가로 썸네일 줄, 누르면 전체화면으로 확대 */}
+              {post.images.length > 0 && (
+                <div className="-mx-[20px] flex w-[calc(100%+40px)] shrink-0 gap-[8px] overflow-x-auto px-[20px] [scrollbar-width:none]">
+                  {post.images.map((img, i) => (
+                    <button
+                      key={img}
+                      type="button"
+                      onClick={() => setViewer({ images: post.images.map((im) => resolveAssetUrl(im) ?? im), index: i })}
+                      className="block size-[150px] shrink-0 overflow-hidden border border-solid p-0"
+                      style={{ borderColor: "var(--a-color-border)", borderRadius: "var(--a-radius-image)", background: "var(--a-color-surface-muted)" }}
+                    >
+                      <img src={resolveAssetUrl(img)} alt="" loading="lazy" className="block size-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
               {/* 좋아요 · 스크랩 */}
               <div className="flex w-full items-center gap-[16px]">
                 <button type="button" aria-pressed={post.isLiked} onClick={toggleLike} className="flex items-center gap-[4px] border-0 bg-transparent p-0">

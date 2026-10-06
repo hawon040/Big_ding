@@ -1,10 +1,9 @@
 import { Fragment, useState } from "react";
-import { LayoutGrid, Search } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 import { postApi } from "@/api/aplan";
 import { BOARDS, PRIMARY_BOARDS, type BoardKey } from "@/constants/boards";
 import { IconButton } from "@/aplan/components/IconButton";
 import { PostListItem } from "@/aplan/components/PostListItem";
-import { BottomSheet, SheetItem } from "@/aplan/components/BottomSheet";
 import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
 import { useInfiniteList } from "@/aplan/hooks/useInfiniteList";
 import "@/styles/aplan-tokens.css";
@@ -21,17 +20,14 @@ interface CommunityScreenProps {
 // A안 탭에 없는 기존 게시판(공지사항·작품 전시·꿀팁·강의평가·공강모임·졸업생)은 헤더의 [전체 게시판]에서 고른다.
 export function CommunityScreen({ initialBoard = "all", onOpenPost, onOpenSearch, onWrite }: CommunityScreenProps) {
   const [board, setBoard] = useState<BoardKey | "all">(initialBoard);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const list = useInfiniteList((cursor) => postApi.list(board, cursor), [board]);
 
   const tabs: { key: BoardKey | "all"; label: string }[] = [
     { key: "all", label: "전체" },
     ...PRIMARY_BOARDS.map((b) => ({ key: b.key, label: b.label })),
   ];
-  // 기존 게시판을 골랐으면 탭 끝에 선택된 칩으로 보여준다
-  const extra = BOARDS.find((b) => b.key === board && !b.primary);
-  if (extra) tabs.push({ key: extra.key, label: extra.label });
-
+  
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
       {/* 2:258 헤더 */}
@@ -41,7 +37,6 @@ export function CommunityScreen({ initialBoard = "all", onOpenPost, onOpenSearch
         </h1>
         <div className="flex items-center gap-[14px]">
           <IconButton icon={Search} label="검색" onClick={onOpenSearch} />
-          <IconButton icon={LayoutGrid} label="전체 게시판" onClick={() => setSheetOpen(true)} />
         </div>
       </header>
 
@@ -68,11 +63,47 @@ export function CommunityScreen({ initialBoard = "all", onOpenPost, onOpenSearch
               </button>
             );
           })}
+          <button
+            type="button"
+            aria-label={moreOpen ? "게시판 더보기 닫기" : "게시판 더보기"}
+            onClick={() => setMoreOpen((v) => !v)}
+            className="flex shrink-0 items-center justify-center border-0 px-[10px] py-[6px]"
+            style={{
+              borderRadius: "var(--a-radius-pill)",
+              background: "var(--a-color-surface-muted)",
+              color: "var(--a-color-icon)",
+            }}
+          >
+            {moreOpen ? <X size={14} strokeWidth={2} /> : <Plus size={14} strokeWidth={2} />}
+          </button>
         </div>
       </div>
-
+      
+      {/* + 를 누르면 나오는 기존 6개 외 게시판 */}
+      {moreOpen && (
+        <div className="flex w-full shrink-0 flex-wrap gap-[8px] px-[20px] pb-[8px]">
+          {BOARDS.filter((b) => !b.primary).map((b) => {
+            const selected = b.key === board;
+            return (
+              <button
+                key={b.key}
+                type="button"
+                onClick={() => setBoard(b.key)}
+                className="shrink-0 border-0 px-[12px] py-[6px] text-[12px] leading-[14px] font-[500] whitespace-nowrap"
+                style={{
+                  borderRadius: "var(--a-radius-pill)",
+                  background: selected ? "var(--a-color-surface-inverse)" : "var(--a-color-surface-muted)",
+                  color: selected ? "var(--a-color-on-inverse)" : "var(--a-color-icon)",
+                }}
+              >
+                {b.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {/* 2:327 목록 */}
-      <main className="flex min-h-0 w-full flex-1 flex-col items-start gap-[4px] overflow-y-auto px-[20px] py-[12px] pb-[96px]">
+            <main className="flex min-h-0 w-full flex-1 flex-col items-start gap-[4px] overflow-y-auto no-scrollbar px-[20px] py-[12px] pb-[96px]">
         {list.status === "loading" && <ListSkeleton />}
         {list.status === "error" && <ErrorState message={list.error ?? undefined} onRetry={list.reload} />}
         {list.status === "ready" && list.items.length === 0 && (
@@ -103,21 +134,6 @@ export function CommunityScreen({ initialBoard = "all", onOpenPost, onOpenSearch
       >
         +
       </button>
-
-      <BottomSheet open={sheetOpen} title="전체 게시판" onClose={() => setSheetOpen(false)}>
-        {[{ key: "all" as const, label: "전체" }, ...BOARDS].map((b) => (
-          <SheetItem
-            key={b.key}
-            selected={b.key === board}
-            onClick={() => {
-              setBoard(b.key);
-              setSheetOpen(false);
-            }}
-          >
-            {b.label}
-          </SheetItem>
-        ))}
-      </BottomSheet>
     </div>
   );
 }
