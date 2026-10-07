@@ -8,6 +8,12 @@ export interface ChatUser {
   avatar?: string;
 }
 
+export interface FollowRelation {
+  _id: string;
+  isFollowing: boolean; // 내가 팔로우
+  isFollower: boolean;  // 나를 팔로우
+}
+
 export interface GroupChat {
   _id: string;
   post?: { _id: string; title: string; board: string } | null;
@@ -105,6 +111,7 @@ export const chatApi = {
   directPhotos: (friendId: string) => api.get<{ image: string; createdAt: string }[]>(`/chat/${friendId}/photos`).then((r) => r.data),
 
   groups: () => api.get<GroupChat[]>("/group-chats").then((r) => r.data),
+    relations: () => api.get<FollowRelation[]>("/group-chats/relations").then((r) => r.data),
   createGroup: (memberIds: string[], name?: string) =>
     api
       .post<GroupChat | { isDirect: true; friend: ChatUser }>("/group-chats", { memberIds, name: name || undefined })

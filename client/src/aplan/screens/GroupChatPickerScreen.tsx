@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, ChevronLeft } from "lucide-react";
-import { chatApi, type ChatTarget, type ChatUser, type GroupChat } from "@/api/chat";
+import { chatApi, type ChatTarget, type ChatUser, type FollowRelation, type GroupChat } from "@/api/chat";
 import { Avatar } from "@/aplan/components/Avatar";
 import { TextField } from "@/aplan/components/TextField";
 import { PrimaryButton } from "@/aplan/components/PrimaryButton";
@@ -27,10 +27,15 @@ export function GroupChatPickerScreen({ mode, onBack, onCreated, onInvited }: Gr
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+    const [relations, setRelations] = useState<Record<string, FollowRelation> | null>(null);
 
   const load = () => {
     setLoadError(false);
     chatApi.conversations().then(setPeople).catch(() => setLoadError(true));
+    chatApi
+      .relations()
+      .then((list) => setRelations(Object.fromEntries(list.map((r) => [r._id, r]))))
+      .catch(() => {});
   };
   useEffect(load, []);
 
@@ -87,7 +92,10 @@ export function GroupChatPickerScreen({ mode, onBack, onCreated, onInvited }: Gr
                   className="flex w-full items-center gap-[12px] border-0 bg-transparent py-[10px] px-0 text-left"
                 >
                   <Avatar src={u.avatar} size={40} />
-                  <span className="min-w-px flex-1 text-[14px] leading-[17px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>{u.nickname}</span>
+                  <span className="flex min-w-px flex-1 items-center gap-[6px]">
+                    <span className="line-clamp-1 text-[14px] leading-[17px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>{u.nickname}</span>
+                    {relations && <RelationBadges relation={relations[u._id]} />}
+                  </span>
                   <span
                     aria-hidden
                     className="flex size-[22px] shrink-0 items-center justify-center rounded-full border border-solid"
@@ -112,5 +120,23 @@ export function GroupChatPickerScreen({ mode, onBack, onCreated, onInvited }: Gr
         </PrimaryButton>
       </div>
     </div>
+  );
+}
+
+function RelationBadges({ relation }: { relation?: FollowRelation }) {
+  const labels = [relation?.isFollowing && "팔로잉", relation?.isFollower && "팔로워"].filter(Boolean) as string[];
+  if (labels.length === 0) labels.push("팔로우 안 함");
+  return (
+    <span className="flex shrink-0 items-center gap-[4px]">
+      {labels.map((text) => (
+        <span
+          key={text}
+          className="px-[8px] py-[3px] text-[11px] leading-[13px] font-[500]"
+          style={{ borderRadius: "var(--a-radius-pill)", background: "var(--a-color-surface-muted)", color: "var(--a-color-text-secondary)" }}
+        >
+          {text}
+        </span>
+      ))}
+    </span>
   );
 }

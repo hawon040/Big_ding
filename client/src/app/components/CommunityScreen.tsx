@@ -6,7 +6,7 @@ import {
   Heart, MessageCircle, Bookmark, Image, Plus, X, ThumbsDown,
   Search, Star, Send, UserPlus, ChevronDown, ChevronUp, FileText,
   Users, Trophy, Megaphone, BookOpen, Coffee, MoreVertical, MoreHorizontal, Repeat2, Edit2, Trash2, AlertTriangle, Bell, Lock,
-  Settings, Camera, LogOut, ChevronRight, Images, Ban, MessageSquareOff, ArrowLeft
+  Settings, Camera, LogOut, ChevronRight, Images, Ban, MessageSquareOff, ArrowLeft, Download
 } from "lucide-react";
 import "@/styles/tokens.css";
 import { Card } from "@/components/ui/Card";
@@ -1857,6 +1857,34 @@ const hiddenMessageIdsRef = useRef<Set<string>>(new Set());
 const [showReportConfirm, setShowReportConfirm] = useState(false);
 const [viewingImage, setViewingImage] = useState<string | null>(null);
 const [fullscreenPostImage, setFullscreenPostImage] = useState<string | null>(null);
+const [fullscreenImageList, setFullscreenImageList] = useState<string[]>([]);
+const [downloadSelectMode, setDownloadSelectMode] = useState(false);
+const [selectedDownloadImages, setSelectedDownloadImages] = useState<Set<string>>(new Set());
+const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+
+const downloadImage = async (url: string, filename: string) => {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    showAlert("이미지 다운로드에 실패했습니다.");
+  }
+};
+
+const downloadImages = async (urls: string[]) => {
+  for (let i = 0; i < urls.length; i++) {
+    await downloadImage(urls[i], `image_${Date.now()}_${i + 1}.jpg`);
+    await new Promise((r) => setTimeout(r, 300));
+  }
+};
 const [eventFollowingIds, setEventFollowingIds] = useState<string[]>([]);
 const toggleEventFollow = async (authorId: string) => {
   const isFollowing = eventFollowingIds.includes(authorId);
@@ -2246,21 +2274,144 @@ const fullscreenImageViewer = fullscreenPostImage && (
   <div
     className="absolute inset-0 z-[80] flex items-center justify-center"
     style={{ background: "rgba(0,0,0,0.92)" }}
-    onClick={() => setFullscreenPostImage(null)}
+    onClick={() => {
+      setFullscreenPostImage(null);
+      setDownloadSelectMode(false);
+      setSelectedDownloadImages(new Set());
+      setShowDownloadMenu(false);
+    }}
   >
     <button
-      onClick={() => setFullscreenPostImage(null)}
-      className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+      onClick={() => {
+        setFullscreenPostImage(null);
+        setDownloadSelectMode(false);
+        setSelectedDownloadImages(new Set());
+        setShowDownloadMenu(false);
+      }}
+      className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center z-10"
       style={{ background: "rgba(255,255,255,0.15)" }}
     >
       <X size={20} color="white" />
     </button>
+
+    {/* 다운로드 아이콘 버튼: 항상 좌측 하단(또는 원하는 위치)에 고정 */}
+    {!downloadSelectMode && (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setShowDownloadMenu((v) => !v);
+        }}
+        className="absolute bottom-6 left-4 w-11 h-11 rounded-full flex items-center justify-center z-10"
+        style={{ background: "rgba(255,255,255,0.15)" }}
+      >
+        <Download size={20} color="white" />
+      </button>
+    )}
+
     <img
       src={fullscreenPostImage}
       alt="확대 이미지"
       className="max-w-full max-h-full object-contain"
       onClick={(e) => e.stopPropagation()}
     />
+
+    <div
+      className="absolute bottom-0 left-0 right-0 flex flex-col items-center gap-3 px-4 pb-6 pt-10"
+      style={{ background: "linear-gradient(to top, rgba(0,0,0,0.6), transparent)" }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      {downloadSelectMode ? (
+        <>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-full pb-1">
+            {fullscreenImageList.map((img, i) => {
+              const checked = selectedDownloadImages.has(img);
+              return (
+                <button
+                  key={i}
+                  onClick={() => {
+                    setSelectedDownloadImages((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(img)) next.delete(img);
+                      else next.add(img);
+                      return next;
+                    });
+                  }}
+                  className="relative w-14 h-14 shrink-0 rounded-md overflow-hidden"
+                  style={{ outline: checked ? "3px solid var(--blue-primary)" : "none" }}
+                >
+                  <img src={img} alt={`이미지 ${i + 1}`} className="w-full h-full object-cover" />
+                  {checked && (
+                    <span
+                      className="absolute inset-0 flex items-center justify-center"
+                      style={{ background: "rgba(37,99,235,0.35)" }}
+                    >
+                      <span className="text-white text-xs font-bold">✓</span>
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { setDownloadSelectMode(false); setSelectedDownloadImages(new Set()); }}
+              className="px-4 py-2 rounded-full text-xs font-semibold"
+              style={{ background: "rgba(255,255,255,0.15)", color: "white" }}
+            >
+              취소
+            </button>
+            <button
+              disabled={selectedDownloadImages.size === 0}
+              onClick={async () => {
+                await downloadImages(Array.from(selectedDownloadImages));
+                setDownloadSelectMode(false);
+                setSelectedDownloadImages(new Set());
+              }}
+              className="px-4 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5"
+              style={{
+                background: selectedDownloadImages.size === 0 ? "rgba(255,255,255,0.15)" : "var(--blue-primary)",
+                color: "white",
+                opacity: selectedDownloadImages.size === 0 ? 0.5 : 1,
+              }}
+            >
+              <Download size={14} /> 선택 저장 ({selectedDownloadImages.size})
+            </button>
+          </div>
+        </>
+      ) : showDownloadMenu ? (
+        <div className="flex gap-2">
+          <button
+            onClick={() => downloadImage(fullscreenPostImage, `image_${Date.now()}.jpg`)}
+            className="px-4 py-2.5 rounded-full text-xs font-semibold flex items-center gap-1.5"
+            style={{ background: "rgba(255,255,255,0.15)", color: "white" }}
+          >
+            <Download size={14} /> 이 사진 저장
+          </button>
+          {fullscreenImageList.length > 1 && (
+            <>
+              <button
+                onClick={() => downloadImages(fullscreenImageList)}
+                className="px-4 py-2.5 rounded-full text-xs font-semibold flex items-center gap-1.5"
+                style={{ background: "rgba(255,255,255,0.15)", color: "white" }}
+              >
+                <Download size={14} /> 모든 사진 저장 ({fullscreenImageList.length})
+              </button>
+              <button
+                onClick={() => {
+                  setDownloadSelectMode(true);
+                  setShowDownloadMenu(false);
+                  setSelectedDownloadImages(new Set([fullscreenPostImage]));
+                }}
+                className="px-4 py-2.5 rounded-full text-xs font-semibold"
+                style={{ background: "rgba(255,255,255,0.15)", color: "white" }}
+              >
+                선택 저장
+              </button>
+            </>
+          )}
+        </div>
+      ) : null}
+    </div>
   </div>
 );
 
@@ -3718,7 +3869,10 @@ const handleDeleteSelectedChats = () => {
                     key={selectedPost._id}
                     images={selectedPost.images.map((img) => resolveAssetUrl(img) ?? img)}
                     aspect="square"
-                    onImageClick={(src) => setFullscreenPostImage(src)}
+                    onImageClick={(src) => {
+                      setFullscreenImageList(selectedPost.images.map((img) => resolveAssetUrl(img) ?? img));
+                      setFullscreenPostImage(src);
+                    }}
                   />
                 )}
 
@@ -3853,7 +4007,10 @@ const handleDeleteSelectedChats = () => {
               key={selectedPost._id}
               images={selectedPost.images.map((img) => resolveAssetUrl(img) ?? img)}
               aspect="auto"
-              onImageClick={(src) => setFullscreenPostImage(src)}
+              onImageClick={(src) => {
+                setFullscreenImageList(selectedPost.images.map((img) => resolveAssetUrl(img) ?? img));
+                setFullscreenPostImage(src);
+              }}
             />
           </div>
         )}
@@ -4537,7 +4694,9 @@ const handleDeleteSelectedChats = () => {
             className="w-16 h-16 object-cover rounded-[var(--r-md)]"
             onClick={(e) => {
               e.stopPropagation();
-              setFullscreenPostImage(resolveAssetUrl(post.images[0]) || null);
+              const resolvedImages = post.images.map((img) => resolveAssetUrl(img) ?? img);
+              setFullscreenImageList(resolvedImages);
+              setFullscreenPostImage(resolvedImages[0] || null);
             }}
           />
           {post.images.length > 1 && (

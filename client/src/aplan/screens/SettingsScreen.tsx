@@ -4,10 +4,13 @@ import { meApi, tagAlertApi } from "@/api/aplan";
 import { Toggle } from "@/aplan/components/Toggle";
 import { TextField } from "@/aplan/components/TextField";
 import { BottomSheet } from "@/aplan/components/BottomSheet";
+import { alertDialog } from "@/aplan/components/Dialog";
 import { ErrorState, Skeleton } from "@/aplan/components/States";
 import { BlockedUsersScreen } from "@/aplan/screens/BlockedUsersScreen";
 import { InquiryScreen, MyReportsScreen } from "@/aplan/screens/InquiryScreen";
 import { AdminScreen } from "@/aplan/screens/AdminScreen";
+import { EditProfileScreen } from "@/aplan/screens/EditProfileScreen";
+import { applyTheme } from "@/aplan/theme";
 import type { Me } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
 
@@ -20,16 +23,17 @@ interface SettingsScreenProps {
 }
 
 // A-08 설정 (Figma 2:465).
-export function SettingsScreen({ onBack, onEditProfile, onChangePassword, onOpenAnnouncements }: SettingsScreenProps) {
+export function SettingsScreen({ onBack, onOpenAnnouncements }: SettingsScreenProps) {
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [pwOpen, setPwOpen] = useState(false);
   // 설정 위에 쌓이는 하위 화면
-  const [sub, setSub] = useState<"blocked" | "inquiry" | "reports" | "admin" | null>(null);
+  const [sub, setSub] = useState<"blocked" | "inquiry" | "reports" | "admin" | "profile" | null>(null);
 
   const load = () => {
     setError(null);
-    meApi.get().then(setMe).catch((err) => setError(err?.response?.data?.message || "불러오지 못했어요."));
+    meApi.get().then((m) => { setMe(m); applyTheme(m.appSettings.darkMode); }).catch((err) => setError(err?.response?.data?.message || "불러오지 못했어요."));
   };
   useEffect(load, []);
 
@@ -51,7 +55,8 @@ export function SettingsScreen({ onBack, onEditProfile, onChangePassword, onOpen
 
   if (sub) {
     const close = () => setSub(null);
-    return sub === "blocked" ? <BlockedUsersScreen onBack={close} />
+    return sub === "profile" ? <EditProfileScreen onBack={close} onDone={(m) => { setMe(m); close(); }} />
+      : sub === "blocked" ? <BlockedUsersScreen onBack={close} />
       : sub === "inquiry" ? <InquiryScreen onBack={close} />
       : sub === "reports" ? <MyReportsScreen onBack={close} />
       : <AdminScreen onBack={close} />;
@@ -72,15 +77,15 @@ export function SettingsScreen({ onBack, onEditProfile, onChangePassword, onOpen
         {!error && (
           <>
             <SectionTitle>계정</SectionTitle>
-            <LinkRow label="프로필 정보" onClick={onEditProfile} />
+            <LinkRow label="프로필 정보" onClick={() => setSub("profile")} />
             <StaticRow label="학교 인증" value="인증 완료" />
-            <LinkRow label="비밀번호 변경" onClick={onChangePassword} />
+            <LinkRow label="비밀번호 변경" onClick={() => setPwOpen(true)} />
 
             <Divider />
 
             <SectionTitle>알림</SectionTitle>
             {!me ? (
-              <ToggleSkeletonRows count={3} />
+              <ToggleSkeletonRows count={2} />
             ) : (
               <>
                 <ToggleRow
@@ -93,11 +98,7 @@ export function SettingsScreen({ onBack, onEditProfile, onChangePassword, onOpen
                   checked={me.notificationSettings.studyRecruit}
                   onChange={(v) => patchSettings({ notificationSettings: { studyRecruit: v } })}
                 />
-                <ToggleRow
-                  label="마케팅 정보 수신"
-                  checked={me.notificationSettings.marketing}
-                  onChange={(v) => patchSettings({ notificationSettings: { marketing: v } })}
-                />
+                
               </>
             )}
 
@@ -112,7 +113,7 @@ export function SettingsScreen({ onBack, onEditProfile, onChangePassword, onOpen
               <ToggleRow
                 label="다크 모드"
                 checked={me.appSettings.darkMode}
-                onChange={(v) => patchSettings({ appSettings: { darkMode: v } })}
+                onChange={(v) => { applyTheme(v); patchSettings({ appSettings: { darkMode: v } }); }}
               />
             )}
             <StaticRow label="언어" value="한국어" />
@@ -139,6 +140,7 @@ export function SettingsScreen({ onBack, onEditProfile, onChangePassword, onOpen
       </main>
 
       <WithdrawSheet open={withdrawOpen} onClose={() => setWithdrawOpen(false)} />
+      <ChangePasswordSheet open={pwOpen} onClose={() => setPwOpen(false)} />
     </div>
   );
 }
@@ -184,7 +186,61 @@ function TagAlertSection() {
     </div>
   );
 }
+function ChangePasswordSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [currentError, setCurrentError] = useState<string | null>(null);
+  const [nextError, setNextError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
+  const close = () => {
+    setCurrent(""); setNext(""); setConfirm("");
+    setCurrentError(null); setNextError(null);
+    onClose();
+  };
+
+  const submit = () => {
+    if (submitting) return;
+    setCurrentError(null);
+    setNextError(null);
+    if (next.length < 8) return setNextError("새 비밀번호는 8자 이상이어야 해요.");
+    if (next !== confirm) return setNextError("새 비밀번호가 일치하지 않아요.");
+
+    setSubmitting(true);
+    meApi.changePassword(current, next)
+      .then(() => alertDialog("비밀번호 변경", "비밀번호가 변경되었어요.").then(close))
+      .catch((err) => {
+        const msg = err?.response?.data?.message || "변경하지 못했어요.";
+        if (err?.response?.status === 401 || msg.includes("현재")) setCurrentError(msg);
+        else setNextError(msg);
+      })
+      .finally(() => setSubmitting(false));
+  };
+
+  const disabled = !current || !next || !confirm || submitting;
+
+  return (
+    <BottomSheet open={open} title="비밀번호 변경" onClose={close}>
+      <TextField label="현재 비밀번호" type="password" placeholder="현재 비밀번호" value={current} onChange={(e) => setCurrent(e.target.value)} error={currentError} />
+      <div className="h-[12px]" aria-hidden />
+      <TextField label="새 비밀번호" type="password" placeholder="새 비밀번호 (8자 이상)" value={next} onChange={(e) => setNext(e.target.value)} />
+      <div className="h-[12px]" aria-hidden />
+      <TextField label="새 비밀번호 확인" type="password" placeholder="새 비밀번호 확인" value={confirm} onChange={(e) => setConfirm(e.target.value)} error={nextError} />
+      <div className="h-[12px]" aria-hidden />
+      <button
+        type="button"
+        onClick={submit}
+        disabled={disabled}
+        aria-busy={submitting}
+        className="flex w-full items-center justify-center border-0 px-[16px] py-[15px] text-[15px] leading-[18px] font-bold disabled:cursor-not-allowed"
+        style={{ borderRadius: "var(--a-radius-control)", background: "var(--a-color-surface-inverse)", color: "var(--a-color-on-inverse)", opacity: disabled ? 0.5 : 1 }}
+      >
+        {submitting ? "처리 중..." : "변경하기"}
+      </button>
+    </BottomSheet>
+  );
+}
 function WithdrawSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);

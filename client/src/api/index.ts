@@ -74,7 +74,8 @@ api.interceptors.response.use(
     const isAuthRequest =
       requestUrl.includes("/auth/login") ||
       requestUrl.includes("/auth/register") ||
-      requestUrl.includes("/auth/find-password");
+      requestUrl.includes("/auth/find-password") ||
+      requestUrl.includes("/auth/password");;
 
     if (err.response?.status === 401 && !isAuthRequest) {
       localStorage.removeItem("token");

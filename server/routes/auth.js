@@ -270,6 +270,12 @@ router.patch("/password", auth, async (req, res) => {
     if (!newPassword) {
       return res.status(400).json({ message: "새 비밀번호를 입력해주세요." });
     }
+        if (newPassword.length < 8) {
+      return res.status(400).json({ message: "새 비밀번호는 8자 이상이어야 합니다." });
+    }
+          if (currentPassword === newPassword) {
+        return res.status(400).json({ message: "현재 비밀번호와 다른 비밀번호를 입력해주세요." });
+      }
     const user = await User.findById(req.user.id);
     // isFirstLogin(최초 로그인 직후 비밀번호 등록) 단계에서는 아직 본인이 정한 비밀번호가
     // 없으므로 현재 비밀번호 확인을 요구하지 않는다.

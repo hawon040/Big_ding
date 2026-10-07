@@ -61,6 +61,8 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
   const [feedWriting, setFeedWriting] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // 설정 > 공지사항: 커뮤니티의 "공지사항"(event) 게시판을 설정 위에 쌓아서 보여준다
+  const [announcementsOpen, setAnnouncementsOpen] = useState(false);
   const [chatView, setChatView] = useState<ChatView | null>(null);
   const [myId, setMyId] = useState<string | null>(null);
   // 온보딩(edit 모드) 재진입 — 여는 시점의 관심 분야를 들고 있는다
@@ -257,10 +259,28 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
     );
   }
 
+  if (announcementsOpen) {
+    return (
+      <div className="a-screen flex h-dvh flex-col overflow-hidden">
+        <CommunityScreen
+          initialBoard="event"
+          onBack={() => setAnnouncementsOpen(false)}
+          onOpenPost={openPost}
+          onOpenSearch={() => {
+            setAnnouncementsOpen(false);
+            setSettingsOpen(false);
+            setTab("search");
+          }}
+          onWrite={(board) => setWriteTarget({ mode: "create", board })}
+        />
+      </div>
+    );
+  }
+
   if (settingsOpen) {
     return (
       <div className="a-screen flex h-dvh flex-col overflow-hidden">
-        <SettingsScreen onBack={() => setSettingsOpen(false)} />
+        <SettingsScreen onBack={() => setSettingsOpen(false)} onOpenAnnouncements={() => setAnnouncementsOpen(true)} />
       </div>
     );
   }

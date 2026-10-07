@@ -30,8 +30,23 @@
 
   /* 화면: 기준 360×780, 넓은 화면에서는 최대 480px로 가운데 정렬 */
   --a-screen-min: 360px;
-  --a-screen-max: 480px;
+    --a-screen-max: 480px;
 }
+
+/* 다크 모드: <html data-theme="dark">일 때 색상 변수만 덮어쓴다 */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --a-color-text-primary: #f2f2f2;
+  --a-color-icon: #b3b3b3;
+  --a-color-text-secondary: #9a9a9a;
+  --a-color-border: #3a3a3a;
+  --a-color-surface-muted: #262626;
+  --a-color-bg: #121212;
+  --a-color-surface-inverse: #f2f2f2;
+  --a-color-on-inverse: #121212;
+  --a-color-danger: #f87171;
+}
+
 
 /*
  * 줄 높이: Figma의 "normal"은 Noto Sans KR에서 글자 크기×1.2를 반올림한 텍스트 상자 높이로

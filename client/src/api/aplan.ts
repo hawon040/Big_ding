@@ -20,6 +20,8 @@ export const meApi = {
     api.patch<Me>("/users/me/settings", data).then((r) => r.data),
   blocks: () => api.get<Page<BlockedUser>>("/users/me/blocks").then((r) => r.data),
   withdraw: (password: string) => api.delete("/users/account", { data: { password } }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    api.patch("/auth/password", { currentPassword, newPassword }).then((r) => r.data),
 };
 
 // ── 피드 ──

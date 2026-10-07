@@ -38,6 +38,27 @@ router.get("/", auth, async (req, res) => {
   }
 });
 
+// GET /api/group-chats/relations - 나와 팔로우 관계가 있는 사람들의 팔로잉/팔로워 여부
+router.get("/relations", auth, async (req, res) => {
+  try {
+    const me = await User.findById(req.user.id).select("following");
+    const myFollowingIds = new Set(me.following.map((id) => id.toString()));
+    const followers = await User.find({ following: req.user.id }).select("_id");
+    const followerIds = new Set(followers.map((u) => u._id.toString()));
+
+    const allIds = new Set([...myFollowingIds, ...followerIds]);
+    res.json(
+      [...allIds].map((id) => ({
+        _id: id,
+        isFollowing: myFollowingIds.has(id),
+        isFollower: followerIds.has(id),
+      }))
+    );
+  } catch (err) {
+    res.status(500).json({ message: "서버 오류" });
+  }
+});
+
 // POST /api/group-chats - 친구끼리 직접 만드는 단체 채팅방 (공강모임과 무관)
 router.post("/", auth, async (req, res) => {
   try {

@@ -1,5 +1,5 @@
 import { Fragment, useState } from "react";
-import { Plus, Search, X } from "lucide-react";
+import { ChevronLeft, Plus, Search, X } from "lucide-react";
 import { postApi } from "@/api/aplan";
 import { BOARDS, PRIMARY_BOARDS, type BoardKey } from "@/constants/boards";
 import { IconButton } from "@/aplan/components/IconButton";
@@ -10,6 +10,8 @@ import "@/styles/aplan-tokens.css";
 
 interface CommunityScreenProps {
   initialBoard?: BoardKey | "all";
+  /** 있으면 헤더에 뒤로 가기 버튼을 보여준다 (설정 > 공지사항에서 사용) */
+  onBack?: () => void;
   onOpenPost: (id: string) => void;
   onOpenSearch: () => void;
   /** 글쓰기 (현재 탭 게시판을 기본 선택) */
@@ -18,9 +20,9 @@ interface CommunityScreenProps {
 
 // A-06 커뮤니티 (Figma 2:320). 게시판 탭(전체·자유·Q&A·스터디·공모전·취업) + 최신순 목록 + 글쓰기 버튼.
 // A안 탭에 없는 기존 게시판(공지사항·작품 전시·꿀팁·강의평가·공강모임·졸업생)은 헤더의 [전체 게시판]에서 고른다.
-export function CommunityScreen({ initialBoard = "all", onOpenPost, onOpenSearch, onWrite }: CommunityScreenProps) {
+export function CommunityScreen({ initialBoard = "all", onBack, onOpenPost, onOpenSearch, onWrite }: CommunityScreenProps) {
   const [board, setBoard] = useState<BoardKey | "all">(initialBoard);
-  const [moreOpen, setMoreOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(() => initialBoard !== "all" && !PRIMARY_BOARDS.some((b) => b.key === initialBoard));
   const list = useInfiniteList((cursor) => postApi.list(board, cursor), [board]);
 
   const tabs: { key: BoardKey | "all"; label: string }[] = [
@@ -32,6 +34,11 @@ export function CommunityScreen({ initialBoard = "all", onOpenPost, onOpenSearch
     <div className="relative flex min-h-0 flex-1 flex-col">
       {/* 2:258 헤더 */}
       <header className="flex w-full shrink-0 items-center gap-[12px] px-[20px] py-[12px]">
+        {onBack && (
+          <button type="button" onClick={onBack} aria-label="뒤로 가기" className="flex size-[26px] shrink-0 items-center justify-center border-0 bg-transparent p-0">
+            <ChevronLeft size={26} strokeWidth={1.5} style={{ color: "var(--a-color-text-primary)" }} />
+          </button>
+        )}
         <h1 className="m-0 min-w-px flex-1 text-[18px] leading-[22px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
           커뮤니티
         </h1>
