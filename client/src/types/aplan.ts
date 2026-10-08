@@ -255,7 +255,7 @@ export interface InquiryItem {
 
 export interface ReportItem {
   _id: string;
-  targetType: "post" | "comment" | "user";
+  targetType: "post" | "comment" | "user" | "feed";
   targetId: string;
   reason: string;
   detail?: string;
@@ -297,7 +297,8 @@ export interface SanctionItem {
 }
 
 export interface AdminReportTarget {
-  targetType: "post" | "comment" | "user";
+  targetType: "post" | "comment" | "user" | "feed";
+  feed?: { _id: string; content: string; images: string[]; author?: { _id: string; nickname: string; studentId: string } | null };
   post?: { _id: string; title: string; content: string; board: string; author?: { _id: string; nickname: string; studentId: string } | null };
   targetCommentId?: string;
   user?: { _id: string; nickname: string; studentId: string };

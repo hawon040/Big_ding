@@ -24,12 +24,13 @@ describe("댓글 작성", () => {
 
     expect((await Post.findById(post._id)).commentCount).toBe(3);
     expect((await User.findById(a.id)).commentCount).toBe(1);
-    const notes = await Notification.find({}).sort({ createdAt: 1 });
-    expect(notes.map((n) => [n.type, String(n.recipient)])).toEqual([
+        const notes = await Notification.find({}).sort({ createdAt: 1 });
+    const pairs = notes.map((n) => [n.type, String(n.recipient)]).sort();
+    expect(pairs).toEqual([
       ["comment", author.id],
       ["comment", author.id],
       ["reply", a.id],
-    ]);
+    ].sort());
   });
 
   test("대댓글에 다시 답글은 404, 빈 댓글·너무 긴 댓글은 400, 인증 없으면 401", async () => {

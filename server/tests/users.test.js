@@ -1,6 +1,7 @@
 const { setupDb, createUser, api, createPost, flush, User } = require("./helpers");
 const Notification = require("../models/Notification");
 const Report = require("../models/Report");
+const Feed = require("../models/Feed");
 
 setupDb();
 
@@ -158,6 +159,18 @@ describe("POST /api/reports", () => {
     expect((await api(me.token).post("/api/reports").send({ ...body, targetId: "64b000000000000000000000" })).status).toBe(404);
     expect((await api(me.token).post("/api/reports").send({ targetType: "user", targetId: me.id, reason: "x" })).status).toBe(400);
     expect((await Report.findOne()).detail).toBe("광고입니다");
+  });
+
+  test("피드 신고: 다른 사람 피드는 접수, 내 피드 400, 삭제된 피드 404", async () => {
+    const me = await createUser();
+    const author = await createUser();
+    const feed = await Feed.create({ author: author.id, images: ["/uploads/a.jpg"], content: "hi" });
+    const body = { targetType: "feed", targetId: feed._id, reason: "스팸/광고" };
+    expect((await api(me.token).post("/api/reports").send(body)).status).toBe(201);
+    expect((await api(author.token).post("/api/reports").send(body)).status).toBe(400);
+    await Feed.updateOne({ _id: feed._id }, { isDeleted: true });
+    const other = await createUser();
+    expect((await api(other.token).post("/api/reports").send(body)).status).toBe(404);
   });
 });
 

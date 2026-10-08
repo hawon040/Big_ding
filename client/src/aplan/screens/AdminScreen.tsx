@@ -19,7 +19,7 @@ const TABS: { key: Tab; label: string }[] = [
 ];
 
 const SANCTION_LABEL: Record<SanctionType, string> = { warning: "경고", ban: "차단", commentRestriction: "댓글 제한", forceWithdraw: "강제 탈퇴" };
-const TARGET_LABEL = { post: "게시글", comment: "댓글", user: "사용자" } as const;
+const TARGET_LABEL = { post: "게시글", comment: "댓글", user: "사용자", feed: "피드" } as const;
 const errMsg = (err: any, fallback: string) => err?.response?.data?.message || fallback;
 
 // 관리자 화면: 신고 처리 · 건의 답변 · 회원 제재 · 제재 해제. 서버는 isAdmin이 아니면 403을 돌려준다.
@@ -114,7 +114,7 @@ function ReportsTab() {
   const openSanction = async (r: ReportItem) => {
     try {
       const t = await adminApi.reportTarget(r._id);
-      const target = t.targetType === "user" ? t.user : t.post?.author;
+      const target = t.targetType === "user" ? t.user : t.targetType === "feed" ? t.feed?.author : t.post?.author;
       if (!target) return setError("제재할 대상을 찾을 수 없어요.");
       setSanctionFor({ userId: target._id, nickname: target.nickname, reportId: r._id });
     } catch (err) {
@@ -145,6 +145,11 @@ function ReportsTab() {
               <div className="px-[12px] py-[10px] text-[13px] leading-[18px]" style={{ background: "var(--a-color-surface-muted)", borderRadius: "var(--a-radius-control)", ...primary }}>
                 {t.targetType === "user"
                   ? <>사용자: {t.user?.nickname} ({t.user?.studentId})</>
+                  : t.targetType === "feed"
+                  ? <>
+                      <strong>피드</strong> — {t.feed?.author?.nickname} · 사진 {t.feed?.images.length ?? 0}장
+                      {t.feed?.content && <p className="m-0 mt-[4px] line-clamp-4 whitespace-pre-wrap" style={muted}>{t.feed.content}</p>}
+                    </>
                   : <>
                       <strong>{t.post?.title}</strong> — {t.post?.author?.nickname}
                       <p className="m-0 mt-[4px] line-clamp-4 whitespace-pre-wrap" style={muted}>{t.post?.content}</p>

@@ -7,10 +7,11 @@ const Notification = require("../models/Notification");
 const auth = require("../middleware/authMiddleware");
 const isAdmin = require("../middleware/adminMiddleware");
 const Comment = require("../models/Comment");
+const Feed = require("../models/Feed");
 const { withLegacyComments } = require("../utils/comments");
 const v = require("../utils/validate");
 
-const TARGET_MODELS = { post: Post, comment: Comment, user: User };
+const TARGET_MODELS = { post: Post, comment: Comment, user: User, feed: Feed };
 
 // POST /api/reports - 신고 접수 { targetType, targetId, reason, detail? }
 router.post("/", auth, async (req, res) => {
@@ -24,11 +25,14 @@ router.post("/", auth, async (req, res) => {
     const detail = req.body.detail ? v.requireString(req.body.detail, "상세 내용", { max: 500 }) : undefined;
 
     // 기존 임베드 댓글(마이그레이션 전)도 신고할 수 있도록 댓글은 두 곳 모두 확인한다.
+    // 피드는 삭제(소프트 삭제)된 것을 제외하고, 내 피드는 신고할 수 없다.
+    const feed = targetType === "feed" ? await Feed.findOne({ _id: targetId, isDeleted: false }).select("author").lean() : null;
     const exists = targetType === "comment"
       ? (await Comment.exists({ _id: targetId })) || (await Post.exists({ "comments._id": targetId }))
-      : await TARGET_MODELS[targetType].exists({ _id: targetId });
+      : targetType === "feed" ? feed : await TARGET_MODELS[targetType].exists({ _id: targetId });
     if (!exists) return res.status(404).json({ message: "신고 대상을 찾을 수 없습니다." });
     if (targetType === "user" && String(targetId) === String(req.user.id)) v.fail("자기 자신은 신고할 수 없습니다.");
+    if (feed && String(feed.author) === String(req.user.id)) v.fail("내 피드는 신고할 수 없습니다.");
 
     // 같은 대상을 처리 대기 중에 다시 신고하는 것은 막는다.
     if (await Report.exists({ reporter: req.user.id, targetType, targetId, status: "pending" })) {
@@ -63,7 +67,7 @@ router.get("/", auth, isAdmin, async (req, res) => {
   }
 });
 
-// GET /api/reports/:id/target - 신고 대상(게시물/댓글/유저) 바로 조회 (관리자 전용)
+// GET /api/reports/:id/target - 신고 대상(게시물/댓글/피드/유저) 바로 조회 (관리자 전용)
 router.get("/:id/target", auth, isAdmin, async (req, res) => {
   try {
     const report = await Report.findById(req.params.id);
@@ -83,6 +87,12 @@ router.get("/:id/target", auth, isAdmin, async (req, res) => {
         : await Post.findOne({ "comments._id": report.targetId }).populate("author", "nickname avatar studentId");
       if (!post) return res.status(404).json({ message: "댓글을 찾을 수 없습니다. 삭제되었을 수 있습니다." });
       return res.json({ targetType: "comment", post: await withLegacyComments(post), targetCommentId: report.targetId });
+    }
+
+    if (report.targetType === "feed") {
+      const feed = await Feed.findById(report.targetId).select("author content images isDeleted").populate("author", "nickname avatar studentId").lean();
+      if (!feed || feed.isDeleted) return res.status(404).json({ message: "피드를 찾을 수 없습니다. 삭제되었을 수 있습니다." });
+      return res.json({ targetType: "feed", feed: { _id: feed._id, content: feed.content, images: feed.images, author: feed.author } });
     }
 
     // targetType === "user"

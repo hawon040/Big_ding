@@ -184,7 +184,7 @@ export function ProfileScreen({ userId, onBack, onOpenPost, onOpenFeed, onOpenFo
         {!error && !profile && <ProfileSkeleton />}
       </main>
 
-      {photoOpen && profile?.profileImage && <ImageViewer src={profile.profileImage} onClose={() => setPhotoOpen(false)} />}
+      {photoOpen && profile?.profileImage && <ImageViewer src={profile.profileImage} alt="프로필 사진" onClose={() => setPhotoOpen(false)} />}
 
       <BottomSheet open={menuOpen} title="더보기" onClose={() => setMenuOpen(false)}>
         <SheetItem danger onClick={toggleBlock}>{blocked ? "차단 해제" : "차단하기"}</SheetItem>

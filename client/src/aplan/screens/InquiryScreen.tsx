@@ -85,7 +85,7 @@ export function InquiryScreen({ onBack }: { onBack: () => void }) {
   );
 }
 
-const TARGET_LABEL = { post: "게시글", comment: "댓글", user: "사용자" } as const;
+const TARGET_LABEL = { post: "게시글", comment: "댓글", user: "사용자", feed: "피드" } as const;
 const SANCTION_LABEL: Record<string, string> = { warning: "경고", ban: "차단", commentRestriction: "댓글 작성 제한", forceWithdraw: "강제 탈퇴" };
 
 // 신고 내역: 내가 접수한 신고와 처리 결과

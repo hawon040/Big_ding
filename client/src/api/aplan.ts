@@ -179,7 +179,7 @@ export const notificationApi = {
 
 // ── 신고 ──
 export const reportApi = {
-  create: (data: { targetType: "post" | "comment" | "user"; targetId: string; reason: string; detail?: string }) =>
+  create: (data: { targetType: "post" | "comment" | "user" | "feed"; targetId: string; reason: string; detail?: string }) =>
     api.post("/reports", data),
 };
 

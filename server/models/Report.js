@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const reportSchema = new mongoose.Schema({
   reporter: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  targetType: { type: String, enum: ["post", "comment", "user"], required: true },
+  targetType: { type: String, enum: ["post", "comment", "user", "feed"], required: true },
   targetId: { type: mongoose.Schema.Types.ObjectId, required: true },
   reason: { type: String, required: true },
   // A안 신고 사유 선택(스팸/욕설/음란/기타) 시 덧붙이는 상세 설명 (선택)
