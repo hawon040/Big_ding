@@ -1,3 +1,4 @@
+import { ChevronLeft } from "lucide-react";
 import { Avatar } from "@/aplan/components/Avatar";
 import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
 import { useInfiniteList } from "@/aplan/hooks/useInfiniteList";
@@ -7,6 +8,7 @@ import type { NotificationItem, NotificationType } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
 
 interface NotificationScreenProps {
+  onBack: () => void;
   onOpenPost: (id: string) => void;
   onOpenFeed: (id: string) => void;
   onOpenUser: (id: string) => void;
@@ -16,7 +18,7 @@ const ADMIN_TYPES: NotificationType[] = ["adminWarning", "adminBan", "adminComme
 
 // 알림 (Figma에 없는 신규 화면 — Figma의 A-08은 설정 화면이다. A안 톤으로 새로 구성).
 // 유형별 문구는 기존 앱(app/components/CommunityScreen.tsx 알림 패널)의 표현을 A안 말투("~해요")로 옮겼다.
-export function NotificationScreen({ onOpenPost, onOpenFeed, onOpenUser }: NotificationScreenProps) {
+export function NotificationScreen({ onBack, onOpenPost, onOpenFeed, onOpenUser }: NotificationScreenProps) {
   const list = useInfiniteList((cursor) => notificationApi.list(cursor), []);
 
   const markAllRead = () => {
@@ -37,6 +39,9 @@ export function NotificationScreen({ onOpenPost, onOpenFeed, onOpenUser }: Notif
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex w-full shrink-0 items-center gap-[12px] px-[20px] py-[12px]">
+        <button type="button" onClick={onBack} aria-label="뒤로 가기" className="flex size-[26px] shrink-0 items-center justify-center border-0 bg-transparent p-0">
+          <ChevronLeft size={26} strokeWidth={1.5} style={{ color: "var(--a-color-text-primary)" }} />
+        </button>
         <h1 className="m-0 min-w-px flex-1 text-[18px] leading-[22px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
           알림
         </h1>

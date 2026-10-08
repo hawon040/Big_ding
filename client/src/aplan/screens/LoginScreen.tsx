@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import api from "@/api";
 import { TextField } from "@/aplan/components/TextField";
 import { PrimaryButton } from "@/aplan/components/PrimaryButton";
@@ -21,6 +22,7 @@ export function LoginScreen({ onLogin, onRegister, onFindPassword }: LoginScreen
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -81,16 +83,32 @@ export function LoginScreen({ onLogin, onRegister, onFindPassword }: LoginScreen
           onChange={(e) => setStudentId(e.target.value)}
           error={errors.studentId}
         />
-        {/* 2:16 비밀번호 */}
-        <TextField
-          label="비밀번호"
-          placeholder="비밀번호"
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          error={errors.password}
-        />
+                {/* 2:16 비밀번호 */}
+        <div className="relative w-full">
+          <TextField
+            label="비밀번호"
+            placeholder="비밀번호"
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            error={errors.password}
+            className="[&_input]:pr-[44px]"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+            className="absolute top-[13px] right-[12px] flex size-[20px] items-center justify-center border-0 bg-transparent p-0"
+            tabIndex={-1}
+          >
+            {showPassword ? (
+              <EyeOff size={18} strokeWidth={1.5} style={{ color: "var(--a-color-text-secondary)" }} />
+            ) : (
+              <Eye size={18} strokeWidth={1.5} style={{ color: "var(--a-color-text-secondary)" }} />
+            )}
+          </button>
+        </div>
         {/* 2:19 비밀번호 찾기 */}
         <div className="flex w-full justify-end">
           <button

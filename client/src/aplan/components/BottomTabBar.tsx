@@ -1,25 +1,23 @@
-import { Bell, House, Search, User, Users, type LucideIcon } from "lucide-react";
-import { Badge } from "./IconButton";
+import { House, Search, User, Users, type LucideIcon } from "lucide-react";
 
 export type MainTab = "home" | "search" | "community" | "notifications" | "my";
 
-const TABS: { id: MainTab; label: string; icon: LucideIcon }[] = [
+// 알림은 하단 탭이 아니라 홈 헤더의 알림 버튼에서만 연다 (MainShell의 notificationsOpen)
+const TABS: { id: Exclude<MainTab, "notifications">; label: string; icon: LucideIcon }[] = [
   { id: "home", label: "홈", icon: House },
   { id: "search", label: "검색", icon: Search },
   { id: "community", label: "커뮤니티", icon: Users },
-  { id: "notifications", label: "알림", icon: Bell },
   { id: "my", label: "MY", icon: User },
 ];
 
 interface BottomTabBarProps {
   active: MainTab;
   onChange: (tab: MainTab) => void;
-  unreadNotifications?: number;
 }
 
-// 하단 탭바 (Figma 2:173 TabBar): 흰 배경, 위 1px #D9D9D9, 위 10·아래 28 여백, 5칸 균등.
+// 하단 탭바 (Figma 2:173 TabBar): 흰 배경, 위 1px #D9D9D9, 위 10·아래 28 여백, 4칸 균등.
 // 아이콘 22 (선 1.5) + 4 간격 + 10px 라벨. 선택: #212121·Bold / 미선택: #999·Regular
-export function BottomTabBar({ active, onChange, unreadNotifications = 0 }: BottomTabBarProps) {
+export function BottomTabBar({ active, onChange }: BottomTabBarProps) {
   return (
     <nav
       aria-label="주요 메뉴"
@@ -39,7 +37,6 @@ export function BottomTabBar({ active, onChange, unreadNotifications = 0 }: Bott
           >
             <span className="relative flex size-[22px] items-center justify-center">
               <Icon size={22} strokeWidth={1.5} style={{ color }} aria-hidden />
-              {id === "notifications" && unreadNotifications > 0 && <Badge count={unreadNotifications} />}
             </span>
             <span className={`text-[10px] leading-[12px] whitespace-nowrap ${selected ? "font-bold" : "font-normal"}`} style={{ color }}>
               {label}

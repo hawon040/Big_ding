@@ -50,7 +50,9 @@ interface MainShellProps {
 // A안 메인 화면 틀: 탭별 화면 + 하단 탭바(홈·검색·커뮤니티·알림·MY).
 // 미읽음 알림·메시지 수는 탭 진입 시와 30초 간격으로 새로 불러온다(실시간 푸시는 범위 밖).
 export function MainShell({ initialTab = "home" }: MainShellProps) {
-  const [tab, setTab] = useState<MainTab>(initialTab);
+  // 알림은 탭이 아니라 홈 알림 버튼으로 여는 화면이다 (개발 미리보기의 initialTab="notifications"도 이쪽으로 연다)
+  const [tab, setTab] = useState<MainTab>(initialTab === "notifications" ? "home" : initialTab);
+  const [notificationsOpen, setNotificationsOpen] = useState(initialTab === "notifications");
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
   // 탭 위에 쌓이는 상세 화면(A-09). null이면 탭 콘텐츠를 그대로 보여준다.
@@ -98,7 +100,7 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [tab, chatView]);
+  }, [tab, chatView, notificationsOpen]);
 
   let content: ReactNode;
   switch (tab) {
@@ -111,7 +113,7 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
           onOpenUser={openUser}
           onWriteFeed={() => setFeedWriting(true)}
           onOpenMessages={() => setChatView({ view: "list" })}
-          onOpenNotifications={() => setTab("notifications")}
+          onOpenNotifications={() => setNotificationsOpen(true)}
         />
       );
       break;
@@ -139,11 +141,6 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenFollows={openFollows}
         />
-      );
-      break;
-    case "notifications":
-      content = (
-        <NotificationScreen onOpenPost={openPost} onOpenFeed={openFeed} onOpenUser={openUser} />
       );
       break;
     default:
@@ -296,10 +293,18 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
     );
   }
 
+  if (notificationsOpen) {
+    return (
+      <div className="a-screen flex h-dvh flex-col overflow-hidden">
+        <NotificationScreen onBack={() => setNotificationsOpen(false)} onOpenPost={openPost} onOpenFeed={openFeed} onOpenUser={openUser} />
+      </div>
+    );
+  }
+
   return (
     <div className="a-screen flex h-dvh flex-col overflow-hidden">
       {content}
-      <BottomTabBar active={tab} onChange={setTab} unreadNotifications={unreadNotifications} />
+      <BottomTabBar active={tab} onChange={setTab} />
     </div>
   );
 }

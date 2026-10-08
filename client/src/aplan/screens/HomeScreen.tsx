@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Bell, BellOff, Plus, Send } from "lucide-react";
 import { feedPostApi, storyApi, tagAlertApi } from "@/api/aplan";
-import type { StoryTrayItem } from "@/types/aplan";
+import type { FeedItem, StoryTrayItem } from "@/types/aplan";
 import { IconButton } from "@/aplan/components/IconButton";
 import { TopicSelectChip } from "@/aplan/components/TopicSelectChip";
 import { FeedCard } from "@/aplan/components/FeedCard";
@@ -11,7 +11,8 @@ import { StoryViewer } from "@/aplan/components/StoryViewer";
 import { EmptyState, ErrorState, PostCardSkeleton, PostListSkeleton } from "@/aplan/components/States";
 import { useInfiniteList } from "@/aplan/hooks/useInfiniteList";
 import { useFeedActions } from "@/aplan/hooks/useFeedActions";
-import { alertDialog } from "@/aplan/components/Dialog";
+import { alertDialog, confirmDialog } from "@/aplan/components/Dialog";
+import { FeedEditScreen } from "@/aplan/screens/FeedEditScreen";
 import "@/styles/aplan-tokens.css";
 
 interface HomeScreenProps {
@@ -54,7 +55,19 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
   }, []);
 
   const feed = useInfiniteList((cursor) => feedPostApi.list(tag, cursor), [tag]);
-  const { toggleLike } = useFeedActions(feed.setItems);
+  const { toggleLike, patch } = useFeedActions(feed.setItems);
+
+  // 내 피드 ⋯ 메뉴: 수정(글만) / 삭제
+  const [editing, setEditing] = useState<FeedItem | null>(null);
+  const removeFeed = async (item: FeedItem) => {
+    if (!(await confirmDialog({ title: "이 피드를 삭제할까요?", message: "삭제하면 되돌릴 수 없어요.", confirmText: "삭제", danger: true }))) return;
+    try {
+      await feedPostApi.remove(item.id);
+      feed.setItems((prev) => prev.filter((f) => f.id !== item.id));
+    } catch (err: any) {
+      alertDialog(err?.response?.data?.message || "삭제하지 못했어요.");
+    }
+  };
 
   const subscribed = tag !== null && alertTags.includes(tag);
   const toggleAlert = () => {
@@ -121,7 +134,7 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
         )}
         {feed.status === "ready" &&
           feed.items.map((item) => (
-            <FeedCard key={item.id} feed={item} onOpen={onOpenFeed} onOpenUser={onOpenUser} onTagClick={setTag} onToggleLike={toggleLike} />
+            <FeedCard key={item.id} feed={item} onOpen={onOpenFeed} onOpenUser={onOpenUser} onTagClick={setTag} onToggleLike={toggleLike} onEdit={setEditing} onDelete={removeFeed} />
           ))}
         {feed.loadingMore && <PostCardSkeleton />}
         {feed.hasMore && <div ref={feed.sentinelRef} className="h-px w-full shrink-0" aria-hidden />}
@@ -133,6 +146,16 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
           onClose={(changed) => {
             setViewerStart(null);
             if (changed) loadTray();
+          }}
+        />
+      )}
+      {editing && (
+        <FeedEditScreen
+          feed={editing}
+          onBack={() => setEditing(null)}
+          onSaved={(updated) => {
+            patch(updated.id, { content: updated.content, tags: updated.tags });
+            setEditing(null);
           }}
         />
       )}

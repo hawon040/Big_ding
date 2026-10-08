@@ -42,6 +42,7 @@ export const feedPostApi = {
     if (input.content) form.append("content", input.content);
     return api.post<FeedItem>("/feeds", form).then((r) => r.data);
   },
+  update: (id: string, content: string) => api.put<FeedItem>(`/feeds/${id}`, { content }).then((r) => r.data),
   remove: (id: string) => api.delete(`/feeds/${id}`),
   like: (id: string) => api.post<{ likeCount: number; isLiked: boolean }>(`/feeds/${id}/like`).then((r) => r.data),
   unlike: (id: string) => api.delete<{ likeCount: number; isLiked: boolean }>(`/feeds/${id}/like`).then((r) => r.data),

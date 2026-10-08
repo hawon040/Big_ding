@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Heart, MessageCircle } from "lucide-react";
+import { Heart, MessageCircle, MoreHorizontal } from "lucide-react";
 import { resolveAssetUrl } from "@/api";
 import { formatTime } from "@/utils";
 import type { FeedItem } from "@/types/aplan";
 import { Avatar } from "./Avatar";
+import { BottomSheet, SheetItem } from "./BottomSheet";
+import { IconButton } from "./IconButton";
 
 // 사진 여러 장을 옆으로 넘겨 보는 영역(스크롤 스냅). 2장 이상이면 오른쪽 위에 "1/3"을 표시한다.
 export function ImageCarousel({ images }: { images: string[] }) {
@@ -47,10 +49,14 @@ interface FeedCardProps {
   onTagClick?: (tag: string) => void;
   /** 상세 화면에서는 본문을 줄이지 않는다 */
   expanded?: boolean;
+  /** 내 피드의 ⋯ 메뉴: 둘 중 하나라도 있으면 ⋯ 아이콘이 보인다 */
+  onEdit?: (feed: FeedItem) => void;
+  onDelete?: (feed: FeedItem) => void;
 }
 
 // 홈 피드 카드: 작성자 → 사진(여러 장 스와이프) → 좋아요·댓글 → 본문 → 주제. 커뮤니티 PostCard와 다른 게시물이다.
-export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, onTagClick, expanded = false }: FeedCardProps) {
+export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, onTagClick, expanded = false, onEdit, onDelete }: FeedCardProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const author = feed.author;
   const idle = "var(--a-color-text-secondary)";
 
@@ -71,6 +77,7 @@ export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, onTagClick, e
             <span className="text-[11px] leading-[13px]" style={{ color: idle }}>{formatTime(feed.createdAt)}</span>
           </span>
         </button>
+        {feed.isMine && (onEdit || onDelete) && <IconButton icon={MoreHorizontal} label="더보기" onClick={() => setMenuOpen(true)} />}
       </div>
 
       <ImageCarousel images={feed.images} />
@@ -121,6 +128,11 @@ export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, onTagClick, e
           ))}
         </p>
       )}
+
+      <BottomSheet open={menuOpen} title="더보기" onClose={() => setMenuOpen(false)}>
+        {onEdit && <SheetItem onClick={() => { setMenuOpen(false); onEdit(feed); }}>수정</SheetItem>}
+        {onDelete && <SheetItem danger onClick={() => { setMenuOpen(false); onDelete(feed); }}>삭제</SheetItem>}
+      </BottomSheet>
     </article>
   );
 }

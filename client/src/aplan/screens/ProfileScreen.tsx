@@ -3,6 +3,7 @@ import { ChevronLeft, MoreVertical } from "lucide-react";
 import { userApi, reportApi } from "@/api/aplan";
 import { TOPIC_MAP } from "@/constants/topics";
 import { Avatar } from "@/aplan/components/Avatar";
+import { ImageViewer } from "@/aplan/components/ImageViewer";
 import { IconButton } from "@/aplan/components/IconButton";
 import { FeedGrid, PostRows, ProfileStats, UnderlineTabs, type ProfileTab } from "@/aplan/components/ProfileParts";
 import { BottomSheet, SheetItem } from "@/aplan/components/BottomSheet";
@@ -38,6 +39,7 @@ export function ProfileScreen({ userId, onBack, onOpenPost, onOpenFeed, onOpenFo
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   const load = () => {
     setError(null);
@@ -106,7 +108,15 @@ export function ProfileScreen({ userId, onBack, onOpenPost, onOpenFeed, onOpenFo
         {!error && profile && !profile.isWithdrawn && (
           <>
             <section className="flex w-full items-center gap-[14px]">
-              <Avatar src={profile.profileImage} size={64} />
+              <button
+                type="button"
+                disabled={!profile.profileImage}
+                onClick={() => setPhotoOpen(true)}
+                aria-label="프로필 사진 크게 보기"
+                className="shrink-0 border-0 bg-transparent p-0 disabled:cursor-default"
+              >
+                <Avatar src={profile.profileImage} size={64} />
+              </button>
               <div className="flex min-w-px flex-1 flex-col items-start gap-[4px]">
                 <span className="text-[17px] leading-[20px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>{profile.nickname}</span>
                 <span className="text-[12px] leading-[14px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>
@@ -173,6 +183,8 @@ export function ProfileScreen({ userId, onBack, onOpenPost, onOpenFeed, onOpenFo
 
         {!error && !profile && <ProfileSkeleton />}
       </main>
+
+      {photoOpen && profile?.profileImage && <ImageViewer src={profile.profileImage} onClose={() => setPhotoOpen(false)} />}
 
       <BottomSheet open={menuOpen} title="더보기" onClose={() => setMenuOpen(false)}>
         <SheetItem danger onClick={toggleBlock}>{blocked ? "차단 해제" : "차단하기"}</SheetItem>
