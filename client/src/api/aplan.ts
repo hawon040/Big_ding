@@ -77,7 +77,7 @@ export const tagAlertApi = {
 // ── 게시글 ──
 export interface PostInput {
   board: BoardKey;
-  topics: TopicKey[];
+  topics?: TopicKey[];
   tags: string[];
   title: string;
   content: string;
@@ -94,7 +94,7 @@ const toFormData = (input: PostInput) => {
   form.append("board", input.board);
   form.append("title", input.title);
   form.append("content", input.content);
-  form.append("topics", JSON.stringify(input.topics));
+  if (input.topics) form.append("topics", JSON.stringify(input.topics));
   form.append("tags", JSON.stringify(input.tags));
   if (input.recruit) form.append("recruit", JSON.stringify(input.recruit));
   if (input.poll) form.append("poll", JSON.stringify(input.poll));
@@ -139,6 +139,7 @@ export const searchApi = {
     api.get<Page<UserSummary>>("/search", { params: { q, type: "user", ...pageParams(cursor) } }).then((r) => r.data),
   tags: (q: string) =>
     api.get<Page<TagResult>>("/search", { params: { q, type: "tag", cursor: "" } }).then((r) => r.data),
+  record: (keyword: string) => api.post("/search/history", { keyword }),
   recent: () => api.get<{ items: RecentSearch[] }>("/search/recent").then((r) => r.data.items),
   removeRecent: (keyword: string) => api.delete(`/search/recent/${encodeURIComponent(keyword)}`),
   clearRecent: () => api.delete("/search/recent"),

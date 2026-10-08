@@ -8,8 +8,6 @@ import { useInfiniteList } from "@/aplan/hooks/useInfiniteList";
 import type { RecentSearch, TagResult, TrendingKeyword } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
 
-const DEBOUNCE_MS = 400;
-
 type ResultTab = "post" | "user" | "tag";
 
 interface SearchScreenProps {
@@ -18,12 +16,12 @@ interface SearchScreenProps {
 }
 
 // A-05 검색 (Figma 2:245).
-// 입력 후 잠시 멈추면(디바운스) 게시글·유저·태그 3개 결과를 함께 불러온다.
-// 검색 기록은 서버가 "게시글 탭 첫 페이지 요청"에서만 남기므로(server/routes/search.js),
-// 탭을 오가도 최근 검색어에 중복으로 쌓이지 않는다.
+// 입력 중에는 검색하지 않고, Enter/검색 버튼 또는 검색어 추천을 선택했을 때 실행한다.
 export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
+  const [searchExecution, setSearchExecution] = useState(0);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [tab, setTab] = useState<ResultTab>("post");
   const [recent, setRecent] = useState<RecentSearch[] | null>(null);
   const [trending, setTrending] = useState<TrendingKeyword[] | null>(null);
@@ -33,11 +31,7 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
     items: [],
   });
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setQuery(input.trim()), DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [input]);
+  const historyRequest = useRef(0);
 
   const loadRecent = useCallback(() => {
     searchApi.recent().then(setRecent).catch(() => setRecent([]));
@@ -59,11 +53,11 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
 
   const posts = useInfiniteList(
     (cursor) => (query ? searchApi.posts(query, cursor) : Promise.resolve({ items: [], nextCursor: null })),
-    [query],
+    [query, searchExecution],
   );
   const users = useInfiniteList(
     (cursor) => (query ? searchApi.users(query, cursor) : Promise.resolve({ items: [], nextCursor: null })),
-    [query],
+    [query, searchExecution],
   );
 
   const [tagReloadKey, setTagReloadKey] = useState(0);
@@ -81,12 +75,22 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
     return () => {
       cancelled = true;
     };
-  }, [query, tagReloadKey]);
+  }, [query, tagReloadKey, searchExecution]);
 
   const runQuery = (keyword: string) => {
-    setInput(keyword);
-    setQuery(keyword);
+    const normalized = keyword.trim();
+    if (!normalized) return;
+    setInput(normalized);
+    setQuery(normalized);
     setTab("post");
+    setHistoryError(null);
+    setSearchExecution((current) => current + 1);
+    const request = ++historyRequest.current;
+    searchApi.record(normalized).catch((err) => {
+      if (request === historyRequest.current) {
+        setHistoryError(err?.response?.data?.message || "최근 검색어를 저장하지 못했어요.");
+      }
+    });
   };
 
   const removeRecent = (keyword: string) => {
@@ -113,7 +117,9 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
           className="flex h-[40px] min-w-px flex-1 items-center gap-[8px] px-[12px]"
           style={{ borderRadius: "var(--a-radius-pill)", background: "var(--a-color-surface-muted)" }}
         >
-          <SearchIcon size={18} strokeWidth={1.5} style={{ color: "var(--a-color-icon)" }} aria-hidden />
+          <button type="button" aria-label="검색 실행" onClick={() => runQuery(input)} className="flex shrink-0 items-center justify-center border-0 bg-transparent p-0">
+            <SearchIcon size={18} strokeWidth={1.5} style={{ color: "var(--a-color-icon)" }} aria-hidden />
+          </button>
           <input
             ref={inputRef}
             value={input}
@@ -130,6 +136,8 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
               aria-label="검색어 지우기"
               onClick={() => {
                 setInput("");
+                setQuery("");
+                setHistoryError(null);
                 inputRef.current?.focus();
               }}
               className="flex size-[18px] shrink-0 items-center justify-center border-0 bg-transparent p-0"
@@ -144,6 +152,7 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
           onClick={() => {
             setInput("");
             setQuery("");
+            setHistoryError(null);
             inputRef.current?.blur();
           }}
           className="shrink-0 border-0 bg-transparent p-0 text-[14px] leading-[17px] font-normal"
@@ -185,6 +194,7 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
           </div>
 
           <main className="flex min-h-0 w-full flex-1 flex-col items-start gap-[4px] overflow-y-auto px-[20px] py-[4px] pb-[24px]">
+            {historyError && <p role="alert" className="m-0 py-[6px] text-[12px] leading-[16px]" style={{ color: "var(--a-color-danger)" }}>{historyError}</p>}
             {tab === "post" && (
               <>
                 {posts.status === "loading" && <ListSkeleton />}

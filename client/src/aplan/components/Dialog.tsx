@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { AlertTriangle } from "lucide-react";
 
 // 앱 공용 확인·알림 창 (window.confirm / window.alert 대체).
 // 브라우저 기본 창은 OS 스타일로 떠서 A안 디자인과 맞지 않아서, 같은 토큰으로 그린 창을 띄운다.
@@ -76,7 +77,7 @@ export function DialogHost() {
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center px-[40px]"
-      style={{ background: "rgba(0,0,0,0.4)" }}
+      style={{ background: "rgba(0,0,0,0.48)", backdropFilter: "blur(3px)" }}
       onClick={() => close(!isConfirm)}
     >
       <div
@@ -85,10 +86,15 @@ export function DialogHost() {
         aria-labelledby="a-dialog-title"
         aria-describedby={current.message ? "a-dialog-message" : undefined}
         onClick={(e) => e.stopPropagation()}
-        className="flex w-full max-w-[300px] flex-col gap-[20px] px-[20px] pt-[24px] pb-[16px]"
-        style={{ background: "var(--a-color-bg)", borderRadius: "var(--a-radius-card)", fontFamily: "var(--a-font-sans)" }}
+        className="flex w-full max-w-[320px] flex-col gap-[20px] border border-solid px-[20px] pt-[24px] pb-[16px]"
+        style={{ background: "var(--a-color-bg)", borderColor: "var(--a-color-border)", borderRadius: 20, boxShadow: "0 18px 48px rgba(0,0,0,0.2)", fontFamily: "var(--a-font-sans)" }}
       >
         <div className="flex flex-col gap-[8px] text-center">
+          {current.danger && (
+            <span className="mx-auto flex size-[44px] items-center justify-center" style={{ borderRadius: "50%", background: "color-mix(in srgb, var(--a-color-danger) 12%, transparent)" }}>
+              <AlertTriangle size={21} strokeWidth={1.8} style={{ color: "var(--a-color-danger)" }} aria-hidden />
+            </span>
+          )}
           <h2 id="a-dialog-title" className="m-0 text-[16px] leading-[22px] font-bold whitespace-pre-line" style={{ color: "var(--a-color-text-primary)" }}>
             {current.title}
           </h2>

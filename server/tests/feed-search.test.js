@@ -73,9 +73,8 @@ describe("GET /api/search", () => {
 
   test("최근 검색어: 앞에 추가·중복 제거·최대 10개·개별/전체 삭제", async () => {
     const me = await createUser();
-    for (const q of ["a1", "b2", "a1"]) await api(me.token).get(`/api/search?q=${q}`);
-    for (let i = 0; i < 10; i++) await api(me.token).get(`/api/search?q=k${i}`);
-    await new Promise((r) => setTimeout(r, 200));
+    for (const q of ["a1", "b2", "a1"]) await api(me.token).post("/api/search/history").send({ keyword: q });
+    for (let i = 0; i < 10; i++) await api(me.token).post("/api/search/history").send({ keyword: `k${i}` });
     let recent = await api(me.token).get("/api/search/recent");
     expect(recent.body.items).toHaveLength(10);
     expect(recent.body.items[0].keyword).toBe("k9");
@@ -90,13 +89,26 @@ describe("GET /api/search", () => {
   test("검색 기록은 정규화(공백·대소문자), 2글자 미만·비속어는 인기 검색어에서 제외", async () => {
     const me = await createUser();
     for (const q of ["Deep Learning", "deeplearning", "a", "병신"]) {
-      await api(me.token).get(`/api/search?q=${encodeURIComponent(q)}`);
+      await api(me.token).post("/api/search/history").send({ keyword: q });
     }
-    await new Promise((r) => setTimeout(r, 200));
     const logs = await SearchLog.find().lean();
     expect(logs.map((l) => l.keyword)).toEqual(["deeplearning", "deeplearning"]);
     const user = await User.findById(me.id).lean();
     expect(user.recentSearches.map((r) => r.keyword)).toEqual(["병신", "a", "deeplearning", "Deep Learning"]);
+  });
+
+  test("검색 결과 조회만으로는 최근 검색어나 인기 검색 기록을 남기지 않음", async () => {
+    const me = await createUser();
+    await api(me.token).get("/api/search?q=python&type=post");
+    expect((await api(me.token).get("/api/search/recent")).body.items).toEqual([]);
+    expect(await SearchLog.countDocuments()).toBe(0);
+  });
+
+  test("검색 기록 요청은 잘못된 검색어를 거부", async () => {
+    const me = await createUser();
+    expect((await api(me.token).post("/api/search/history").send({ keyword: " " })).status).toBe(400);
+    expect((await api(me.token).post("/api/search/history").send({ keyword: "a".repeat(51) })).status).toBe(400);
+    expect((await api().post("/api/search/history").send({ keyword: "python" })).status).toBe(401);
   });
 });
 

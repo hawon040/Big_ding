@@ -11,7 +11,7 @@ const upload = require("../../middleware/upload");
 const profanityFilter = require("../../middleware/profanityFilter");
 const { uploadImage } = require("../../config/cloudinary");
 const { escapeRegex } = require("../../utils/regex");
-const { BOARDS, BOARD_KEYS, RECRUIT_BOARDS } = require("../../constants/boards");
+const { BOARD_KEYS, RECRUIT_BOARDS } = require("../../constants/boards");
 const { getViewerContext, visiblePostsFilter, canAccessPost, sameId, includesId } = require("../../utils/access");
 const { wantsPage, parseLimit, decodeCursor, pageBy } = require("../../utils/pagination");
 const { AUTHOR_FIELDS, cardProjection, toPostCard, toPostDetail } = require("../../utils/serializers");
@@ -24,10 +24,6 @@ const { announceCounts } = require("../../services/profileCounts");
 
 const TITLE_MAX = 100;
 const CONTENT_MAX = 20000;
-// 주제 선택이 없는 기존 글쓰기 화면은 이 게시판들에 글을 쓰지 않는다. 여기에 쓰는 글과
-// topics를 보낸 요청(새 글쓰기 화면)만 주제 1~3개를 필수로 검증한다.
-const TOPIC_REQUIRED_BOARDS = BOARDS.filter((b) => b.primary && b.key !== "free").map((b) => b.key);
-
 const parseRecruit = (raw, board) => {
   const recruit = v.parseJsonField(raw, "모집 정보");
   if (recruit === undefined) return undefined;
@@ -108,7 +104,7 @@ router.post("/", auth, upload.array("images", 5), profanityFilter, async (req, r
       ? ""
       : v.requireString(req.body.content, "내용", { max: CONTENT_MAX });
     const topicsRaw = v.parseJsonField(req.body.topics, "주제");
-    const topics = TOPIC_REQUIRED_BOARDS.includes(board) || topicsRaw !== undefined ? v.postTopics(topicsRaw) : [];
+    const topics = topicsRaw === undefined ? [] : v.postTopics(topicsRaw);
     const tags = v.postTags(v.parseJsonField(req.body.tags, "태그"));
     const recruit = parseRecruit(req.body.recruit, board);
     const visibility = ["all", "followers", "private"].includes(req.body.visibility) ? req.body.visibility : "all";

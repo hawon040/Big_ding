@@ -25,7 +25,6 @@ describe("POST /api/posts", () => {
 
   test.each([
     ["알 수 없는 게시판", { board: "nope" }],
-    ["A안 게시판인데 주제 없음", { board: "question", topics: undefined }],
     ["주제 4개", { topics: JSON.stringify(["python", "sql", "ml", "dl"]) }],
     ["알 수 없는 주제", { topics: JSON.stringify(["cooking"]) }],
     ["제목 101자", { title: "가".repeat(101) }],
@@ -40,9 +39,9 @@ describe("POST /api/posts", () => {
     expect(res.status).toBe(400);
   });
 
-  test("기존 글쓰기 화면처럼 주제 없이 자유게시판 글 작성은 허용", async () => {
+  test.each(["free", "question", "study", "competition", "career"])("주제 없이 %s 게시판 글 작성은 허용", async (board) => {
     const { token } = await createUser();
-    const res = await api(token).post("/api/posts").send({ board: "free", title: "t", content: "c" });
+    const res = await api(token).post("/api/posts").send({ board, title: "t", content: "c" });
     expect(res.status).toBe(201);
     expect(res.body.topics).toEqual([]);
   });

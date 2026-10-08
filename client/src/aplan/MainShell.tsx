@@ -168,8 +168,13 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
           editPostId={writeTarget.mode === "edit" ? writeTarget.postId : undefined}
           onBack={() => setWriteTarget(null)}
           onDone={(postId) => {
+            const wasEditing = writeTarget.mode === "edit";
             setWriteTarget(null);
-            setOpenPostId(postId);
+            if (wasEditing) setOpenPostId(postId);
+            else {
+              setTab("community");
+              setOpenPostId(null);
+            }
           }}
         />
       </div>

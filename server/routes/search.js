@@ -62,7 +62,7 @@ const recordSearch = async (userId, q) => {
 
 // GET /api/search?q=&type=post|user|tag&cursor=&limit=
 //  - q가 #으로 시작하면 해당 태그가 달린 글 검색
-//  - 검색 기록(최근·인기 검색어)은 게시글 탭 첫 페이지 요청에서만 남긴다(탭 전환 중복 방지)
+//  - 조회만 수행한다. 검색 기록은 명시적인 실행 요청에서만 POST /history로 남긴다.
 router.get("/", auth, async (req, res) => {
   try {
     const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
@@ -73,10 +73,6 @@ router.get("/", auth, async (req, res) => {
     const limit = parseLimit(req.query.limit);
     const cursor = decodeCursor(req.query.cursor);
     const ctx = await getViewerContext(req.user.id);
-
-    if (type === "post" && !cursor) {
-      recordSearch(req.user.id, q).catch((err) => console.error("검색 기록 실패:", err.message));
-    }
 
     const isTagQuery = q.startsWith("#");
     const term = isTagQuery ? normalizeTag(q) : q;
@@ -129,6 +125,21 @@ router.get("/", auth, async (req, res) => {
       { $limit: 20 },
     ]);
     res.json({ items: tags.map((t) => ({ tag: t._id, postCount: t.postCount })), nextCursor: null });
+  } catch (err) {
+    v.handleError(res, err);
+  }
+});
+
+// POST /api/search/history — 사용자가 검색을 명시적으로 실행했을 때만 최근·인기 검색어에 기록
+router.post("/history", auth, async (req, res) => {
+  try {
+    const q = typeof req.body?.keyword === "string" ? req.body.keyword.trim() : "";
+    if (!q) v.fail("검색어를 입력해주세요.");
+    if (q.length > QUERY_MAX) v.fail(`검색어는 ${QUERY_MAX}자 이하로 입력해주세요.`);
+    const term = q.startsWith("#") ? normalizeTag(q) : q;
+    if (!term) v.fail("검색어를 입력해주세요.");
+    await recordSearch(req.user.id, q);
+    res.status(201).json({ message: "검색 기록이 저장되었습니다." });
   } catch (err) {
     v.handleError(res, err);
   }

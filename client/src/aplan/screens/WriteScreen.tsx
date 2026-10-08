@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, Plus, X } from "lucide-react";
 import { postApi } from "@/api/aplan";
 import { BOARDS, RECRUIT_BOARDS, type BoardKey } from "@/constants/boards";
-import { TOPICS, MAX_POST_TOPICS, type TopicKey } from "@/constants/topics";
-import { TopicSelectChip } from "@/aplan/components/TopicSelectChip";
 import { TextField } from "@/aplan/components/TextField";
 import { StarRating } from "@/aplan/components/StarRating";
 import { LECTURE_GRADES, LECTURE_GROUPS, LECTURE_MIN_CONTENT, PROFESSORS } from "@/constants/lectures";
@@ -68,7 +66,6 @@ function WriteForm({
   const board = editPost?.board ?? initialBoard ?? "free";
   const [boardSheetOpen, setBoardSheetOpen] = useState(false);
   const [pickedBoard, setPickedBoard] = useState<BoardKey>(board);
-  const [topics, setTopics] = useState<TopicKey[]>(editPost?.topics ?? []);
   const [title, setTitle] = useState(editPost?.title ?? "");
   const [content, setContent] = useState(editPost?.content ?? "");
   const [tagInput, setTagInput] = useState("");
@@ -87,7 +84,6 @@ function WriteForm({
 
   const activeBoard = isEdit ? board : pickedBoard;
   const boardMeta = BOARDS.find((b) => b.key === activeBoard)!;
-  const topicsRequired = boardMeta.primary && activeBoard !== "free";
   const showRecruit = !isEdit && RECRUIT_BOARDS.includes(activeBoard);
   // 전공 강의평가: 제목=강의명, 교과군·교수는 태그로, 별점·20자 이상 평가 필수
   const isLecture = !isEdit && activeBoard === "lecture";
@@ -97,9 +93,6 @@ function WriteForm({
 
   const imagePreviews = useMemo(() => images.map((f) => URL.createObjectURL(f)), [images]);
   useEffect(() => () => imagePreviews.forEach((u) => URL.revokeObjectURL(u)), [imagePreviews]);
-
-  const toggleTopic = (key: TopicKey) =>
-    setTopics((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : prev.length < MAX_POST_TOPICS ? [...prev, key] : prev));
 
   const addTag = () => {
     const t = tagInput.trim().replace(/^#/, "");
@@ -118,8 +111,7 @@ function WriteForm({
     ? !!lectureGrade && title.trim().length > 0 && !!professor && rating > 0 && content.trim().length >= LECTURE_MIN_CONTENT
     : title.trim().length > 0 &&
       (content.trim().length > 0 || (hasPoll && pollValid)) &&
-      pollValid &&
-      (!topicsRequired || (topics.length >= 1 && topics.length <= MAX_POST_TOPICS));
+      pollValid;
 
   const submit = async () => {
     if (!canSubmit || submitting) return;
@@ -127,12 +119,11 @@ function WriteForm({
     setError(null);
     try {
       if (editPost) {
-        await postApi.update(editPost.id, { title: title.trim(), content: content.trim(), topics, tags });
+        await postApi.update(editPost.id, { title: title.trim(), content: content.trim(), tags });
         onDone(editPost.id);
       } else {
         const created = await postApi.create({
           board: activeBoard,
-          topics,
           tags: isLecture ? [lectureGrade, professor, ...tags.filter((t) => t !== lectureGrade && t !== professor)].slice(0, MAX_TAGS) : tags,
           title: title.trim(),
           content: content.trim(),
@@ -176,20 +167,6 @@ function WriteForm({
           </span>
           {!isEdit && <ChevronDown size={18} strokeWidth={1.5} style={{ color: "var(--a-color-icon)" }} aria-hidden />}
         </button>
-
-        {/* 주제 (자유 게시판 제외 필수 1~3개) */}
-        <section className="flex w-full flex-col gap-[8px]">
-          <span className="text-[12px] leading-[14px] font-[500]" style={{ color: "var(--a-color-text-secondary)" }}>
-            주제 {topicsRequired ? `(1~${MAX_POST_TOPICS}개 필수)` : "(선택)"}
-          </span>
-          <div className="flex w-full flex-wrap gap-[8px]">
-            {TOPICS.map((t) => (
-              <TopicSelectChip key={t.key} selected={topics.includes(t.key)} onClick={() => toggleTopic(t.key)}>
-                {t.label}
-              </TopicSelectChip>
-            ))}
-          </div>
-        </section>
 
         {isLecture && (
           <section className="flex w-full flex-col gap-[12px]">
