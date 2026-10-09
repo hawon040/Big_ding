@@ -22,7 +22,6 @@ import { FollowListScreen, type FollowTab } from "@/aplan/screens/FollowListScre
 import { EditProfileScreen } from "@/aplan/screens/EditProfileScreen";
 import { EmptyState } from "@/aplan/components/States";
 import type { BoardKey } from "@/constants/boards";
-import type { TopicKey } from "@/constants/topics";
 import "@/styles/aplan-tokens.css";
 
 type WriteTarget = { mode: "create"; board: BoardKey | null } | { mode: "edit"; postId: string };
@@ -67,8 +66,6 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
   const [chatView, setChatView] = useState<ChatView | null>(null);
   const [myId, setMyId] = useState<string | null>(null);
-  // 온보딩(edit 모드) 재진입 — 여는 시점의 관심 분야를 들고 있는다
-  const [editingInterests, setEditingInterests] = useState<TopicKey[] | null>(null);
   // 프로필·팔로우 목록·피드 상세 스택. 커뮤니티 글(openPost)을 열면 스택을 비운다 —
   // 글 상세는 스택 아래에 그려져서, 스택이 남아 있으면 글이 가려지기 때문
   const [stack, setStack] = useState<StackView[]>([]);
@@ -137,7 +134,6 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
           onOpenPost={openPost}
           onOpenFeed={openFeed}
           onEditProfile={() => setEditingProfile(true)}
-          onEditInterests={setEditingInterests}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenFollows={openFollows}
         />
@@ -284,17 +280,6 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
       <div className="a-screen flex h-dvh flex-col overflow-hidden">
         <SettingsScreen onBack={() => setSettingsOpen(false)} onOpenAnnouncements={() => setAnnouncementsOpen(true)} />
       </div>
-    );
-  }
-
-  if (editingInterests) {
-    return (
-      <OnboardingScreen
-        mode="edit"
-        initialInterests={editingInterests}
-        onBack={() => setEditingInterests(null)}
-        onDone={() => setEditingInterests(null)}
-      />
     );
   }
 

@@ -85,7 +85,7 @@ const userSchema = new mongoose.Schema({
 
   department: { type: String, trim: true, maxlength: 50 },
   grade: { type: Number, min: 1, max: 4 },
-  bio: { type: String, trim: true, maxlength: 150 },
+  bio: { type: String, trim: true, maxlength: 20 },
 
   notificationSettings: {
     comment: { type: Boolean, default: true },      // 댓글·답글

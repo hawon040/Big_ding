@@ -94,7 +94,7 @@ router.patch("/me", auth, upload.single("avatar"), async (req, res) => {
       set[key] = v.requireString(value, name, { max });
     };
     optionalText(department, "department", "학과", 50);
-    optionalText(bio, "bio", "소개", 150);
+    optionalText(bio, "bio", "소개", 20);
     if (grade !== undefined) {
       if (grade === null || grade === "") {
         unset.grade = "";

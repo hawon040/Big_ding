@@ -26,6 +26,8 @@ export function OnboardingScreen({ mode = "onboarding", initialInterests = [], o
   const toggle = (key: TopicKey) =>
     setSelected((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
 
+  const remove = (key: TopicKey) => setSelected((prev) => prev.filter((k) => k !== key));
+
   const canSubmit = selected.length >= MIN_INTERESTS;
 
   const handleSubmit = async () => {
@@ -77,9 +79,22 @@ export function OnboardingScreen({ mode = "onboarding", initialInterests = [], o
         {/* 2:79 칩 목록 */}
         <div className="flex w-full flex-wrap content-center items-center gap-[8px]" role="group" aria-label="관심 분야">
           {TOPICS.map((t) => (
-            <TopicSelectChip key={t.key} selected={selected.includes(t.key)} onClick={() => toggle(t.key)}>
-              {t.label}
-            </TopicSelectChip>
+            <div key={t.key} className="flex items-center gap-[4px]">
+              <TopicSelectChip selected={selected.includes(t.key)} onClick={() => toggle(t.key)}>
+                {t.label}
+              </TopicSelectChip>
+              {selected.includes(t.key) && (
+                <button
+                  type="button"
+                  aria-label={`${t.label} 관심 분야 삭제`}
+                  onClick={() => remove(t.key)}
+                  className="flex size-[18px] items-center justify-center border-0 bg-transparent p-0 text-[12px] leading-none"
+                  style={{ color: "var(--a-color-text-secondary)" }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
           ))}
         </div>
         {error && (

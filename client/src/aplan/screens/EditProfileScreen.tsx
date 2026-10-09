@@ -13,7 +13,7 @@ import "@/styles/aplan-tokens.css";
 const NICKNAME_MIN = 2;
 const NICKNAME_MAX = 20;
 const DEPARTMENT_MAX = 50;
-const BIO_MAX = 150;
+const BIO_MAX = 20;
 const GRADES = [1, 2, 3, 4] as const;
 
 interface EditProfileScreenProps {
@@ -57,6 +57,7 @@ export function EditProfileScreen({ onBack, onDone }: EditProfileScreenProps) {
   }, [avatarPreview]);
 
   const trimmedNickname = nickname.trim();
+  const bioLength = bio.length;
   const changed =
     !!me &&
     (avatarFile !== null ||
@@ -65,6 +66,7 @@ export function EditProfileScreen({ onBack, onDone }: EditProfileScreenProps) {
       grade !== me.grade ||
       bio.trim() !== (me.bio ?? ""));
   const nicknameInvalid = trimmedNickname.length < NICKNAME_MIN || trimmedNickname.length > NICKNAME_MAX;
+  const bioInvalid = bioLength > BIO_MAX;
 
   const pickAvatar = (files: FileList | null) => {
     const file = files?.[0];
@@ -81,6 +83,10 @@ export function EditProfileScreen({ onBack, onDone }: EditProfileScreenProps) {
     if (!me || saving || !changed) return;
     if (nicknameInvalid) {
       setNicknameError(`닉네임은 ${NICKNAME_MIN}~${NICKNAME_MAX}자로 입력해주세요.`);
+      return;
+    }
+    if (bioInvalid) {
+      setError(`소개는 ${BIO_MAX}자 이내로 입력해주세요.`);
       return;
     }
     setNicknameError(null);
@@ -180,15 +186,15 @@ export function EditProfileScreen({ onBack, onDone }: EditProfileScreenProps) {
               </div>
             </Field>
 
-            <Field label="소개" hint={`${bio.length}/${BIO_MAX}`}>
+            <Field label="소개" hint={`${bioLength}/${BIO_MAX}`}>
               <textarea
                 value={bio}
                 maxLength={BIO_MAX}
                 rows={3}
                 placeholder="나를 한 줄로 소개해보세요"
                 aria-label="소개"
-                onChange={(e) => setBio(e.target.value)}
-                                className="a-text-field w-full shrink-0 resize-none border border-solid px-[14px] py-[13px] text-[14px] leading-[20px] font-normal outline-none"
+                onChange={(e) => setBio(e.target.value.slice(0, BIO_MAX))}
+                className="a-text-field w-full shrink-0 resize-none border border-solid px-[14px] py-[13px] text-[14px] leading-[20px] font-normal outline-none"
                 style={{ borderRadius: "var(--a-radius-control)", color: "var(--a-color-text-primary)", background: "var(--a-color-bg)" }}
               />
             </Field>

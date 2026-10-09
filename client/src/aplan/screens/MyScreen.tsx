@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Settings } from "lucide-react";
 import { meApi, userApi } from "@/api/aplan";
-import { TOPIC_MAP, type TopicKey } from "@/constants/topics";
 import { Avatar } from "@/aplan/components/Avatar";
+import { ImageViewer } from "@/aplan/components/ImageViewer";
 import { IconButton } from "@/aplan/components/IconButton";
 import { FeedGrid, PostRows, ProfileStats, UnderlineTabs, type ProfileTab } from "@/aplan/components/ProfileParts";
 import { ErrorState, Skeleton } from "@/aplan/components/States";
@@ -15,8 +15,6 @@ interface MyScreenProps {
   onOpenPost: (id: string) => void;
   onOpenFeed: (id: string) => void;
   onEditProfile: () => void;
-  /** 관심 분야 다시 고르기 (A-03 온보딩을 edit 모드로 재사용). 지금 선택된 관심 분야를 함께 넘긴다 */
-  onEditInterests: (current: TopicKey[]) => void;
   onOpenSettings: () => void;
   onOpenFollows: (userId: string, tab: "followers" | "following") => void;
 }
@@ -27,11 +25,12 @@ const TABS: { key: ProfileTab; label: string }[] = [
 ];
 
 // A-07 마이페이지 (Figma 2:400).
-// 프로필 요약 + 숫자(피드글·게시글·팔로워·팔로잉, 실시간) + 관심 분야 + 내 피드글·내 커뮤니티 글 탭.
-export function MyScreen({ onOpenPost, onOpenFeed, onEditProfile, onEditInterests, onOpenSettings, onOpenFollows }: MyScreenProps) {
+// 프로필 요약 + 숫자(피드글·게시글·팔로워·팔로잉, 실시간) + 내 피드글·내 커뮤니티 글 탭.
+export function MyScreen({ onOpenPost, onOpenFeed, onEditProfile, onOpenSettings, onOpenFollows }: MyScreenProps) {
   const [me, setMe] = useState<Me | null>(null);
   const [meError, setMeError] = useState<string | null>(null);
   const [tab, setTab] = useState<ProfileTab>("feeds");
+  const [photoOpen, setPhotoOpen] = useState(false);
 
   const loadMe = () => {
     setMeError(null);
@@ -72,7 +71,19 @@ export function MyScreen({ onOpenPost, onOpenFeed, onEditProfile, onEditInterest
           <>
             {/* 프로필 요약 */}
             <section className="flex w-full items-center gap-[14px]">
-              {me ? <Avatar src={me.profileImage} size={64} /> : <Skeleton className="size-[64px]" style={{ borderRadius: "50%" }} />}
+              {me ? (
+                <button
+                  type="button"
+                  onClick={() => me.profileImage && setPhotoOpen(true)}
+                  disabled={!me.profileImage}
+                  aria-label="프로필 사진 크게 보기"
+                  className="shrink-0 border-0 bg-transparent p-0 disabled:cursor-default"
+                >
+                  <Avatar src={me.profileImage} size={64} />
+                </button>
+              ) : (
+                <Skeleton className="size-[64px]" style={{ borderRadius: "50%" }} />
+              )}
               <div className="flex min-w-px flex-1 flex-col items-start gap-[4px]">
                 {me ? (
                   <>
@@ -113,33 +124,6 @@ export function MyScreen({ onOpenPost, onOpenFeed, onEditProfile, onEditInterest
               ]}
             />
 
-            {/* 관심 분야 — 커뮤니티 추천·스터디 모집 알림에 쓰여서 남겨둔다 */}
-            <section className="flex w-full flex-col gap-[8px]">
-              <div className="flex w-full items-center gap-[8px]">
-                <h2 className="m-0 min-w-px flex-1 text-[14px] leading-[17px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
-                  관심 분야
-                </h2>
-                <button type="button" onClick={() => onEditInterests(me?.interests ?? [])} className="border-0 bg-transparent p-0 text-[12px] leading-[14px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>
-                  수정
-                </button>
-              </div>
-              <div className="flex w-full flex-wrap gap-[8px]">
-                {!me && Array.from({ length: 3 }, (_, i) => <Skeleton key={i} className="h-[26px] w-[64px]" style={{ borderRadius: "var(--a-radius-pill)" }} />)}
-                {me && me.interests.length === 0 && (
-                  <span className="text-[12px] leading-[14px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>아직 선택한 관심 분야가 없어요</span>
-                )}
-                {me?.interests.map((k) => (
-                  <span
-                    key={k}
-                    className="px-[12px] py-[6px] text-[12px] leading-[14px] font-[500] whitespace-nowrap"
-                    style={{ borderRadius: "var(--a-radius-pill)", background: "var(--a-color-surface-muted)", color: "var(--a-color-icon)" }}
-                  >
-                    {TOPIC_MAP[k]?.label ?? k}
-                  </span>
-                ))}
-              </div>
-            </section>
-
             <UnderlineTabs tabs={TABS} active={tab} onChange={setTab} label="내 활동" />
 
             <div className="flex w-full flex-1 flex-col items-start gap-[4px]">
@@ -149,6 +133,8 @@ export function MyScreen({ onOpenPost, onOpenFeed, onEditProfile, onEditInterest
           </>
         )}
       </main>
+
+      {photoOpen && me?.profileImage && <ImageViewer src={me.profileImage} alt="프로필 사진" onClose={() => setPhotoOpen(false)} />}
     </div>
   );
 }

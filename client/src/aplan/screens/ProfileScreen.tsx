@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, MoreVertical } from "lucide-react";
 import { userApi, reportApi } from "@/api/aplan";
-import { TOPIC_MAP } from "@/constants/topics";
 import { Avatar } from "@/aplan/components/Avatar";
 import { ImageViewer } from "@/aplan/components/ImageViewer";
 import { IconButton } from "@/aplan/components/IconButton";
@@ -152,19 +151,6 @@ export function ProfileScreen({ userId, onBack, onOpenPost, onOpenFeed, onOpenFo
                 { label: "팔로잉", value: profile.followingCount, onClick: canViewContent ? () => onOpenFollows(userId, "following") : undefined },
               ]}
             />
-
-            {profile.interests.length > 0 && (
-              <section className="flex w-full flex-col gap-[8px]">
-                <h2 className="m-0 text-[14px] leading-[17px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>관심 분야</h2>
-                <div className="flex w-full flex-wrap gap-[8px]">
-                  {profile.interests.map((k) => (
-                    <span key={k} className="px-[12px] py-[6px] text-[12px] leading-[14px] font-[500] whitespace-nowrap" style={{ borderRadius: "var(--a-radius-pill)", background: "var(--a-color-surface-muted)", color: "var(--a-color-icon)" }}>
-                      {TOPIC_MAP[k]?.label ?? k}
-                    </span>
-                  ))}
-                </div>
-              </section>
-            )}
 
             {!canViewContent ? (
               <EmptyState title="비공개 계정이에요" description="맞팔로우하면 글을 볼 수 있어요" />
