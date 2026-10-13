@@ -16,3 +16,12 @@
     transform: scale(1) translateY(0);
   }
 }
+
+/* 모든 화면(피드·프로필·대화방 등)에서 스크롤바를 숨긴다. 스크롤 동작은 그대로다. */
+* {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}

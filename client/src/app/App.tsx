@@ -8,9 +8,13 @@ import "@/styles/tokens.css";
 import { SplashScreen } from "@/aplan/screens/SplashScreen";
 import { OnboardingScreen } from "@/aplan/screens/OnboardingScreen";
 import { meApi } from "@/api/aplan";
+import { applySavedTheme, applyTheme } from "@/aplan/theme";
 import type { Me } from "@/types/aplan";
 
 const SPLASH_MIN_MS = 1000;
+
+// 새로고침해도 다크모드가 풀리지 않게, 첫 화면이 그려지기 전에 기기에 저장된 테마를 적용한다.
+applySavedTheme();
 
 export default function App() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -37,6 +41,7 @@ export default function App() {
     let cancelled = false;
     Promise.all([check, minDelay]).then(([me]) => {
       if (cancelled) return;
+      if (me && localStorage.getItem("aplan-theme") === null) applyTheme(me.appSettings.darkMode); // 이 기기에 저장된 선택이 없을 때만 서버 값을 따른다
       // 미로그인 → 로그인(A-02) / 온보딩 미완료 → 온보딩(A-03) / 완료 → 메인
       setLoggedIn(!!me);
       setNeedsOnboarding(!!me && !me.onboardingCompleted);
@@ -82,6 +87,7 @@ export default function App() {
           <LoginScreen
             onLogin={async () => {
               const me = await meApi.get().catch(() => null);
+              if (me && localStorage.getItem("aplan-theme") === null) applyTheme(me.appSettings.darkMode);
               setNeedsOnboarding(!!me && !me.onboardingCompleted);
               setLoggedIn(true);
             }}
