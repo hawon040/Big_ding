@@ -156,6 +156,26 @@ router.get("/:id", auth, async (req, res) => {
   }
 });
 
+// PUT /api/feeds/:id — 내 피드 글 수정 (사진은 그대로, content와 #태그만 바꾼다)
+router.put("/:id", auth, async (req, res) => {
+  try {
+    const feed = await findVisible(req.params.id, req.user.id);
+    if (!sameId(feed.author._id, req.user.id)) throw new v.HttpError(403, "권한이 없습니다.");
+    const raw = typeof req.body.content === "string" ? req.body.content.trim() : "";
+    if (raw.length > CONTENT_MAX) v.fail(`내용은 ${CONTENT_MAX}자 이하로 입력해주세요.`);
+    const content = filterProfanity(raw);
+    const tags = extractTags(content);
+    if (tags.length > MAX_POST_TAGS) v.fail(`태그는 최대 ${MAX_POST_TAGS}개까지 달 수 있습니다.`);
+    if (tags.some((t) => t.length > TAG_MAX_LEN)) v.fail(`태그는 ${TAG_MAX_LEN}자 이하로 입력해주세요.`);
+    feed.content = content;
+    feed.tags = tags;
+    await feed.save();
+    res.json(toFeed(feed, req.user.id));
+  } catch (err) {
+    v.handleError(res, err);
+  }
+});
+
 // DELETE /api/feeds/:id — 소프트 삭제 (작성자 또는 관리자)
 router.delete("/:id", auth, async (req, res) => {
   try {
