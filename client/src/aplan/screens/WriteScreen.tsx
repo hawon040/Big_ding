@@ -7,6 +7,7 @@ import { StarRating } from "@/aplan/components/StarRating";
 import { LECTURE_GRADES, LECTURE_GROUPS, LECTURE_MIN_CONTENT, PROFESSORS } from "@/constants/lectures";
 import { PrimaryButton } from "@/aplan/components/PrimaryButton";
 import { BottomSheet, SheetItem } from "@/aplan/components/BottomSheet";
+import { TopicSelectChip } from "@/aplan/components/TopicSelectChip";
 import { ErrorState } from "@/aplan/components/States";
 import type { PostDetail } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";

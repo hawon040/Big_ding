@@ -16,6 +16,9 @@ const professorCodes = {
 // 01012345678) 동일하게 비교할 수 있도록 저장/비교 전에 항상 이 형태로 정규화한다.
 const normalizePhone = (value) => String(value || "").replace(/\D/g, "");
 
+// 입력 형식: 010-1234-5678 (하이픈 포함, 010 고정)
+const PHONE_FORMAT = /^010-\d{4}-\d{4}$/;
+
 // 인증번호(2자리)는 자릿수가 짧아 무차별 대입에 취약하다. IP 기준 rate limit과 별개로,
 // "이 학번을 대상으로 한 시도" 자체를 계정 단위로도 제한해서 자동화된 대량 시도를 늦춘다.
 const guardCodeAttempt = (res, studentId) => {
@@ -127,10 +130,10 @@ router.post("/register", async (req, res) => {
     }
 
     // 비밀번호 찾기 본인 확인에 쓸 전화번호. 010으로 시작하는 국내 휴대전화 번호만 허용한다.
-    const normalizedPhone = normalizePhone(phone);
-    if (!/^01[016789]\d{7,8}$/.test(normalizedPhone)) {
-      return res.status(400).json({ message: "올바른 휴대전화 번호를 입력해주세요." });
-    }
+    if (!PHONE_FORMAT.test(String(phone || "").trim())) {
+  return res.status(400).json({ message: "전화번호는 010-1234-5678 형식으로 입력해주세요." });
+}
+const normalizedPhone = normalizePhone(phone); // DB에는 숫자만 저장 (find-password 비교용)
 
     // 중복 학번 체크
     const exists = await User.findOne({ studentId });
@@ -243,10 +246,10 @@ router.patch("/phone", auth, async (req, res) => {
     const { currentPassword, phone } = req.body;
     if (!currentPassword) return res.status(400).json({ message: "현재 비밀번호를 입력해주세요." });
 
-    const normalizedPhone = normalizePhone(phone);
-    if (!/^01[016789]\d{7,8}$/.test(normalizedPhone)) {
-      return res.status(400).json({ message: "올바른 휴대전화 번호를 입력해주세요." });
-    }
+    if (!PHONE_FORMAT.test(String(phone || "").trim())) {
+  return res.status(400).json({ message: "전화번호는 010-1234-5678 형식으로 입력해주세요." });
+}
+const normalizedPhone = normalizePhone(phone);
 
     const user = await User.findById(req.user.id);
     const isMatch = await user.comparePassword(currentPassword);

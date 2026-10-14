@@ -10,7 +10,15 @@ import "@/styles/aplan-tokens.css";
 const PROFESSORS = ["유진호", "차대현", "홍진근"] as const;
 const GRADES = [1, 2, 3, 4] as const;
 const PASSWORD_RULE = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
-const PHONE_RULE = /^01[016789]\d{7,8}$/;
+const PHONE_RULE = /^010-\d{4}-\d{4}$/;
+
+// 숫자만 쳐도 010-1234-5678 형태로 자동으로 맞춰준다
+const formatPhone = (value: string) => {
+  const d = value.replace(/\D/g, "").slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 7) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+};
 const NICKNAME_RULE = /^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9\s]+$/;
 const NICKNAME_MAX = 10;
 
@@ -94,9 +102,8 @@ export function RegisterScreen({ onBack, onDone }: RegisterScreenProps) {
     const next: Errors = {};
     if (!nicknameChecked) next.nickname = "닉네임 중복확인을 먼저 해주세요.";
     if (!verified) next.code = "인증번호 확인을 먼저 해주세요.";
-    const digits = phone.replace(/\D/g, "");
-    if (!digits) next.phone = "비밀번호를 잊었을 때 본인 확인에 쓸 전화번호를 입력해주세요.";
-    else if (!PHONE_RULE.test(digits)) next.phone = "올바른 휴대전화 번호를 입력해주세요.";
+    if (!phone) next.phone = "비밀번호를 잊었을 때 본인 확인에 쓸 전화번호를 입력해주세요.";
+else if (!PHONE_RULE.test(phone)) next.phone = "전화번호는 010-1234-5678 형식으로 입력해주세요.";
     if (!PASSWORD_RULE.test(password)) next.password = "8자 이상, 영문·숫자·특수문자를 모두 넣어주세요.";
     if (!confirmPassword) next.confirmPassword = "비밀번호를 한 번 더 입력해주세요.";
     else if (password !== confirmPassword) next.confirmPassword = "비밀번호가 일치하지 않아요.";
@@ -232,18 +239,19 @@ export function RegisterScreen({ onBack, onDone }: RegisterScreenProps) {
 
         <Field label="전화번호" hint={errors.phone ? undefined : "비밀번호를 잊었을 때 본인 확인에만 써요"}>
           <TextField
-            label="전화번호"
-            placeholder="01012345678"
-            type="tel"
-            autoComplete="tel"
-            maxLength={13}
-            value={phone}
-            error={errors.phone}
-            onChange={(e) => {
-              setPhone(e.target.value);
-              setError("phone");
-            }}
-          />
+  label="전화번호"
+  placeholder="010-1234-5678"
+  type="tel"
+  inputMode="numeric"
+  autoComplete="tel"
+  maxLength={13}
+  value={phone}
+  error={errors.phone}
+  onChange={(e) => {
+    setPhone(formatPhone(e.target.value));
+    setError("phone");
+  }}
+/>
         </Field>
 
         <Field label="학과" optional>

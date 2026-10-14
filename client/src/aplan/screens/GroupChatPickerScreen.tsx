@@ -35,13 +35,16 @@ export function GroupChatPickerScreen({ mode, onBack, onCreated, onInvited }: Gr
     chatApi
       .relations()
       .then((list) => setRelations(Object.fromEntries(list.map((r) => [r._id, r]))))
-      .catch(() => {});
+      .catch(() => setLoadError(true));
   };
   useEffect(load, []);
 
   const inviting = mode.kind === "invite";
   const existing = new Set(inviting ? mode.chat.members.map((m) => m._id) : []);
-  const candidates = (people ?? []).filter((u) => !existing.has(u._id));
+  const candidates = (people ?? []).filter((u) => {
+  const r = relations?.[u._id];
+  return !existing.has(u._id) && !!r?.isFollowing && !!r?.isFollower;
+});
 
   const toggle = (id: string) => setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
@@ -76,9 +79,9 @@ export function GroupChatPickerScreen({ mode, onBack, onCreated, onInvited }: Gr
       <main className="flex min-h-0 flex-1 flex-col gap-[8px] overflow-y-auto px-[20px]">
         {!inviting && <TextField label="채팅방 이름" placeholder="채팅방 이름 (선택)" value={name} maxLength={30} onChange={(e) => setName(e.target.value)} />}
         {loadError && <ErrorState onRetry={load} />}
-        {people && candidates.length === 0 && (
-          <EmptyState title="초대할 수 있는 사람이 없어요" description="대화한 적 있는 사람만 초대할 수 있어요." />
-        )}
+        {people && relations && candidates.length === 0 && (
+  <EmptyState title="초대할 수 있는 사람이 없어요" description="대화한 적 있고 서로 팔로우하는 사람만 초대할 수 있어요." />
+)}
         <ul className="m-0 flex list-none flex-col p-0" role="group" aria-label="초대할 사람">
           {candidates.map((u) => {
             const on = selected.includes(u._id);
