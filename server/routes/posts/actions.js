@@ -7,8 +7,9 @@ const User = require("../../models/User");
 const GroupChat = require("../../models/GroupChat");
 const auth = require("../../middleware/authMiddleware");
 const { RECRUIT_BOARDS } = require("../../constants/boards");
-const { canAccessPost, includesId, sameId } = require("../../utils/access");
+const { canAccessPost, getViewerContext, includesId, sameId } = require("../../utils/access");
 const { withLegacyComments } = require("../../utils/comments");
+const { toUserSummary } = require("../../utils/serializers");
 const { refreshPostPopularity } = require("../../utils/popularity");
 const { runInTransaction } = require("../../utils/transaction");
 const { notifySafely } = require("../../utils/notify");
@@ -159,17 +160,41 @@ router.delete("/:id/scrap", auth, async (req, res) => {
   }
 });
 
-// GET /api/posts/:id/likes, /dislikes — 누른 사용자 목록
-["likes", "dislikes"].forEach((field) => {
-  router.get(`/:id/${field}`, auth, async (req, res) => {
-    try {
-      const post = await loadPost(req.params.id, req.user.id);
-      await post.populate(field, "nickname avatar studentId");
-      res.json(post[field]);
-    } catch (err) {
-      v.handleError(res, err);
-    }
-  });
+// GET /api/posts/:id/likes — 좋아요 누른 사람 목록. 최근에 누른 사람이 위로 온다.
+// 개인정보(학번)는 내려주지 않고, 차단 관계인 사람은 제외한다.
+router.get("/:id/likes", auth, async (req, res) => {
+  try {
+    const post = await loadPost(req.params.id, req.user.id, "author likes isDeleted visibility");
+    const { me, excluded } = await getViewerContext(req.user.id);
+    const blocked = new Set(excluded.map(String));
+    const likerIds = post.likes.filter((id) => !blocked.has(String(id)));
+
+    const users = await User.find({ _id: { $in: likerIds }, isWithdrawn: { $ne: true } })
+      .select("nickname avatar department bio isWithdrawn")
+      .lean();
+    const byId = new Map(users.map((u) => [String(u._id), u]));
+    const following = new Set((me.following || []).map(String));
+
+    const items = [...likerIds]
+      .reverse()
+      .map((id) => byId.get(String(id)))
+      .filter(Boolean)
+      .map((u) => toUserSummary(u, { isFollowing: following.has(String(u._id)) }));
+    res.json({ items, total: items.length });
+  } catch (err) {
+    v.handleError(res, err);
+  }
+});
+
+// GET /api/posts/:id/dislikes — 싫어요 누른 사용자 목록
+router.get("/:id/dislikes", auth, async (req, res) => {
+  try {
+    const post = await loadPost(req.params.id, req.user.id);
+    await post.populate("dislikes", "nickname avatar studentId");
+    res.json(post.dislikes);
+  } catch (err) {
+    v.handleError(res, err);
+  }
 });
 
 // ── 모집 상태 (스터디·공모전) ──
@@ -203,7 +228,76 @@ router.patch("/:id/recruit", auth, async (req, res) => {
     v.handleError(res, err);
   }
 });
+// ── 모집글(스터디·공모전) 참여 / 취소 ──
+// 작성자는 모집 인원(recruit.current)에 처음부터 1명으로 들어 있다. 참여자는 participants에 담는다.
+const loadRecruitPost = async (id, userId) => {
+  const post = await loadPost(id, userId, "author board recruit participants isDeleted visibility");
+  if (!RECRUIT_BOARDS.includes(post.board) || !post.recruit) {
+    throw new v.HttpError(404, "모집글을 찾을 수 없습니다.");
+  }
+  return post;
+};
 
+const recruitState = async (postId, userId) => {
+  const p = await Post.findById(postId).select("recruit participants").lean();
+  return { recruit: p.recruit, isJoined: includesId(p.participants, userId) };
+};
+
+// POST /api/posts/:id/recruit/join — 참여. 정원이 차면 자동으로 마감된다.
+router.post("/:id/recruit/join", auth, async (req, res) => {
+  try {
+    const post = await loadRecruitPost(req.params.id, req.user.id);
+    if (sameId(post.author, req.user.id)) v.fail("내가 쓴 모집글에는 참여할 수 없습니다.");
+    if (includesId(post.participants, req.user.id)) v.fail("이미 참여한 모집글입니다.");
+    if (post.recruit.status !== "open") v.fail("모집이 마감되었습니다.");
+
+    const me = oid(req.user.id);
+    // 동시에 여러 명이 눌러도 정원을 넘지 않도록 조건부 업데이트 한 번으로 처리한다.
+    const joined = await Post.updateOne(
+      {
+        _id: post._id,
+        "recruit.status": "open",
+        participants: { $ne: me },
+        $expr: { $lt: ["$recruit.current", "$recruit.capacity"] },
+      },
+      { $addToSet: { participants: me }, $inc: { "recruit.current": 1 } },
+      { timestamps: false }
+    );
+    if (joined.modifiedCount === 0) v.fail("모집 인원이 모두 찼습니다.");
+    await Post.updateOne(
+      { _id: post._id, $expr: { $gte: ["$recruit.current", "$recruit.capacity"] } },
+      { $set: { "recruit.status": "closed" } },
+      { timestamps: false }
+    );
+    notifySafely({ recipient: post.author, sender: req.user.id, type: "join", post: post._id });
+    res.json(await recruitState(post._id, req.user.id));
+  } catch (err) {
+    v.handleError(res, err);
+  }
+});
+
+// DELETE /api/posts/:id/recruit/join — 참여 취소. 정원이 차서 마감된 글이면 다시 모집중으로 돌린다.
+router.delete("/:id/recruit/join", auth, async (req, res) => {
+  try {
+    const post = await loadRecruitPost(req.params.id, req.user.id);
+    if (!includesId(post.participants, req.user.id)) v.fail("참여하지 않은 모집글입니다.");
+
+    const me = oid(req.user.id);
+    const wasFull = post.recruit.current >= post.recruit.capacity;
+    const left = await Post.updateOne(
+      { _id: post._id, participants: me },
+      { $pull: { participants: me }, $inc: { "recruit.current": -1 } },
+      { timestamps: false }
+    );
+    if (left.modifiedCount === 1 && wasFull) {
+      await Post.updateOne({ _id: post._id, "recruit.status": "closed" }, { $set: { "recruit.status": "open" } }, { timestamps: false });
+    }
+    notifySafely({ recipient: post.author, sender: req.user.id, type: "leave", post: post._id });
+    res.json(await recruitState(post._id, req.user.id));
+  } catch (err) {
+    v.handleError(res, err);
+  }
+});
 // ── 공강모임 참여 / 취소 ──
 const loadMeeting = async (id, userId) => {
   const post = await loadPost(id, userId).catch((err) => {

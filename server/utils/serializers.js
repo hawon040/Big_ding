@@ -85,6 +85,7 @@ const toPostDetail = (p, meId, { isFollowingAuthor = false } = {}) => ({
   acceptedCommentId: p.acceptedCommentId ? String(p.acceptedCommentId) : null,
   updatedAt: p.updatedAt,
   isMine: String(p.author?._id || p.author) === String(meId),
+    isJoined: includesId(p.participants, meId),
   isFollowingAuthor,
 });
 

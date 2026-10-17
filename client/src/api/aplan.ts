@@ -103,6 +103,7 @@ const toFormData = (input: PostInput) => {
   input.images?.forEach((file) => form.append("images", file));
   return form;
 };
+type RecruitResult = { recruit: { status: "open" | "closed"; capacity: number; current: number }; isJoined: boolean };
 
 export const postApi = {
   list: (board: BoardKey | "all", cursor?: string | null) =>
@@ -119,7 +120,14 @@ export const postApi = {
   vote: (id: string, optionIndex: number) => api.post(`/posts/${id}/poll/vote`, { optionIndex }).then((r) => r.data),
   updateRecruit: (id: string, data: { status?: "open" | "closed"; capacity?: number; current?: number }) =>
     api.patch(`/posts/${id}/recruit`, data).then((r) => r.data),
+    joinRecruit: (id: string) =>
+    api.post<RecruitResult>(`/posts/${id}/recruit/join`).then((r) => r.data),
+  leaveRecruit: (id: string) =>
+    api.delete<RecruitResult>(`/posts/${id}/recruit/join`).then((r) => r.data),
+  likers: (id: string) =>
+    api.get<{ items: UserSummary[]; total: number }>(`/posts/${id}/likes`).then((r) => r.data),
 };
+
 
 // ── 댓글 ──
 export const commentApi = {

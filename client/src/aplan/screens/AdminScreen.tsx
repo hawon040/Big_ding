@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { adminApi, inquiryApi, type SanctionInput } from "@/api/aplan";
+import { resolveAssetUrl } from "@/api";
 import { BottomSheet } from "@/aplan/components/BottomSheet";
 import { PrimaryButton } from "@/aplan/components/PrimaryButton";
 import { TextField } from "@/aplan/components/TextField";

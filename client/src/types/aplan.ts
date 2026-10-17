@@ -60,6 +60,8 @@ export interface PostDetail extends PostCard {
   updatedAt: string;
   isMine: boolean;
   isFollowingAuthor: boolean;
+    /** 스터디·공모전 모집글: 내가 참여했는지 */
+  isJoined?: boolean;
 }
 
 export interface CommentNode {
@@ -298,7 +300,7 @@ export interface SanctionItem {
 
 export interface AdminReportTarget {
   targetType: "post" | "comment" | "user" | "feed";
-  feed?: { _id: string; content: string; images: string[]; author?: { _id: string; nickname: string; studentId: string } | null };
+    feed?: { _id: string; content: string; images: string[]; isDeleted?: boolean; author?: { _id: string; nickname: string; studentId: string } | null };
   post?: { _id: string; title: string; content: string; board: string; author?: { _id: string; nickname: string; studentId: string } | null };
   targetCommentId?: string;
   user?: { _id: string; nickname: string; studentId: string };

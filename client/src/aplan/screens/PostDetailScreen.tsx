@@ -8,7 +8,8 @@ import { IconButton } from "@/aplan/components/IconButton";
 import { BottomSheet, SheetItem } from "@/aplan/components/BottomSheet";
 import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
 import { StarRating } from "@/aplan/components/StarRating";
-import type { CommentNode, Poll, PostDetail } from "@/types/aplan";
+import { UserListItem } from "@/aplan/components/UserListItem";
+import type { CommentNode, Poll, PostDetail, UserSummary } from "@/types/aplan";
 import { alertDialog, confirmDialog } from "@/aplan/components/Dialog";
 import "@/styles/aplan-tokens.css";
 
@@ -38,6 +39,9 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [replyTo, setReplyTo] = useState<{ id: string; nickname: string } | null>(null);
+  const [joinBusy, setJoinBusy] = useState(false);
+  const [likersOpen, setLikersOpen] = useState(false);
+  const [likers, setLikers] = useState<UserSummary[] | null>(null);
   const [viewer, setViewer] = useState<{ images: string[]; index: number } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -151,6 +155,25 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
       onBack();
     } catch (err: any) {
       alertDialog(err?.response?.data?.message || "삭제하지 못했어요.");
+    }
+  };
+    const openLikers = () => {
+    setLikersOpen(true);
+    setLikers(null);
+    postApi.likers(postId).then((r) => setLikers(r.items)).catch(() => setLikers([]));
+  };
+
+  const toggleJoin = async () => {
+    if (!post?.recruit || joinBusy) return;
+    setJoinBusy(true);
+    try {
+      const r = await (post.isJoined ? postApi.leaveRecruit(postId) : postApi.joinRecruit(postId));
+      setPost((p) => (p ? { ...p, recruit: r.recruit, isJoined: r.isJoined } : p));
+    } catch (err: any) {
+      await alertDialog(err?.response?.data?.message || "처리하지 못했어요.");
+      loadPost();
+    } finally {
+      setJoinBusy(false);
     }
   };
 
@@ -322,12 +345,36 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
                   ))}
                 </div>
               )}
+                            {post.recruit && !post.isMine && (
+                <button
+                  type="button"
+                  disabled={joinBusy || (!post.isJoined && post.recruit.status !== "open")}
+                  onClick={toggleJoin}
+                  className="w-full border-0 py-[13px] text-[14px] leading-[17px] font-bold disabled:opacity-50"
+                  style={{
+                    borderRadius: "var(--a-radius-control)",
+                    background: post.isJoined ? "var(--a-color-surface-muted)" : "var(--a-color-surface-inverse)",
+                    color: post.isJoined ? "var(--a-color-icon)" : "var(--a-color-on-inverse)",
+                  }}
+                >
+                  {post.isJoined ? "참여 취소" : post.recruit.status === "open" ? "참여하기" : "모집 마감"}
+                </button>
+              )}
               {/* 좋아요 · 스크랩 */}
               <div className="flex w-full items-center gap-[16px]">
-                <button type="button" aria-pressed={post.isLiked} onClick={toggleLike} className="flex items-center gap-[4px] border-0 bg-transparent p-0">
-                  <Heart size={16} strokeWidth={1.5} fill={post.isLiked ? "var(--a-color-text-primary)" : "none"} style={{ color: post.isLiked ? "var(--a-color-text-primary)" : "var(--a-color-text-secondary)" }} aria-hidden />
-                  <span className="text-[13px] leading-[16px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>좋아요 {post.likeCount}</span>
-                </button>
+                                <div className="flex items-center gap-[4px]">
+                  <button type="button" aria-label="좋아요" aria-pressed={post.isLiked} onClick={toggleLike} className="flex border-0 bg-transparent p-0">
+                    <Heart size={16} strokeWidth={1.5} fill={post.isLiked ? "var(--a-color-text-primary)" : "none"} style={{ color: post.isLiked ? "var(--a-color-text-primary)" : "var(--a-color-text-secondary)" }} aria-hidden />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openLikers}
+                    className="border-0 bg-transparent p-0 text-[13px] leading-[16px] font-normal"
+                    style={{ color: "var(--a-color-text-secondary)" }}
+                  >
+                    좋아요 {post.likeCount}
+                  </button>
+                </div>
                 <button type="button" aria-pressed={post.isScrapped} onClick={toggleScrap} className="flex items-center gap-[4px] border-0 bg-transparent p-0">
                   <Bookmark size={16} strokeWidth={1.5} fill={post.isScrapped ? "var(--a-color-text-primary)" : "none"} style={{ color: post.isScrapped ? "var(--a-color-text-primary)" : "var(--a-color-text-secondary)" }} aria-hidden />
                   <span className="text-[13px] leading-[16px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>스크랩 {post.scrapCount}</span>
@@ -425,6 +472,23 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
         {REPORT_REASONS.map((reason) => (
           <SheetItem key={reason} onClick={() => submitReport(reason)}>{reason}</SheetItem>
         ))}
+      </BottomSheet>
+      
+      <BottomSheet open={likersOpen} title="좋아요" onClose={() => setLikersOpen(false)}>
+        <div className="max-h-[60vh] overflow-y-auto no-scrollbar">
+          {likers === null && <Skeleton className="h-[40px] w-full" />}
+          {likers !== null && likers.length === 0 && <EmptyState title="아직 좋아요를 누른 사람이 없어요" />}
+          {likers?.map((u) => (
+            <UserListItem
+              key={u.id}
+              user={u}
+              onOpen={(id) => {
+                setLikersOpen(false);
+                onOpenUser(id);
+              }}
+            />
+          ))}
+        </div>
       </BottomSheet>
     </div>
   );
