@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowDown, ArrowUp, Minus, Search as SearchIcon, X } from "lucide-react";
+import { Search as SearchIcon, X } from "lucide-react";
 import { searchApi } from "@/api/aplan";
 import { PostListItem } from "@/aplan/components/PostListItem";
 import { UserListItem } from "@/aplan/components/UserListItem";
@@ -112,13 +112,14 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* 검색창 + 취소 */}
-      <header className="flex w-full shrink-0 items-center gap-[10px] px-[20px] py-[12px]">
+      {/* Figma 2:187: 좌우 20·상하 8, 간격 12 / 2:185 입력칸: 1px 테두리, 둥글기 12, 좌우 14·상하 13 */}
+      <header className="flex w-full shrink-0 items-center gap-[12px] px-[20px] py-[8px]">
         <span
-          className="flex h-[40px] min-w-px flex-1 items-center gap-[8px] px-[12px]"
-          style={{ borderRadius: "var(--a-radius-pill)", background: "var(--a-color-surface-muted)" }}
+          className="flex min-w-px flex-1 items-center gap-[8px] border border-solid px-[14px] py-[13px]"
+          style={{ borderRadius: "var(--a-radius-control)", borderColor: "var(--a-color-border)" }}
         >
           <button type="button" aria-label="검색 실행" onClick={() => runQuery(input)} className="flex shrink-0 items-center justify-center border-0 bg-transparent p-0">
-            <SearchIcon size={18} strokeWidth={1.5} style={{ color: "var(--a-color-icon)" }} aria-hidden />
+            <SearchIcon size={18} strokeWidth={1.5} style={{ color: "var(--a-color-text-secondary)" }} aria-hidden />
           </button>
           <input
             ref={inputRef}
@@ -156,14 +157,14 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
             inputRef.current?.blur();
           }}
           className="shrink-0 border-0 bg-transparent p-0 text-[14px] leading-[17px] font-normal"
-          style={{ color: "var(--a-color-text-secondary)" }}
+          style={{ color: "var(--a-color-text-primary)" }}
         >
           취소
         </button>
       </header>
 
       {!query ? (
-        <main className="flex min-h-0 w-full flex-1 flex-col items-start gap-[24px] overflow-y-auto px-[20px] py-[4px] pb-[24px]">
+        <main className="flex min-h-0 w-full flex-1 flex-col items-start gap-[14px] overflow-y-auto px-[20px] py-[12px] pb-[24px]">
           <RecentSearches items={recent} onRun={runQuery} onRemove={removeRecent} onClear={clearRecent} />
           <TrendingSearches items={trending} computedAt={trendingComputedAt} onRun={runQuery} />
         </main>
@@ -271,10 +272,11 @@ function RecentSearches({
   }
   if (items.length === 0) return null;
 
+  // display: contents — 제목과 칩 묶음이 바깥 열의 간격(14)을 그대로 따르게 한다 (Figma 2:252)
   return (
-    <section className="flex w-full flex-col gap-[10px]">
+    <section className="contents">
       <div className="flex w-full items-center gap-[8px]">
-        <h2 className="m-0 min-w-px flex-1 text-[14px] leading-[17px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
+        <h2 className="m-0 min-w-px flex-1 text-[17px] leading-[20px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
           최근 검색어
         </h2>
         <button type="button" onClick={onClear} className="border-0 bg-transparent p-0 text-[12px] leading-[14px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>
@@ -285,14 +287,14 @@ function RecentSearches({
         {items.map((r) => (
           <span
             key={r.keyword}
-            className="flex items-center gap-[6px] py-[7px] pl-[12px] pr-[8px] text-[12px] leading-[14px] font-[500]"
+            className="flex items-center gap-[6px] px-[12px] py-[6px] text-[12px] leading-[14px] font-[500]"
             style={{ borderRadius: "var(--a-radius-pill)", background: "var(--a-color-surface-muted)", color: "var(--a-color-icon)" }}
           >
             <button type="button" onClick={() => onRun(r.keyword)} className="border-0 bg-transparent p-0" style={{ color: "inherit" }}>
               {r.keyword}
             </button>
             <button type="button" aria-label={`${r.keyword} 삭제`} onClick={() => onRemove(r.keyword)} className="flex size-[14px] items-center justify-center border-0 bg-transparent p-0">
-              <X size={12} strokeWidth={1.5} style={{ color: "var(--a-color-icon)" }} aria-hidden />
+              <X size={11} strokeWidth={2} style={{ color: "var(--a-color-icon)" }} aria-hidden />
             </button>
           </span>
         ))}
@@ -323,13 +325,13 @@ function TrendingSearches({
   if (items.length === 0) return null;
 
   return (
-    <section className="flex w-full flex-col gap-[10px]">
+    <section className="contents">
       <div className="flex w-full items-center gap-[8px]">
-        <h2 className="m-0 min-w-px flex-1 text-[14px] leading-[17px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
+        <h2 className="m-0 min-w-px flex-1 text-[17px] leading-[20px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
           실시간 인기 검색어
         </h2>
         {computedAt && (
-          <span className="shrink-0 text-[11px] leading-[13px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>
+          <span className="shrink-0 text-[12px] leading-[14px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>
             {hourMinute(computedAt)} 기준
           </span>
         )}
@@ -340,9 +342,9 @@ function TrendingSearches({
             <button
               type="button"
               onClick={() => onRun(t.keyword)}
-              className="flex w-full items-center gap-[10px] border-0 bg-transparent p-0 text-left"
+              className="flex w-full items-center gap-[14px] border-0 bg-transparent px-0 py-[6px] text-left"
             >
-              <span className="w-[16px] shrink-0 text-[14px] leading-[17px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
+              <span className="min-w-[9px] shrink-0 text-[15px] leading-[18px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>
                 {t.rank}
               </span>
               <span className="min-w-px flex-1 text-[14px] leading-[17px] font-normal" style={{ color: "var(--a-color-text-primary)" }}>
@@ -362,16 +364,15 @@ const hourMinute = (iso: string) => {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 };
 
+// Figma 2:207: 순위 변동은 11px 회색 글자(▲ / –). 하락(▼)·신규(NEW)는 Figma에 없어 같은 스타일로 맞춘다.
 function RankChange({ change }: { change: TrendingKeyword["change"] }) {
-  const color = "var(--a-color-text-secondary)";
-  if (change === "new") {
-    return <span className="text-[10px] leading-[12px] font-bold" style={{ color }}>NEW</span>;
-  }
-  if (change === "same") {
-    return <Minus size={12} strokeWidth={1.5} style={{ color }} aria-label="변동 없음" />;
-  }
-  const Icon = change === "up" ? ArrowUp : ArrowDown;
-  return <Icon size={12} strokeWidth={1.5} style={{ color }} aria-label={change === "up" ? "순위 상승" : "순위 하락"} />;
+  const text = change === "new" ? "NEW" : change === "same" ? "–" : change === "up" ? "▲" : "▼";
+  const label = change === "new" ? "신규" : change === "same" ? "변동 없음" : change === "up" ? "순위 상승" : "순위 하락";
+  return (
+    <span className="shrink-0 text-[11px] leading-[13px] font-normal whitespace-nowrap" style={{ color: "var(--a-color-text-secondary)" }} aria-label={label}>
+      {text}
+    </span>
+  );
 }
 
 function ListSkeleton({ count = 4 }: { count?: number }) {

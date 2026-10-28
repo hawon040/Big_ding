@@ -129,53 +129,18 @@
   }
 
   /**
-  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
-  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
+  * 폼 요소는 부모의 글꼴(크기·굵기·줄높이)을 그대로 물려받는다.
+  * 예전 디자인은 button/label/input/h1~h4를 16px·medium·줄높이 1.5로 강제했는데, A안 화면은 글자
+  * 크기를 감싸는 요소에서 정하는 곳이 많아 그 강제값 때문에 칩·목록·설정 행 글자가 Figma보다 크고
+  * 줄 간격이 넓게 그려졌다. Tailwind 유틸리티(text-[14px] 등)는 여전히 이 기본값을 덮어쓴다.
   */
-
   html {
     font-size: var(--font-size);
   }
 
-  h1 {
-    font-size: var(--text-2xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h2 {
-    font-size: var(--text-xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h3 {
-    font-size: var(--text-lg);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h4 {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  label {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  button {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  input {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-normal);
-    line-height: 1.5;
+  h1, h2, h3, h4, label, button, input, textarea, select {
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: inherit;
   }
 }

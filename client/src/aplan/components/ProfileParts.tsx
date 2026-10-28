@@ -17,26 +17,26 @@ export interface ProfileStat {
   onClick?: () => void;
 }
 
-// 상단 숫자 칸 (Figma 2:400 활동 통계)
+// 상단 숫자 칸 (Figma 2:354): 1px 테두리·둥글기 14 상자 안에 칸 구분선 없이 4칸, 상하 16, 숫자 18px 굵게 + 11px 이름
 export function ProfileStats({ stats }: { stats: ProfileStat[] }) {
   return (
     <section
       className="flex w-full items-stretch border border-solid"
       style={{ borderColor: "var(--a-color-border)", borderRadius: "var(--a-radius-card)" }}
     >
-      {stats.map((s, i) => {
+      {stats.map((s) => {
         const body = (
           <>
             {s.value === undefined ? (
-              <Skeleton className="h-[20px] w-[24px]" />
+              <Skeleton className="h-[22px] w-[24px]" />
             ) : (
-              <span className="text-[17px] leading-[20px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>{s.value}</span>
+              <span className="text-[18px] leading-[22px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>{s.value}</span>
             )}
             <span className="text-[11px] leading-[13px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>{s.label}</span>
           </>
         );
-        const className = "flex min-w-px flex-1 flex-col items-center gap-[2px] border-0 bg-transparent px-0 py-[14px]";
-        const style = i > 0 ? { borderLeft: "1px solid var(--a-color-border)" } : undefined;
+        const className = "flex min-w-px flex-1 flex-col items-center gap-[2px] border-0 bg-transparent px-0 py-[16px]";
+        const style = undefined;
         return s.onClick ? (
           <button key={s.label} type="button" onClick={s.onClick} className={className} style={style} aria-label={`${s.label} 목록 보기`}>
             {body}
@@ -51,7 +51,7 @@ export function ProfileStats({ stats }: { stats: ProfileStat[] }) {
   );
 }
 
-// 언더라인 탭 (Figma 마이페이지 탭 스타일)
+// 언더라인 탭 (Figma 2:375): 글자 아래 8px 띄워 선택 탭은 2px 진한 선, 나머지는 1px 회색 선(아래쪽 정렬)
 export function UnderlineTabs<K extends string>({
   tabs,
   active,
@@ -64,7 +64,7 @@ export function UnderlineTabs<K extends string>({
   label: string;
 }) {
   return (
-    <div className="flex w-full shrink-0" role="tablist" aria-label={label}>
+    <div className="flex w-full shrink-0 items-end" role="tablist" aria-label={label}>
       {tabs.map((t) => {
         const selected = t.key === active;
         return (
@@ -74,14 +74,18 @@ export function UnderlineTabs<K extends string>({
             role="tab"
             aria-selected={selected}
             onClick={() => onChange(t.key)}
-            className="flex-1 border-0 border-b-2 border-solid bg-transparent py-[10px] text-[14px] leading-[17px] whitespace-nowrap"
+            className="flex min-w-px flex-1 flex-col items-center gap-[8px] border-0 bg-transparent p-0 text-[14px] leading-[17px] whitespace-nowrap"
             style={{
-              borderColor: selected ? "var(--a-color-text-primary)" : "var(--a-color-border)",
               color: selected ? "var(--a-color-text-primary)" : "var(--a-color-text-secondary)",
               fontWeight: selected ? 700 : 400,
             }}
           >
             {t.label}
+            <span
+              aria-hidden
+              className="block w-full"
+              style={{ height: selected ? 2 : 1, background: selected ? "var(--a-color-text-primary)" : "var(--a-color-border)" }}
+            />
           </button>
         );
       })}

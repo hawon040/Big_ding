@@ -68,7 +68,7 @@ export function GroupChatPickerScreen({ mode, onBack, onCreated, onInvited }: Gr
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex w-full shrink-0 items-center gap-[12px] px-[20px] py-[12px]">
-        <button type="button" onClick={onBack} aria-label="뒤로 가기" className="flex size-[26px] shrink-0 items-center justify-center border-0 bg-transparent p-0">
+        <button type="button" onClick={onBack} aria-label="뒤로 가기" className="flex h-[31px] w-[26px] shrink-0 items-center justify-center border-0 bg-transparent p-0">
           <ChevronLeft size={26} strokeWidth={1.5} style={{ color: "var(--a-color-text-primary)" }} />
         </button>
         <h1 className="m-0 min-w-px flex-1 text-[17px] leading-[20px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>

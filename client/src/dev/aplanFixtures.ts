@@ -179,7 +179,30 @@ const feedTopics: TopicChipItem[] = [
 
 type Handler = (config: InternalAxiosRequestConfig) => unknown;
 
+// 홈(A-04) 사진 피드·스토리 (Figma 2:174의 인기글 카드 예시 문구를 그대로 쓴다)
+const feedItems = [
+  {
+    id: "f1", author, images: [sampleImage], content: "Pandas로 공공데이터 EDA 해본 후기 공유합니다 #pandas #eda",
+    tags: ["pandas", "eda"], createdAt: minutesAgo(10), likeCount: 24, commentCount: 8, isLiked: false, isMine: false,
+  },
+  {
+    id: "f2", author: { ...author, id: "u2", nickname: "판다마스터" }, images: [sampleImage, sampleImage],
+    content: "빅데이터분석기사 실기 2주 합격 루트 #빅분기", tags: ["빅분기"], createdAt: minutesAgo(30),
+    likeCount: 24, commentCount: 8, isLiked: true, isMine: false,
+  },
+];
+const storyTray = [
+  { user: { ...author, nickname: "나" }, isMe: true, count: 0, hasUnseen: false, latestAt: null },
+  { user: { ...author, id: "u2", nickname: "판다마스터" }, isMe: false, count: 2, hasUnseen: true, latestAt: minutesAgo(20) },
+  { user: { ...author, id: "u3", nickname: "SQL요정" }, isMe: false, count: 1, hasUnseen: true, latestAt: minutesAgo(60) },
+  { user: { ...author, id: "u4", nickname: "시각화장인" }, isMe: false, count: 1, hasUnseen: false, latestAt: minutesAgo(90) },
+  { user: { ...author, id: "u5", nickname: "통계러" }, isMe: false, count: 1, hasUnseen: false, latestAt: minutesAgo(120) },
+];
+
 const routes: [RegExp, Handler][] = [
+  [/^\/feeds$/, () => ({ items: feedItems, nextCursor: null })],
+  [/^\/stories$/, () => ({ items: storyTray })],
+  [/^\/feeds\/tag-alerts$/, () => ({ items: [] })],
   [/^\/feed\/topics$/, () => ({ items: feedTopics })],
   [/^\/feed$/, (): Page<PostCard> => ({ items: feedPosts, nextCursor: null })],
   [

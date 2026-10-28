@@ -225,7 +225,7 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
         </div>
       )}
       <header className="flex w-full shrink-0 items-center gap-[12px] px-[20px] py-[12px]">
-        <button type="button" onClick={onBack} aria-label="뒤로 가기" className="flex size-[26px] shrink-0 items-center justify-center border-0 bg-transparent p-0">
+        <button type="button" onClick={onBack} aria-label="뒤로 가기" className="flex h-[31px] w-[26px] shrink-0 items-center justify-center border-0 bg-transparent p-0">
           <ChevronLeft size={26} strokeWidth={1.5} style={{ color: "var(--a-color-text-primary)" }} />
         </button>
         <span className="min-w-px flex-1" aria-hidden />
@@ -360,24 +360,24 @@ export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: Pos
                   {post.isJoined ? "참여 취소" : post.recruit.status === "open" ? "참여하기" : "모집 마감"}
                 </button>
               )}
-              {/* 좋아요 · 스크랩 */}
+              {/* 좋아요 · 스크랩 (Figma 2:512: 아이콘 14 + 12px 글자, 간격 4 / 묶음 간격 16) */}
               <div className="flex w-full items-center gap-[16px]">
                                 <div className="flex items-center gap-[4px]">
                   <button type="button" aria-label="좋아요" aria-pressed={post.isLiked} onClick={toggleLike} className="flex border-0 bg-transparent p-0">
-                    <Heart size={16} strokeWidth={1.5} fill={post.isLiked ? "var(--a-color-text-primary)" : "none"} style={{ color: post.isLiked ? "var(--a-color-text-primary)" : "var(--a-color-text-secondary)" }} aria-hidden />
+                    <Heart size={14} strokeWidth={1.5} fill={post.isLiked ? "var(--a-color-text-primary)" : "none"} style={{ color: post.isLiked ? "var(--a-color-text-primary)" : "var(--a-color-text-secondary)" }} aria-hidden />
                   </button>
                   <button
                     type="button"
                     onClick={openLikers}
-                    className="border-0 bg-transparent p-0 text-[13px] leading-[16px] font-normal"
+                    className="border-0 bg-transparent p-0 text-[12px] leading-[14px] font-normal"
                     style={{ color: "var(--a-color-text-secondary)" }}
                   >
                     좋아요 {post.likeCount}
                   </button>
                 </div>
                 <button type="button" aria-pressed={post.isScrapped} onClick={toggleScrap} className="flex items-center gap-[4px] border-0 bg-transparent p-0">
-                  <Bookmark size={16} strokeWidth={1.5} fill={post.isScrapped ? "var(--a-color-text-primary)" : "none"} style={{ color: post.isScrapped ? "var(--a-color-text-primary)" : "var(--a-color-text-secondary)" }} aria-hidden />
-                  <span className="text-[13px] leading-[16px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>스크랩 {post.scrapCount}</span>
+                  <Bookmark size={14} strokeWidth={1.5} fill={post.isScrapped ? "var(--a-color-text-primary)" : "none"} style={{ color: post.isScrapped ? "var(--a-color-text-primary)" : "var(--a-color-text-secondary)" }} aria-hidden />
+                  <span className="text-[12px] leading-[14px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>스크랩 {post.scrapCount}</span>
                 </button>
               </div>
 

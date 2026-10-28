@@ -67,6 +67,8 @@ interface FeedCardProps {
 
 // 홈 피드 카드: 작성자 → 사진(여러 장 스와이프, 누르면 전체화면) → 좋아요·댓글 → 본문 → 주제. 커뮤니티 PostCard와 다른 게시물이다.
 export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, onTagClick, expanded = false, onEdit, onDelete, onOpenLikers }: FeedCardProps) {
+  // Figma 2:130: 카드 안 반응 아이콘은 14px (상세 화면은 누르기 쉽게 18px 유지)
+  const actionIcon = expanded ? 18 : 14;
   // menu: ⋮ 메뉴 / report: 신고 사유 고르기 / reportEtc: "기타" 사유 직접 적기
   const [sheet, setSheet] = useState<"menu" | "report" | "reportEtc" | null>(null);
   const [reportDetail, setReportDetail] = useState("");
@@ -94,7 +96,12 @@ export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, onTagClick, e
   };
 
   return (
-    <article className="flex w-full flex-col gap-[10px]">
+    // 홈 목록에서는 Figma A-04 카드(2:139) 틀을 쓴다: 1px 테두리·둥글기 14·안쪽 16·간격 10.
+    // 상세 화면(expanded)은 화면 전체가 한 게시물이라 틀 없이 그린다.
+    <article
+      className={`flex w-full flex-col gap-[10px]${expanded ? "" : " border border-solid p-[16px]"}`}
+      style={expanded ? undefined : { borderColor: "var(--a-color-border)", borderRadius: "var(--a-radius-card)" }}
+    >
       <div className="flex items-center gap-[10px]">
         <button
           type="button"
@@ -125,7 +132,7 @@ export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, onTagClick, e
             onClick={() => onToggleLike(feed)}
             className="flex items-center border-0 bg-transparent p-0"
           >
-            <Heart size={18} strokeWidth={1.5} fill={feed.isLiked ? "var(--a-color-text-primary)" : "none"} style={{ color: feed.isLiked ? "var(--a-color-text-primary)" : idle }} aria-hidden />
+            <Heart size={actionIcon} strokeWidth={1.5} fill={feed.isLiked ? "var(--a-color-text-primary)" : "none"} style={{ color: feed.isLiked ? "var(--a-color-text-primary)" : idle }} aria-hidden />
           </button>
           {onOpenLikers ? (
             <button
@@ -149,7 +156,7 @@ export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, onTagClick, e
           onClick={() => onOpen?.(feed.id)}
           className="flex items-center gap-[4px] border-0 bg-transparent p-0 disabled:cursor-default"
         >
-          <MessageCircle size={18} strokeWidth={1.5} style={{ color: idle }} aria-hidden />
+          <MessageCircle size={actionIcon} strokeWidth={1.5} style={{ color: idle }} aria-hidden />
           <span className="text-[12px] leading-[14px]" style={{ color: idle }}>{feed.commentCount}</span>
         </button>
       </div>

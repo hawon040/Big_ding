@@ -65,13 +65,14 @@ export function SettingsScreen({ onBack, onOpenAnnouncements }: SettingsScreenPr
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="flex w-full shrink-0 items-center gap-[12px] px-[20px] py-[12px]">
-        <button type="button" onClick={onBack} aria-label="뒤로 가기" className="flex size-[26px] shrink-0 items-center justify-center border-0 bg-transparent p-0">
+        <button type="button" onClick={onBack} aria-label="뒤로 가기" className="flex h-[31px] w-[26px] shrink-0 items-center justify-center border-0 bg-transparent p-0">
           <ChevronLeft size={26} strokeWidth={1.5} style={{ color: "var(--a-color-text-primary)" }} />
         </button>
         <h1 className="m-0 min-w-px flex-1 text-[18px] leading-[22px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>설정</h1>
       </header>
 
-      <main className="flex min-h-0 w-full flex-1 flex-col items-start overflow-y-auto px-[20px] py-[4px] pb-[24px]">
+      {/* Figma 2:472 Body: 좌우 20·상하 12 */}
+      <main className="flex min-h-0 w-full flex-1 flex-col items-start overflow-y-auto px-[20px] py-[12px] pb-[24px]">
         {error && <ErrorState message={error} onRetry={load} />}
 
         {!error && (
@@ -126,13 +127,14 @@ export function SettingsScreen({ onBack, onOpenAnnouncements }: SettingsScreenPr
             <LinkRow label="건의사항" onClick={() => setSub("inquiry")} />
             {me?.isAdmin && <LinkRow label="관리자" onClick={() => setSub("admin")} />}
 
-            <Divider />
+            <Divider beforeTitle={false} />
 
             <LinkRow label="공지사항" onClick={onOpenAnnouncements} />
             <button type="button" onClick={logout} className="flex w-full appearance-none items-center border-0 bg-transparent py-[12px] px-0 text-left">
               <span className="text-[15px] leading-[18px] font-normal" style={{ color: "var(--a-color-text-primary)" }}>로그아웃</span>
             </button>
-            <button type="button" onClick={() => setWithdrawOpen(true)} className="flex w-full appearance-none items-center border-0 bg-transparent py-[4px] px-0 text-left">
+            {/* Figma 2:464: 로그아웃 줄 바로 아래 붙는 13px 글자 */}
+            <button type="button" onClick={() => setWithdrawOpen(true)} className="flex w-full appearance-none items-center border-0 bg-transparent p-0 text-left">
               <span className="text-[13px] leading-[16px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>회원 탈퇴</span>
             </button>
           </>
@@ -164,7 +166,7 @@ function TagAlertSection() {
   const remove = (tag: string) => tagAlertApi.remove(tag).then(setTags).catch(() => {});
 
   return (
-    <div className="flex w-full flex-col gap-[8px] pt-[8px]">
+    <div className="flex w-full flex-col gap-[8px] pt-[12px] pb-[12px]">
       <span className="text-[15px] leading-[18px] font-normal" style={{ color: "var(--a-color-text-primary)" }}>태그 알림</span>
       <span className="text-[12px] leading-[14px]" style={{ color: "var(--a-color-text-secondary)" }}>이 #태그가 달린 새 피드가 올라오면 알려줘요.</span>
       {tags && tags.length > 0 && (
@@ -287,16 +289,19 @@ function WithdrawSheet({ open, onClose }: { open: boolean; onClose: () => void }
   );
 }
 
+// Figma 2:413: 위아래 여백 없는 12px 굵은 회색 글자. 구분선 뒤 간격(12)은 Divider가 넣는다.
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
-    <p className="m-0 w-full pt-[16px] pb-[4px] text-[12px] leading-[14px] font-bold" style={{ color: "var(--a-color-text-secondary)" }}>
+    <p className="m-0 w-full text-[12px] leading-[14px] font-bold" style={{ color: "var(--a-color-text-secondary)" }}>
       {children}
     </p>
   );
 }
 
-function Divider() {
-  return <div className="my-[4px] h-px w-full shrink-0" style={{ background: "var(--a-color-border)" }} aria-hidden />;
+// Figma 2:426 + 2:427: 앞 줄에 바로 붙는 1px 선, 그 아래 12px 여백(다음이 섹션 제목일 때).
+// 마지막 묶음(공지사항·로그아웃, 2:456) 앞 선은 여백 없이 바로 줄이 이어진다.
+function Divider({ beforeTitle = true }: { beforeTitle?: boolean }) {
+  return <div className={`${beforeTitle ? "mb-[12px] " : ""}h-px w-full shrink-0`} style={{ background: "var(--a-color-border)" }} aria-hidden />;
 }
 
 function LinkRow({ label, onClick }: { label: string; onClick?: () => void }) {
@@ -308,7 +313,10 @@ function LinkRow({ label, onClick }: { label: string; onClick?: () => void }) {
       className="flex w-full appearance-none items-center gap-[12px] border-0 bg-transparent py-[12px] px-0 text-left disabled:cursor-default"
     >
       <span className="min-w-px flex-1 text-[15px] leading-[18px] font-normal" style={{ color: "var(--a-color-text-primary)" }}>{label}</span>
-      <ChevronRight size={20} strokeWidth={1.5} style={{ color: "var(--a-color-text-secondary)" }} aria-hidden />
+      {/* Figma 2:416: "›"는 20px 글자라 줄 높이 24 → 이 줄은 48px(글자만 있는 줄은 42px) */}
+      <span className="flex h-[24px] shrink-0 items-center" aria-hidden>
+        <ChevronRight size={20} strokeWidth={1.5} style={{ color: "var(--a-color-text-secondary)" }} />
+      </span>
     </button>
   );
 }

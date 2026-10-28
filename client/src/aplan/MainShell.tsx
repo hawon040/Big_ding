@@ -22,6 +22,7 @@ import { FollowListScreen, type FollowTab } from "@/aplan/screens/FollowListScre
 import { EditProfileScreen } from "@/aplan/screens/EditProfileScreen";
 import { EmptyState } from "@/aplan/components/States";
 import type { BoardKey } from "@/constants/boards";
+import type { TopicKey } from "@/constants/topics";
 import "@/styles/aplan-tokens.css";
 
 type WriteTarget = { mode: "create"; board: BoardKey | null } | { mode: "edit"; postId: string };
@@ -61,6 +62,9 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
   // 홈 피드(사진 필수 게시물) 올리기
   const [feedWriting, setFeedWriting] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
+  // 마이페이지 > 관심 기술 "수정": A-03 온보딩을 edit 모드로 다시 연다
+  const [editingInterests, setEditingInterests] = useState<TopicKey[] | null>(null);
+  const [myScreenKey, setMyScreenKey] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // 설정 > 공지사항: 커뮤니티의 "공지사항"(event) 게시판을 설정 위에 쌓아서 보여준다
   const [announcementsOpen, setAnnouncementsOpen] = useState(false);
@@ -136,6 +140,8 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
           onEditProfile={() => setEditingProfile(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenFollows={openFollows}
+          onEditInterests={setEditingInterests}
+          key={myScreenKey}
         />
       );
       break;
@@ -174,6 +180,20 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
           }}
         />
       </div>
+    );
+  }
+
+  if (editingInterests) {
+    return (
+      <OnboardingScreen
+        mode="edit"
+        initialInterests={editingInterests}
+        onBack={() => setEditingInterests(null)}
+        onDone={() => {
+          setEditingInterests(null);
+          setMyScreenKey((k) => k + 1); // 저장한 관심 기술로 마이페이지를 다시 불러온다
+        }}
+      />
     );
   }
 

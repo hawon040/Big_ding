@@ -46,10 +46,10 @@ export function StoryTray({ items, onOpen, onPickPhoto }: StoryTrayProps) {
           const hasStory = item.count > 0;
           const ring = item.isMe ? (hasStory ? "var(--a-color-border)" : "transparent") : item.hasUnseen ? RING_UNSEEN : "var(--a-color-border)";
           return (
-            <li key={item.user?.id ?? `me-${index}`} className="flex w-[68px] flex-col items-center gap-[6px]">
+            <li key={item.user?.id ?? `me-${index}`} className="flex w-[58px] flex-col items-center gap-[6px]">
               <span className="relative">
                 {item.isMe && !hasStory ? (
-                  <PhotoPicker label="스토리 올리기" onPick={onPickPhoto} className="relative flex size-[64px]">
+                  <PhotoPicker label="스토리 올리기" onPick={onPickPhoto} className="relative flex size-[58px]">
                     <AvatarRing ring={ring} src={item.user?.profileImage} />
                   </PhotoPicker>
                 ) : (
@@ -86,9 +86,10 @@ export function StoryTray({ items, onOpen, onPickPhoto }: StoryTrayProps) {
 
 function AvatarRing({ ring, src }: { ring: string; src?: string | null }) {
   return (
-    <span className="flex size-[64px] items-center justify-center p-[2px]" style={{ borderRadius: "50%", background: ring }}>
+    // Figma 2:98 원 지름 58 (링 2 + 흰 틈 2 + 사진 50)
+    <span className="flex size-[58px] items-center justify-center p-[2px]" style={{ borderRadius: "50%", background: ring }}>
       <span className="flex size-full items-center justify-center rounded-full p-[2px]" style={{ background: "var(--a-color-bg)" }}>
-        <Avatar src={src} size={54} />
+        <Avatar src={src} size={50} />
       </span>
     </span>
   );
