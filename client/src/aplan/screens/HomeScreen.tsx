@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
-import { Bell, BellOff, Plus, Send } from "lucide-react";
+import { Bell, BellOff, ChevronLeft, Plus, Send } from "lucide-react";
 import { feedPostApi, storyApi, tagAlertApi } from "@/api/aplan";
 import type { FeedItem, StoryTrayItem } from "@/types/aplan";
 import { IconButton } from "@/aplan/components/IconButton";
-import { TopicSelectChip } from "@/aplan/components/TopicSelectChip";
 import { FeedCard } from "@/aplan/components/FeedCard";
 import { StoryAdd } from "@/aplan/components/StoryAdd";
 import { StoryTray } from "@/aplan/components/StoryTray";
@@ -79,9 +78,6 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
       .finally(() => setAlertBusy(false));
   };
 
-  // 칩: 전체 + 알림 받는 태그 + (구독하지 않았지만 지금 보고 있는) 태그
-  const chipTags = tag && !alertTags.includes(tag) ? [...alertTags, tag] : alertTags;
-
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* 2:97 헤더: 로고 + [메시지] [알림] */}
@@ -99,18 +95,16 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
       <main className="flex min-h-0 w-full flex-1 flex-col items-start gap-[16px] overflow-y-auto px-[20px] py-[12px]">
         <StoryTray items={tray} onOpen={openStory} onPickPhoto={setStoryFile} />
 
-        {/* 태그 칩 (가로 스크롤) */}
-        <div className="-mx-[20px] w-[calc(100%+40px)] shrink-0 overflow-x-auto px-[20px] [scrollbar-width:none]">
-          <div className="flex w-max gap-[8px]" role="group" aria-label="태그">
-            <TopicSelectChip selected={tag === null} onClick={() => setTag(null)}>전체</TopicSelectChip>
-            {chipTags.map((t) => (
-              <TopicSelectChip key={t} selected={tag === t} onClick={() => setTag(t)}>#{t}</TopicSelectChip>
-            ))}
-          </div>
-        </div>
-
         {tag && (
           <div className="flex w-full shrink-0 items-center gap-[8px]">
+            <button
+              type="button"
+              onClick={() => setTag(null)}
+              aria-label="태그 필터 해제, 전체 피드 보기"
+              className="flex size-[24px] shrink-0 items-center justify-center border-0 bg-transparent p-0"
+            >
+              <ChevronLeft size={22} strokeWidth={1.5} style={{ color: "var(--a-color-text-primary)" }} aria-hidden />
+            </button>
             <h2 className="m-0 min-w-px flex-1 text-[17px] leading-[20px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>#{tag}</h2>
             <button
               type="button"
