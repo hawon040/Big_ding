@@ -46,10 +46,10 @@ export function StoryTray({ items, onOpen, onPickPhoto }: StoryTrayProps) {
           const hasStory = item.count > 0;
           const ring = item.isMe ? (hasStory ? "var(--a-color-border)" : "transparent") : item.hasUnseen ? RING_UNSEEN : "var(--a-color-border)";
           return (
-            <li key={item.user?.id ?? `me-${index}`} className="flex w-[58px] flex-col items-center gap-[6px]">
+            <li key={item.user?.id ?? `me-${index}`} className="flex w-[72px] flex-col items-center gap-[6px]">
               <span className="relative">
                 {item.isMe && !hasStory ? (
-                  <PhotoPicker label="스토리 올리기" onPick={onPickPhoto} className="relative flex size-[58px]">
+                  <PhotoPicker label="스토리 올리기" onPick={onPickPhoto} className="relative flex size-[72px]">
                     <AvatarRing ring={ring} src={item.user?.profileImage} />
                   </PhotoPicker>
                 ) : (
@@ -63,15 +63,15 @@ export function StoryTray({ items, onOpen, onPickPhoto }: StoryTrayProps) {
                   </button>
                 )}
                 {item.isMe && (
-                  <PhotoPicker label="스토리 올리기" onPick={onPickPhoto} className="absolute -right-[8px] -bottom-[8px] flex size-[34px] items-center justify-center">
-                    <span className="flex size-[22px] items-center justify-center" style={{ borderRadius: "50%", background: "var(--a-color-surface-inverse)", boxShadow: "0 0 0 2px var(--a-color-bg)" }}>
-                      <Plus size={14} strokeWidth={2.5} style={{ color: "var(--a-color-on-inverse)" }} aria-hidden />
+                  <PhotoPicker label="스토리 올리기" onPick={onPickPhoto} className="absolute -right-[6px] -bottom-[6px] flex size-[34px] items-center justify-center">
+                    <span className="flex size-[24px] items-center justify-center" style={{ borderRadius: "50%", background: "var(--a-color-surface-inverse)", boxShadow: "0 0 0 2px var(--a-color-bg)" }}>
+                      <Plus size={15} strokeWidth={2.5} style={{ color: "var(--a-color-on-inverse)" }} aria-hidden />
                     </span>
                   </PhotoPicker>
                 )}
               </span>
               <span
-                className={`w-full truncate text-center text-[11px] leading-[13px] ${item.hasUnseen ? "font-bold" : "font-normal"}`}
+                className={`w-full truncate text-center text-[12px] leading-[14px] ${item.hasUnseen ? "font-bold" : "font-normal"}`}
                 style={{ color: item.isMe || !item.hasUnseen ? "var(--a-color-text-secondary)" : "var(--a-color-text-primary)" }}
               >
                 {name}
@@ -86,10 +86,10 @@ export function StoryTray({ items, onOpen, onPickPhoto }: StoryTrayProps) {
 
 function AvatarRing({ ring, src }: { ring: string; src?: string | null }) {
   return (
-    // Figma 2:98 원 지름 58 (링 2 + 흰 틈 2 + 사진 50)
-    <span className="flex size-[58px] items-center justify-center p-[2px]" style={{ borderRadius: "50%", background: ring }}>
+    // 원 지름 72 (링 2 + 흰 틈 2 + 사진 64) — Figma 58보다 키워 얼굴이 잘 보이게
+    <span className="flex size-[72px] items-center justify-center p-[2px]" style={{ borderRadius: "50%", background: ring }}>
       <span className="flex size-full items-center justify-center rounded-full p-[2px]" style={{ background: "var(--a-color-bg)" }}>
-        <Avatar src={src} size={50} />
+        <Avatar src={src} size={64} />
       </span>
     </span>
   );

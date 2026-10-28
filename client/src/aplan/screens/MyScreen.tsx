@@ -74,7 +74,7 @@ export function MyScreen({ onOpenPost, onOpenFeed, onEditProfile, onOpenSettings
         {!meError && (
           <>
             {/* 프로필 요약 */}
-            <section className="flex w-full items-center gap-[14px]">
+            <section className="flex w-full items-center gap-[16px]">
               {me ? (
                 <button
                   type="button"
@@ -83,22 +83,22 @@ export function MyScreen({ onOpenPost, onOpenFeed, onEditProfile, onOpenSettings
                   aria-label="프로필 사진 크게 보기"
                   className="shrink-0 border-0 bg-transparent p-0 disabled:cursor-default"
                 >
-                  <Avatar src={me.profileImage} size={64} />
+                  <Avatar src={me.profileImage} size={80} />
                 </button>
               ) : (
-                <Skeleton className="size-[64px]" style={{ borderRadius: "50%" }} />
+                <Skeleton className="size-[80px]" style={{ borderRadius: "50%" }} />
               )}
               <div className="flex min-w-px flex-1 flex-col items-start gap-[4px]">
                 {me ? (
                   <>
-                    <span className="text-[18px] leading-[22px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>{me.nickname}</span>
-                    <span className="text-[12px] leading-[14px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>
+                    <span className="text-[20px] leading-[24px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>{me.nickname}</span>
+                    <span className="text-[13px] leading-[16px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>
                       {[me.department, me.grade ? `${me.grade}학년` : null].filter(Boolean).join(" · ") || "학과 정보 없음"}
                     </span>
                   </>
                 ) : (
                   <>
-                    <Skeleton className="h-[22px] w-[100px]" />
+                    <Skeleton className="h-[24px] w-[100px]" />
                     <Skeleton className="h-[12px] w-[140px]" />
                   </>
                 )}

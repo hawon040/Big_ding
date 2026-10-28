@@ -85,14 +85,14 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* 2:97 헤더: 로고 + [메시지] [알림] */}
-      <header className="flex w-full shrink-0 items-center gap-[14px] px-[20px] py-[10px]">
-        <h1 className="m-0 text-[22px] leading-[26px] font-bold whitespace-nowrap" style={{ color: "var(--a-color-text-primary)" }}>
+      <header className="flex w-full shrink-0 items-center gap-[16px] px-[20px] py-[12px]">
+        <h1 className="m-0 text-[26px] leading-[31px] font-bold whitespace-nowrap" style={{ color: "var(--a-color-text-primary)" }}>
           Big Ding
         </h1>
         <span className="min-w-px flex-1" aria-hidden />
-        <IconButton icon={Plus} label="피드 올리기" onClick={onWriteFeed} />
-        <IconButton icon={Send} label="메시지" badge={unreadMessages} onClick={onOpenMessages} />
-        <IconButton icon={Bell} label="알림" badge={unreadNotifications} onClick={onOpenNotifications} />
+        <IconButton icon={Plus} label="피드 올리기" size={24} onClick={onWriteFeed} />
+        <IconButton icon={Send} label="메시지" size={24} badge={unreadMessages} onClick={onOpenMessages} />
+        <IconButton icon={Bell} label="알림" size={24} badge={unreadNotifications} onClick={onOpenNotifications} />
       </header>
 
       {/* 2:181 Body (스크롤) */}
