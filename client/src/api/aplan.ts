@@ -42,7 +42,15 @@ export const feedPostApi = {
     if (input.content) form.append("content", input.content);
     return api.post<FeedItem>("/feeds", form).then((r) => r.data);
   },
-  update: (id: string, content: string) => api.put<FeedItem>(`/feeds/${id}`, { content }).then((r) => r.data),
+  /** images를 넘기면 사진도 바꾼다: keep(남길 기존 사진 URL, 순서대로) 뒤에 files(새 사진)가 붙는다 */
+  update: (id: string, content: string, images?: { keep: string[]; files: File[] }) => {
+    if (!images) return api.put<FeedItem>(`/feeds/${id}`, { content }).then((r) => r.data);
+    const form = new FormData();
+    form.append("content", content);
+    form.append("keepImages", JSON.stringify(images.keep));
+    images.files.forEach((file) => form.append("images", file));
+    return api.put<FeedItem>(`/feeds/${id}`, form).then((r) => r.data);
+  },
   remove: (id: string) => api.delete(`/feeds/${id}`),
   like: (id: string) => api.post<{ likeCount: number; isLiked: boolean }>(`/feeds/${id}/like`).then((r) => r.data),
   unlike: (id: string) => api.delete<{ likeCount: number; isLiked: boolean }>(`/feeds/${id}/like`).then((r) => r.data),
@@ -110,8 +118,31 @@ export const postApi = {
     api.get<Page<PostCard>>("/posts", { params: { board, ...pageParams(cursor) } }).then((r) => r.data),
   get: (id: string) => api.get<PostDetail>(`/posts/${id}`).then((r) => r.data),
   create: (input: PostInput) => api.post<{ _id: string }>("/posts", toFormData(input)).then((r) => r.data),
-  update: (id: string, data: Partial<Pick<PostInput, "title" | "content" | "topics" | "tags">>) =>
-    api.patch(`/posts/${id}`, data).then((r) => r.data),
+  /** images를 넘기면 사진도 바꾼다: keep(남길 기존 사진 URL, 순서대로) 뒤에 files(새 사진)가 붙는다 */
+  update: (
+    id: string,
+    data: Partial<Pick<PostInput, "title" | "content" | "topics" | "tags">> & {
+      /** null이면 투표 삭제, 값이 있으면 추가·수정, 없으면 그대로 */
+      poll?: { question: string; options: string[] } | null;
+      /** 강의평가 별점 (0.5~5)·교과군 */
+      rating?: number;
+      lectureGrade?: string;
+    },
+    images?: { keep: string[]; files: File[] },
+  ) => {
+    if (!images) return api.patch(`/posts/${id}`, data).then((r) => r.data);
+    const form = new FormData();
+    if (data.title !== undefined) form.append("title", data.title);
+    if (data.content !== undefined) form.append("content", data.content);
+    if (data.topics !== undefined) form.append("topics", JSON.stringify(data.topics));
+    if (data.tags !== undefined) form.append("tags", JSON.stringify(data.tags));
+    if (data.poll !== undefined) form.append("poll", JSON.stringify(data.poll));
+    if (data.rating !== undefined) form.append("rating", String(data.rating));
+    if (data.lectureGrade !== undefined) form.append("lectureGrade", data.lectureGrade);
+    form.append("keepImages", JSON.stringify(images.keep));
+    images.files.forEach((file) => form.append("images", file));
+    return api.patch(`/posts/${id}`, form).then((r) => r.data);
+  },
   remove: (id: string) => api.delete(`/posts/${id}`),
   like: (id: string) => api.post<{ likeCount: number; isLiked: boolean }>(`/posts/${id}/like`).then((r) => r.data),
   unlike: (id: string) => api.delete<{ likeCount: number; isLiked: boolean }>(`/posts/${id}/like`).then((r) => r.data),

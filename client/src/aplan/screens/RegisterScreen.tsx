@@ -1,4 +1,5 @@
 import { useState, type FormEvent, type ReactNode } from "react";
+import { DEPARTMENT } from "@/constants/department";
 import { ChevronLeft, Eye, EyeOff } from "lucide-react";
 import api from "@/api";
 import { TextField } from "@/aplan/components/TextField";
@@ -41,7 +42,6 @@ export function RegisterScreen({ onBack, onDone }: RegisterScreenProps) {
   const [professor, setProfessor] = useState("");
   const [code, setCode] = useState("");
   const [phone, setPhone] = useState("");
-  const [department, setDepartment] = useState("");
   const [grade, setGrade] = useState<number | null>(null);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -119,7 +119,6 @@ else if (!PHONE_RULE.test(phone)) next.phone = "전화번호는 010-1234-5678 �
         code: code.trim(),
         phone,
         password,
-        department: department.trim() || undefined,
         grade: grade ?? undefined,
       });
       await alertDialog("회원가입이 완료됐어요", "가입한 학번으로 로그인해주세요.");
@@ -254,14 +253,9 @@ else if (!PHONE_RULE.test(phone)) next.phone = "전화번호는 010-1234-5678 �
 />
         </Field>
 
-        <Field label="학과" optional>
-          <TextField
-            label="학과"
-            placeholder="예) AI빅데이터학과"
-            maxLength={50}
-            value={department}
-            onChange={(e) => setDepartment(e.target.value)}
-          />
+        {/* 학과는 AI 빅데이터 학과로 고정 (서버도 입력값과 관계없이 이 값으로 저장) */}
+        <Field label="학과">
+          <TextField label="학과" value={DEPARTMENT} readOnly disabled aria-readonly />
         </Field>
 
         <Field label="학년" optional>

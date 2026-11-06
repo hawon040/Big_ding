@@ -331,6 +331,20 @@ router.post("/:id/invite", auth, async (req, res) => {
   }
 });
 
+// 채팅방 설정 변경 안내: 나가기와 같은 방식으로 시스템 메시지를 남기고,
+// 바꾼 사람을 포함한 모든 멤버에게 실시간으로 보낸다. makeText는 바꾼 사람 닉네임을 받아 문구를 만든다.
+const announceChange = async (groupChat, userId, makeText) => {
+  const changer = await User.findById(userId).select("nickname").lean();
+  const systemMessage = await GroupMessage.create({
+    groupChat: groupChat._id,
+    sender: userId,
+    content: makeText(changer?.nickname ?? "알 수 없음"),
+    type: "system",
+  });
+  await systemMessage.populate("sender", USER_FIELDS);
+  groupChat.members.forEach((m) => emitToUser(String(m._id || m), "receive_group_message", systemMessage));
+};
+
 // PATCH /api/group-chats/:id/name - 채팅방 이름 변경 (멤버만)
 router.patch("/:id/name", auth, async (req, res) => {
   try {
@@ -345,13 +359,19 @@ router.patch("/:id/name", auth, async (req, res) => {
       return res.status(400).json({ message: "채팅방 이름을 입력해주세요." });
     }
 
-    groupChat.name = name.trim().slice(0, 30);
+    const nextName = name.trim().slice(0, 30);
+    const renamed = nextName !== (groupChat.name || "");
+    groupChat.name = nextName;
     await groupChat.save();
     await groupChat.populate([
       { path: "post", select: "title board" },
       { path: "host", select: USER_FIELDS },
       { path: "members", select: USER_FIELDS },
     ]);
+
+    if (renamed) {
+      await announceChange(groupChat, req.user.id, (nick) => `${nick}님이 채팅방 이름을 '${nextName}'(으)로 변경했습니다`);
+    }
 
     notifyGroupChatUpdated(groupChat, req.user.id);
     res.json(groupChat);
@@ -381,6 +401,7 @@ router.patch("/:id/avatar", auth, upload.single("image"), async (req, res) => {
       { path: "members", select: USER_FIELDS },
     ]);
 
+    await announceChange(groupChat, req.user.id, (nick) => `${nick}님이 채팅방 사진을 변경했습니다`);
     notifyGroupChatUpdated(groupChat, req.user.id);
     res.json(groupChat);
   } catch (err) {

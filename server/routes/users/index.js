@@ -1,4 +1,5 @@
 const express = require("express");
+const { departmentOf } = require("../../constants/department");
 const router = express.Router();
 const User = require("../../models/User");
 const FriendRequest = require("../../models/FriendRequest");
@@ -81,7 +82,7 @@ const withIsFollowedByMe = async (users, viewerId) => {
       nickname: u.nickname,
       avatar: u.avatar,
       profileImage: u.avatar || null,
-      department: u.department || null,
+      department: departmentOf(u),
       bio: u.bio || null,
       isWithdrawn: !!u.isWithdrawn,
       studentId: u.studentId,
@@ -331,7 +332,7 @@ router.get("/:id", auth, async (req, res) => {
       avatar: user.avatar,
       profileImage: user.avatar || null,
       studentId: user.studentId,
-      department: user.department || null,
+      department: departmentOf(user),
       grade: user.grade || null,
       bio: user.bio || null,
       interests: user.interests || [],

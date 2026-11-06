@@ -7,12 +7,13 @@ import { ScreenHeader } from "@/aplan/components/ScreenHeader";
 import { TextField } from "@/aplan/components/TextField";
 import { TopicSelectChip } from "@/aplan/components/TopicSelectChip";
 import { ErrorState, Skeleton } from "@/aplan/components/States";
+import { confirmDialog } from "@/aplan/components/Dialog";
+import { DEPARTMENT } from "@/constants/department";
 import type { Me } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
 
 const NICKNAME_MIN = 2;
 const NICKNAME_MAX = 20;
-const DEPARTMENT_MAX = 50;
 const BIO_MAX = 20;
 const GRADES = [1, 2, 3, 4] as const;
 
@@ -27,7 +28,6 @@ export function EditProfileScreen({ onBack, onDone }: EditProfileScreenProps) {
   const [me, setMe] = useState<Me | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [nickname, setNickname] = useState("");
-  const [department, setDepartment] = useState("");
   const [grade, setGrade] = useState<number | null>(null);
   const [bio, setBio] = useState("");
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -43,7 +43,6 @@ export function EditProfileScreen({ onBack, onDone }: EditProfileScreenProps) {
       .then((m) => {
         setMe(m);
         setNickname(m.nickname);
-        setDepartment(m.department ?? "");
         setGrade(m.grade);
         setBio(m.bio ?? "");
       })
@@ -62,7 +61,6 @@ export function EditProfileScreen({ onBack, onDone }: EditProfileScreenProps) {
     !!me &&
     (avatarFile !== null ||
       trimmedNickname !== me.nickname ||
-      department.trim() !== (me.department ?? "") ||
       grade !== me.grade ||
       bio.trim() !== (me.bio ?? ""));
   const nicknameInvalid = trimmedNickname.length < NICKNAME_MIN || trimmedNickname.length > NICKNAME_MAX;
@@ -95,7 +93,6 @@ export function EditProfileScreen({ onBack, onDone }: EditProfileScreenProps) {
     // 바뀐 값만 보낸다. 빈 문자열은 서버에서 "지우기"로 처리된다(닉네임 제외).
     const fields: Record<string, string> = {};
     if (trimmedNickname !== me.nickname) fields.nickname = trimmedNickname;
-    if (department.trim() !== (me.department ?? "")) fields.department = department.trim();
     if (grade !== me.grade) fields.grade = grade === null ? "" : String(grade);
     if (bio.trim() !== (me.bio ?? "")) fields.bio = bio.trim();
 
@@ -119,9 +116,23 @@ export function EditProfileScreen({ onBack, onDone }: EditProfileScreenProps) {
       .finally(() => setSaving(false));
   };
 
+  // 저장하지 않은 변경이 있으면 나가기 전에 한 번 확인한다
+  const handleBack = async () => {
+    if (changed && !saving) {
+      const leave = await confirmDialog({
+        title: "수정 중인 내용이 있습니다.",
+        message: "저장하지 않고 페이지를 나가시겠습니까?",
+        cancelText: "취소",
+        confirmText: "나가기",
+      });
+      if (!leave) return;
+    }
+    onBack();
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <ScreenHeader title="프로필 수정" onBack={onBack} />
+      <ScreenHeader title="프로필 수정" onBack={handleBack} />
 
       <main className="flex min-h-0 w-full flex-1 flex-col items-start gap-[20px] overflow-y-auto px-[20px] py-[8px] pb-[24px]">
         {loadError && <ErrorState message={loadError} onRetry={load} />}
@@ -174,7 +185,8 @@ export function EditProfileScreen({ onBack, onDone }: EditProfileScreenProps) {
             </Field>
 
             <Field label="학과">
-              <TextField label="학과" value={department} maxLength={DEPARTMENT_MAX} placeholder="예) 빅데이터학과" onChange={(e) => setDepartment(e.target.value)} />
+              {/* 학과는 AI 빅데이터 학과로 고정 — 바꿀 수 없다 */}
+              <TextField label="학과" value={DEPARTMENT} readOnly disabled aria-readonly />
             </Field>
 
             <Field label="학년">

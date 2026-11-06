@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, Plus, X } from "lucide-react";
-import { postApi } from "@/api/aplan";
+import { resolveAssetUrl } from "@/api";
+import { meApi, postApi } from "@/api/aplan";
 import { BOARDS, RECRUIT_BOARDS, type BoardKey } from "@/constants/boards";
 import { TextField } from "@/aplan/components/TextField";
 import { StarRating } from "@/aplan/components/StarRating";
@@ -15,8 +16,8 @@ import "@/styles/aplan-tokens.css";
 interface WriteScreenProps {
   /** 커뮤니티 탭에서 고르고 있던 게시판을 기본값으로 (없으면 "자유") */
   initialBoard?: BoardKey | null;
-  /** 있으면 수정 모드로 그 글을 불러온다. 서버가 PATCH로 바꿀 수 있는 건 제목·내용·주제·태그뿐이라
-   *  게시판·이미지·모집 인원은 수정 모드에서 바꿀 수 없다(server/routes/posts/core.js) */
+  /** 있으면 수정 모드로 그 글을 불러온다. 서버 PATCH로 제목·내용·태그·사진·투표·강의평가(교과군·별점)를
+   *  바꿀 수 있고, 게시판·모집 인원은 수정 모드에서 바꿀 수 없다(server/routes/posts/core.js) */
   editPostId?: string;
   onDone: (postId: string) => void;
   onBack: () => void;
@@ -66,19 +67,51 @@ function WriteForm({
   const isEdit = !!editPost;
   const board = editPost?.board ?? initialBoard ?? "free";
   const [boardSheetOpen, setBoardSheetOpen] = useState(false);
-  const [pickedBoard, setPickedBoard] = useState<BoardKey>(board);
+  // 공지사항(event)은 관리자·공지 작성 권한이 있는 계정만 고를 수 있다(서버도 403으로 막음).
+  // 권한을 확인하기 전까지는 일반 유저로 보고, 공지사항에서 글쓰기를 눌렀어도 자유 게시판으로 시작한다.
+  const [canWriteNotice, setCanWriteNotice] = useState(false);
+  const [pickedBoard, setPickedBoard] = useState<BoardKey>(board === "event" ? "free" : board);
+  useEffect(() => {
+    if (isEdit) return;
+    let cancelled = false;
+    meApi.get().then((me) => {
+      if (cancelled) return;
+      const allowed = !!(me.isAdmin || me.canPostEvents);
+      setCanWriteNotice(allowed);
+      if (allowed && board === "event") setPickedBoard("event");
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [isEdit, board]);
+  const selectableBoards = BOARDS.filter((b) => b.key !== "event" || canWriteNotice);
   const [title, setTitle] = useState(editPost?.title ?? "");
   const [content, setContent] = useState(editPost?.content ?? "");
   const [tagInput, setTagInput] = useState("");
-  const [tags, setTags] = useState<string[]>(editPost?.tags ?? []);
+  // 강의평가 글은 교과군·교수가 태그 앞쪽에 들어가 있어서, 수정할 때는 칩 선택으로 따로 꺼내고 태그 목록에서는 뺀다
+  const editingLecture = editPost?.board === "lecture";
+  const initialLectureGrade = editingLecture
+    ? editPost?.lectureGrade || editPost?.tags.find((t) => LECTURE_GRADES.includes(t)) || ""
+    : "";
+  const initialProfessor = editingLecture ? editPost?.tags.find((t) => PROFESSORS.includes(t)) ?? "" : "";
+  const [tags, setTags] = useState<string[]>(
+    (editPost?.tags ?? []).filter((t) => !editingLecture || (t !== initialLectureGrade && t !== initialProfessor)),
+  );
   const [images, setImages] = useState<File[]>([]);
+  // 수정 모드: 원래 글에 있던 사진 중 남길 것 (새 사진은 이 뒤에 붙는다)
+  const [keptImages, setKeptImages] = useState<string[]>(editPost?.images ?? []);
+  const imageCount = keptImages.length + images.length;
+  const imagesChanged =
+    images.length > 0 ||
+    keptImages.length !== (editPost?.images.length ?? 0) ||
+    keptImages.some((u, i) => u !== editPost?.images[i]);
   const [capacity, setCapacity] = useState(4);
-  const [pollOn, setPollOn] = useState(false);
-  const [pollQuestion, setPollQuestion] = useState("");
-  const [pollOptions, setPollOptions] = useState(["", ""]);
-  const [lectureGrade, setLectureGrade] = useState("");
-  const [professor, setProfessor] = useState("");
-  const [rating, setRating] = useState(0);
+  // 수정 모드는 원래 글의 투표로 시작한다
+  const initialPoll = editPost?.poll ?? null;
+  const [pollOn, setPollOn] = useState(!!initialPoll);
+  const [pollQuestion, setPollQuestion] = useState(initialPoll?.question ?? "");
+  const [pollOptions, setPollOptions] = useState(initialPoll ? initialPoll.options.map((o) => o.text) : ["", ""]);
+  const [lectureGrade, setLectureGrade] = useState(initialLectureGrade);
+  const [professor, setProfessor] = useState(initialProfessor);
+  const [rating, setRating] = useState(editPost?.rating ?? 0);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -86,9 +119,13 @@ function WriteForm({
   const activeBoard = isEdit ? board : pickedBoard;
   const boardMeta = BOARDS.find((b) => b.key === activeBoard)!;
   const showRecruit = !isEdit && RECRUIT_BOARDS.includes(activeBoard);
-  // 전공 강의평가: 제목=강의명, 교과군·교수는 태그로, 별점·20자 이상 평가 필수
-  const isLecture = !isEdit && activeBoard === "lecture";
-  const showPoll = !isEdit && !isLecture;
+  // 전공 강의평가: 제목=강의명, 교과군·교수는 태그로, 별점·20자 이상 평가 필수.
+  // 수정할 때도 글쓰기와 같은 목록 선택(교과군 → 강의명, 교수님, 별점)으로 바꾼다
+  const isLecture = activeBoard === "lecture";
+  const lectureTags = () =>
+    [lectureGrade, professor, ...tags.filter((t) => t !== lectureGrade && t !== professor)].slice(0, MAX_TAGS);
+  // 강의평가 게시판에는 투표가 없다 (수정 모드도 동일)
+  const showPoll = activeBoard !== "lecture";
   const pollFilled = pollOptions.map((o) => o.trim()).filter(Boolean);
   const pollValid = !pollOn || (pollQuestion.trim().length > 0 && pollFilled.length >= 2);
 
@@ -104,7 +141,9 @@ function WriteForm({
 
   const addImages = (files: FileList | null) => {
     if (!files) return;
-    setImages((prev) => [...prev, ...Array.from(files)].slice(0, MAX_IMAGES));
+    // FileList는 input.value를 비우면 같이 비워지는 살아있는 목록이라, 상태 업데이트(지연 실행) 전에 미리 배열로 복사한다.
+    const incoming = Array.from(files);
+    setImages((prev) => [...prev, ...incoming].slice(0, MAX_IMAGES - keptImages.length));
   };
 
   const hasPoll = showPoll && pollOn;
@@ -120,12 +159,30 @@ function WriteForm({
     setError(null);
     try {
       if (editPost) {
-        await postApi.update(editPost.id, { title: title.trim(), content: content.trim(), tags });
+        // 투표: 뺐으면 null, 새로 넣었거나 바꿨으면 새 값, 그대로면 보내지 않는다
+        const nextPoll = hasPoll ? { question: pollQuestion.trim(), options: pollFilled } : null;
+        const pollChanged = initialPoll
+          ? !nextPoll ||
+            nextPoll.question !== initialPoll.question ||
+            nextPoll.options.length !== initialPoll.options.length ||
+            nextPoll.options.some((t, i) => t !== initialPoll.options[i].text)
+          : !!nextPoll;
+        await postApi.update(
+          editPost.id,
+          {
+            title: title.trim(),
+            content: content.trim(),
+            tags: isLecture ? lectureTags() : tags,
+            ...(pollChanged ? { poll: nextPoll } : {}),
+            ...(isLecture ? { rating, lectureGrade } : {}),
+          },
+          imagesChanged ? { keep: keptImages, files: images } : undefined,
+        );
         onDone(editPost.id);
       } else {
         const created = await postApi.create({
           board: activeBoard,
-          tags: isLecture ? [lectureGrade, professor, ...tags.filter((t) => t !== lectureGrade && t !== professor)].slice(0, MAX_TAGS) : tags,
+          tags: isLecture ? lectureTags() : tags,
           title: title.trim(),
           content: content.trim(),
           images: images.length ? images : undefined,
@@ -225,11 +282,24 @@ function WriteForm({
           )}
         </section>
 
-        {/* 이미지 (수정 모드는 미지원) */}
-        {!isEdit && (
-          <section className="flex w-full flex-col gap-[8px]">
+        {/* 이미지 (수정 모드에서는 기존 사진을 지우거나 새 사진을 더할 수 있다) */}
+        <section className="flex w-full flex-col gap-[8px]">
             <span className="text-[12px] leading-[14px] font-[500]" style={{ color: "var(--a-color-text-secondary)" }}>사진 (최대 {MAX_IMAGES}장)</span>
             <div className="flex w-full flex-wrap gap-[8px]">
+              {keptImages.map((src) => (
+                <span key={src} className="relative block size-[76px] shrink-0 overflow-hidden border border-solid" style={{ borderColor: "var(--a-color-border)", borderRadius: 8 }}>
+                  <img src={resolveAssetUrl(src)} alt="" className="block size-full object-cover" />
+                  <button
+                    type="button"
+                    aria-label="사진 삭제"
+                    onClick={() => setKeptImages((prev) => prev.filter((u) => u !== src))}
+                    className="absolute top-[4px] right-[4px] flex size-[18px] items-center justify-center border-0 p-0"
+                    style={{ borderRadius: "50%", background: "rgba(0,0,0,0.6)" }}
+                  >
+                    <X size={12} strokeWidth={2} style={{ color: "#fff" }} aria-hidden />
+                  </button>
+                </span>
+              ))}
               {imagePreviews.map((src, i) => (
                 <span key={src} className="relative block size-[76px] shrink-0 overflow-hidden border border-solid" style={{ borderColor: "var(--a-color-border)", borderRadius: 8 }}>
                   <img src={src} alt="" className="block size-full object-cover" />
@@ -244,7 +314,7 @@ function WriteForm({
                   </button>
                 </span>
               ))}
-              {images.length < MAX_IMAGES && (
+              {imageCount < MAX_IMAGES && (
                 <button
                   type="button"
                   aria-label="사진 추가"
@@ -258,9 +328,8 @@ function WriteForm({
             </div>
             <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={(e) => { addImages(e.target.files); e.target.value = ""; }} />
           </section>
-        )}
 
-        {/* 투표 (새 글만, 강의평가 제외) */}
+        {/* 투표 (강의평가 제외). 수정 시 글자가 그대로인 선택지는 기존 득표가 유지된다 */}
         {showPoll && (
           <section className="flex w-full flex-col gap-[8px]">
             <button
@@ -322,7 +391,7 @@ function WriteForm({
       </div>
 
       <BottomSheet open={boardSheetOpen} title="게시판 선택" onClose={() => setBoardSheetOpen(false)}>
-        {BOARDS.map((b) => (
+        {selectableBoards.map((b) => (
           <SheetItem key={b.key} selected={b.key === pickedBoard} onClick={() => { setPickedBoard(b.key); setBoardSheetOpen(false); }}>
             {b.label}
           </SheetItem>

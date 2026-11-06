@@ -60,7 +60,7 @@ describe("GET /api/search", () => {
     const tags = await api(me.token).get("/api/search?q=p&type=tag");
     expect(tags.body.items).toEqual([{ tag: "pandas", postCount: 1 }, { tag: "python", postCount: 1 }]);
     const users = await api(me.token).get(`/api/search?q=${encodeURIComponent("파이썬")}&type=user`);
-    expect(users.body.items[0]).toMatchObject({ nickname: "파이썬고수", department: "빅데이터학과", isFollowing: false });
+    expect(users.body.items[0]).toMatchObject({ nickname: "파이썬고수", department: "AI 빅데이터 학과", isFollowing: false });
   });
 
   test("잘못된 입력은 400, 인증 없으면 401", async () => {

@@ -176,8 +176,10 @@ router.get("/:id", auth, async (req, res) => {
   }
 });
 
-// PATCH /api/posts/:id — 작성자만. title, content, visibility, topics, tags
-router.patch("/:id", auth, profanityFilter, async (req, res) => {
+// PATCH /api/posts/:id — 작성자만. title, content, visibility, topics, tags, poll, rating·lectureGrade(강의평가)
+// multipart로 보내면 사진도 바꿀 수 있다: keepImages(JSON 배열, 남길 기존 사진 URL 순서대로) + images(새 파일).
+// 최종 사진 = 남긴 기존 사진 → 새 사진 순서(최대 5장, 0장 가능). keepImages가 없으면 사진은 그대로 둔다.
+router.patch("/:id", auth, upload.array("images", 5), profanityFilter, async (req, res) => {
   try {
     if (!v.isId(req.params.id)) return res.status(404).json({ message: "게시물을 찾을 수 없습니다." });
     const post = await Post.findById(req.params.id);
@@ -186,12 +188,50 @@ router.patch("/:id", auth, profanityFilter, async (req, res) => {
 
     const { title, content, visibility, topics, tags } = req.body;
     if (title !== undefined) post.title = v.requireString(title, "제목", { max: TITLE_MAX });
+    // 투표: null/"null"이면 삭제, 객체면 추가·수정. 수정할 때 글자가 그대로인 선택지는 기존 득표를 유지한다.
+    if (req.body.poll === null || req.body.poll === "null") {
+      post.poll = undefined;
+    } else if (req.body.poll !== undefined) {
+      const next = parsePoll(req.body.poll);
+      const prevVotes = new Map((post.poll?.options || []).map((o) => [o.text, o.votes]));
+      post.poll = {
+        question: next.question,
+        options: next.options.map((o) => ({ text: o.text, votes: prevVotes.get(o.text) || [] })),
+      };
+    }
     if (content !== undefined) {
       post.content = post.poll && content === "" ? "" : v.requireString(content, "내용", { max: CONTENT_MAX });
+    } else if (!post.poll && !post.content) {
+      v.fail("투표를 빼려면 내용을 입력해주세요.");
     }
     if (["all", "followers", "private"].includes(visibility)) post.visibility = visibility;
-    if (topics !== undefined) post.topics = v.postTopics(topics);
-    if (tags !== undefined) post.tags = v.postTags(tags);
+    // 강의평가 별점 (0.5~5, 0.5 단위)
+    if (req.body.rating !== undefined && req.body.rating !== "") {
+      if (post.board !== "lecture") v.fail("별점은 강의평가 글에만 있습니다.");
+      const r = Number(req.body.rating);
+      if (!Number.isFinite(r) || r < 0.5 || r > 5 || Math.round(r * 2) !== r * 2) v.fail("별점은 0.5~5점 사이로 선택해주세요.");
+      post.rating = r;
+    }
+    // 강의평가 교과군 (강의명은 제목, 교수는 태그로 함께 바뀐다)
+    if (req.body.lectureGrade !== undefined) {
+      if (post.board !== "lecture") v.fail("교과군은 강의평가 글에만 있습니다.");
+      post.lectureGrade = v.requireString(req.body.lectureGrade, "교과군", { max: 30 });
+    }
+    // multipart 요청에서는 배열 필드가 JSON 문자열로 온다
+    const topicsValue = v.parseJsonField(topics, "주제");
+    const tagsValue = v.parseJsonField(tags, "태그");
+    if (topicsValue !== undefined) post.topics = v.postTopics(topicsValue);
+    if (tagsValue !== undefined) post.tags = v.postTags(tagsValue);
+    if (req.body.keepImages !== undefined) {
+      const keepRaw = v.parseJsonField(req.body.keepImages, "사진") ?? [];
+      if (!Array.isArray(keepRaw)) v.fail("사진 정보가 올바르지 않습니다.");
+      // 이 글에 원래 있던 사진만 남길 수 있다(다른 URL을 끼워 넣지 못하게)
+      const keep = keepRaw.filter((url) => typeof url === "string" && post.images.includes(url));
+      const files = req.files || [];
+      if (keep.length + files.length > 5) v.fail("사진은 최대 5장까지 올릴 수 있습니다.");
+      const added = (await Promise.all(files.map((file) => uploadImage(file.buffer, "posts")))).map((r) => r.secure_url);
+      post.images = [...keep, ...added];
+    }
     await post.save();
 
     const updated = await Post.findById(post._id).populate("author", "nickname avatar studentId department");

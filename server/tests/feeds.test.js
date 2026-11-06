@@ -1,4 +1,4 @@
-const { setupDb, createUser, api, Post } = require("./helpers");
+const { setupDb, createUser, api, createPost, Post } = require("./helpers");
 const Feed = require("../models/Feed");
 const FeedComment = require("../models/FeedComment");
 const Notification = require("../models/Notification");
@@ -156,5 +156,55 @@ describe("피드 목록·상호작용", () => {
     expect((await api(a.token).delete(`/api/feeds/${feed.id}`)).status).toBe(200);
     expect((await api(a.token).get(`/api/feeds/${feed.id}`)).status).toBe(404);
     expect((await api(a.token).get("/api/feeds")).body.items).toHaveLength(0);
+  });
+});
+
+describe("피드 수정 (사진 포함)", () => {
+  test("남길 사진 + 새 사진으로 바꾸고, 0장이 되거나 남의 URL을 끼우면 무시/400", async () => {
+    const me = await createUser();
+    const feed = (await postFeed(me.token, { images: 1, content: "원래 글" })).body;
+    const original = feed.images[0];
+
+    const bigger = Buffer.from("89504e470d0a1a0a0000", "hex");
+    const res = await api(me.token).put(`/api/feeds/${feed.id}`)
+      .field("content", "바꾼 글")
+      .field("keepImages", JSON.stringify([original, "https://evil.test/x.jpg"]))
+      .attach("images", bigger, { filename: "n.png", contentType: "image/png" });
+    expect(res.status).toBe(200);
+    expect(res.body.content).toBe("바꾼 글");
+    expect(res.body.images).toEqual([original, "https://img.test/feeds/10.jpg"]);
+
+    const empty = await api(me.token).put(`/api/feeds/${feed.id}`).field("content", "x").field("keepImages", "[]");
+    expect(empty.status).toBe(400);
+
+    // JSON으로 글만 보내면 사진은 그대로
+    const textOnly = await api(me.token).put(`/api/feeds/${feed.id}`).send({ content: "글만" });
+    expect(textOnly.body.images).toHaveLength(2);
+  });
+});
+
+describe("커뮤니티 글 수정 (사진 포함)", () => {
+  test("사진 추가·삭제, 남의 URL은 무시, 사진 없이 보내면 그대로", async () => {
+    const me = await createUser();
+    const post = await createPost(me.token);
+    expect(post.images || []).toHaveLength(0);
+
+    const added = await api(me.token).patch(`/api/posts/${post._id}`)
+      .field("title", "바꾼 제목")
+      .field("tags", JSON.stringify(["태그"]))
+      .field("keepImages", JSON.stringify(["https://evil.test/x.jpg"]))
+      .attach("images", png, { filename: "a.png", contentType: "image/png" });
+    expect(added.status).toBe(200);
+    let saved = await Post.findById(post._id);
+    expect(saved.images).toEqual(["https://img.test/posts/8.jpg"]);
+    expect(saved.title).toBe("바꾼 제목");
+    expect(saved.tags).toEqual(["태그"]);
+
+    await api(me.token).patch(`/api/posts/${post._id}`).send({ content: "글만 수정" });
+    expect((await Post.findById(post._id)).images).toHaveLength(1);
+
+    const removed = await api(me.token).patch(`/api/posts/${post._id}`).field("keepImages", "[]");
+    expect(removed.status).toBe(200);
+    expect((await Post.findById(post._id)).images).toHaveLength(0);
   });
 });

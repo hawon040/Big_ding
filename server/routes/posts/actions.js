@@ -113,24 +113,32 @@ router.post("/:id/dislike", auth, async (req, res) => {
 });
 
 // ── 스크랩 ── 글의 scraps/scrapCount와 내 scrapCount를 한 트랜잭션으로
+// scrapCount는 $inc 대신 scraps 배열 길이로 다시 계산한다. 예전 클라이언트·데이터 때문에
+// 카운트가 배열과 어긋나 있던 글(0인데 누른 사람이 있음 → 취소 시 -1)도 누르는 순간 바로잡힌다.
 const setScrap = (postId, userId, on) =>
   runInTransaction(async (session) => {
     const me = oid(userId);
+    const scraps = on
+      ? { $concatArrays: [{ $ifNull: ["$scraps", []] }, [me]] }
+      : { $filter: { input: { $ifNull: ["$scraps", []] }, cond: { $ne: ["$$this", me] } } };
     const res = await Post.updateOne(
       on ? { _id: postId, scraps: { $ne: me } } : { _id: postId, scraps: me },
-      on
-        ? { $addToSet: { scraps: me }, $inc: { scrapCount: 1 } }
-        : { $pull: { scraps: me }, $inc: { scrapCount: -1 } },
+      [{ $set: { scraps } }, { $set: { scrapCount: { $size: "$scraps" } } }],
       { session, timestamps: false }
     );
     if (res.modifiedCount === 0) return false;
-    await User.updateOne({ _id: me }, { $inc: { scrapCount: on ? 1 : -1 } }, { session });
+    await User.updateOne(
+      { _id: me },
+      [{ $set: { scrapCount: { $max: [0, { $add: [{ $ifNull: ["$scrapCount", 0] }, on ? 1 : -1] }] } } }],
+      { session }
+    );
     return true;
   });
 
 const scrapState = async (postId, userId) => {
-  const p = await Post.findById(postId).select("scraps scrapCount").lean();
-  return { scraps: p.scraps, scrapCount: p.scrapCount, isScrapped: includesId(p.scraps, userId) };
+  const p = await Post.findById(postId).select("scraps").lean();
+  const scraps = p.scraps || [];
+  return { scraps, scrapCount: scraps.length, isScrapped: includesId(scraps, userId) };
 };
 
 // POST /api/posts/:id/scrap — 토글 (기존 클라이언트 호환). 새 클라이언트는 취소에 DELETE 사용

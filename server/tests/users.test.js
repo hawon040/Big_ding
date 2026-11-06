@@ -24,7 +24,7 @@ describe("온보딩·내 정보·설정", () => {
     const me = await createUser();
     const taken = await createUser();
     const ok = await api(me.token).patch("/api/users/me").send({ department: "빅데이터학과", grade: 3, bio: "안녕" });
-    expect(ok.body).toMatchObject({ department: "빅데이터학과", grade: 3, bio: "안녕" });
+    expect(ok.body).toMatchObject({ department: "AI 빅데이터 학과", grade: 3, bio: "안녕" });
     expect((await api(me.token).patch("/api/users/me").send({ grade: 5 })).status).toBe(400);
     expect((await api(me.token).patch("/api/users/me").send({ bio: "가".repeat(151) })).status).toBe(400);
     expect((await api(me.token).patch("/api/users/me").send({ nickname: taken.user.nickname })).status).toBe(409);
@@ -105,7 +105,7 @@ describe("마이페이지 목록", () => {
     const me = await createUser();
     const priv = await createUser({ isPrivate: true, department: "통계학과", bio: "소개" });
     const profile = await api(me.token).get(`/api/users/${priv.id}`);
-    expect(profile.body).toMatchObject({ department: "통계학과", bio: "소개", isMe: false, postCount: 0 });
+    expect(profile.body).toMatchObject({ department: "AI 빅데이터 학과", bio: "소개", isMe: false, postCount: 0 });
     expect((await api(me.token).get(`/api/users/${priv.id}/posts`)).status).toBe(403);
   });
 });
@@ -182,7 +182,7 @@ describe("회원가입·탈퇴", () => {
     });
     expect(reg.status).toBe(200);
     const created = await User.findOne({ studentId: "20259999" });
-    expect(created).toMatchObject({ department: "빅데이터학과", grade: 1, onboardingCompleted: false });
+    expect(created).toMatchObject({ department: "AI 빅데이터 학과", grade: 1, onboardingCompleted: false });
 
     const me = await createUser();
     const fan = await createUser();

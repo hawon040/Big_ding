@@ -148,7 +148,7 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
           feed={editing}
           onBack={() => setEditing(null)}
           onSaved={(updated) => {
-            patch(updated.id, { content: updated.content, tags: updated.tags });
+            patch(updated.id, { content: updated.content, tags: updated.tags, images: updated.images });
             setEditing(null);
           }}
         />

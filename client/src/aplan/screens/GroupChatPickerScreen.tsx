@@ -77,7 +77,7 @@ export function GroupChatPickerScreen({ mode, onBack, onCreated, onInvited }: Gr
       </header>
 
       <main className="flex min-h-0 flex-1 flex-col gap-[8px] overflow-y-auto px-[20px]">
-        {!inviting && <TextField label="채팅방 이름" placeholder="채팅방 이름 (선택)" value={name} maxLength={30} onChange={(e) => setName(e.target.value)} />}
+        {!inviting && <TextField label="채팅방 이름" placeholder="채팅방 이름을 지정해주세요." value={name} maxLength={30} onChange={(e) => setName(e.target.value)} />}
         {loadError && <ErrorState onRetry={load} />}
         {people && relations && candidates.length === 0 && (
   <EmptyState title="초대할 수 있는 사람이 없어요" description="대화한 적 있고 서로 팔로우하는 사람만 초대할 수 있어요." />

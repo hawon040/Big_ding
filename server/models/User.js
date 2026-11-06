@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { DEPARTMENT } = require("../constants/department");
 const bcrypt = require("bcryptjs");
 const { TOPIC_KEYS } = require("../constants/topics");
 
@@ -83,7 +84,7 @@ const userSchema = new mongoose.Schema({
   // false면 로그인 후 온보딩 화면으로 보낸다 (기존 가입자도 다음 로그인 때 온보딩)
   onboardingCompleted: { type: Boolean, default: false },
 
-  department: { type: String, trim: true, maxlength: 50 },
+  department: { type: String, trim: true, maxlength: 50, default: DEPARTMENT }, // AI 빅데이터 학과 고정
   grade: { type: Number, min: 1, max: 4 },
   bio: { type: String, trim: true, maxlength: 20 },
 

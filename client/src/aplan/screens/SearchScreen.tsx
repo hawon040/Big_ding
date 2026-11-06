@@ -13,11 +13,13 @@ type ResultTab = "post" | "user" | "tag";
 interface SearchScreenProps {
   onOpenPost: (id: string) => void;
   onOpenUser: (id: string) => void;
+  /** 상단 "취소": 검색창의 X(검색어 지우기)와 달리 검색 화면을 나가 이전 화면으로 돌아간다 */
+  onBack: () => void;
 }
 
 // A-05 검색 (Figma 2:245).
 // 입력 중에는 검색하지 않고, Enter/검색 버튼 또는 검색어 추천을 선택했을 때 실행한다.
-export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
+export function SearchScreen({ onOpenPost, onOpenUser, onBack }: SearchScreenProps) {
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
   const [searchExecution, setSearchExecution] = useState(0);
@@ -147,15 +149,10 @@ export function SearchScreen({ onOpenPost, onOpenUser }: SearchScreenProps) {
             </button>
           )}
         </span>
-        {/* Figma는 검색어가 비어 있을 때도 항상 "취소"를 보여준다 */}
+        {/* Figma는 검색어가 비어 있을 때도 항상 "취소"를 보여준다. 검색어 지우기는 X 버튼이 하므로 취소는 화면을 나간다 */}
         <button
           type="button"
-          onClick={() => {
-            setInput("");
-            setQuery("");
-            setHistoryError(null);
-            inputRef.current?.blur();
-          }}
+          onClick={onBack}
           className="shrink-0 border-0 bg-transparent p-0 text-[14px] leading-[17px] font-normal"
           style={{ color: "var(--a-color-text-primary)" }}
         >

@@ -190,6 +190,58 @@ describe("좋아요·스크랩", () => {
     expect((await Post.findById(post._id)).scrapCount).toBe(0);
   });
 
+  test("scrapCount가 실제 스크랩 인원과 어긋나 있어도 누르면 배열 길이로 바로잡힌다 (음수 방지)", async () => {
+    const author = await createUser();
+    const a = await createUser();
+    const post = await createPost(author.token);
+    await Post.updateOne({ _id: post._id }, { $set: { scrapCount: -1 } });
+    const on = await api(a.token).post(`/api/posts/${post._id}/scrap`);
+    expect(on.body).toMatchObject({ scrapCount: 1, isScrapped: true });
+    const off = await api(a.token).delete(`/api/posts/${post._id}/scrap`);
+    expect(off.body).toMatchObject({ scrapCount: 0, isScrapped: false });
+    expect((await User.findById(a.id)).scrapCount).toBe(0);
+  });
+
+  test("글 수정으로 투표 추가·수정(같은 선택지는 득표 유지)·삭제", async () => {
+    const author = await createUser();
+    const voter = await createUser();
+    const post = await createPost(author.token);
+    const url = `/api/posts/${post._id}`;
+
+    expect((await api(author.token).patch(url).send({ poll: { question: "점심?", options: ["밥", "면"] } })).status).toBe(200);
+    await api(voter.token).post(`${url}/poll/vote`).send({ optionIndex: 0 });
+
+    await api(author.token).patch(url).send({ poll: { question: "점심 메뉴?", options: ["밥", "빵", "국"] } });
+    let detail = (await api(author.token).get(url)).body;
+    expect(detail.poll.question).toBe("점심 메뉴?");
+    expect(detail.poll.options.map((o) => [o.text, o.count])).toEqual([["밥", 1], ["빵", 0], ["국", 0]]);
+
+    expect((await api(author.token).patch(url).send({ poll: { question: "q", options: ["하나"] } })).status).toBe(400);
+
+    expect((await api(author.token).patch(url).send({ poll: null })).status).toBe(200);
+    detail = (await api(author.token).get(url)).body;
+    expect(detail.poll).toBeNull();
+  });
+
+  test("강의평가 별점은 글 수정으로 바꿀 수 있고, 범위 밖·다른 게시판은 400", async () => {
+    const author = await createUser();
+    const lecture = await createPost(author.token, { board: "lecture", rating: "3", content: "가".repeat(30) });
+    const url = `/api/posts/${lecture._id}`;
+    expect((await api(author.token).patch(url).send({ rating: 4.5 })).status).toBe(200);
+    expect((await api(author.token).get(url)).body.rating).toBe(4.5);
+    expect((await api(author.token).patch(url).send({ rating: 6 })).status).toBe(400);
+    expect((await api(author.token).patch(url).send({ rating: 2.3 })).status).toBe(400);
+    const free = await createPost(author.token);
+    expect((await api(author.token).patch(`/api/posts/${free._id}`).send({ rating: 3 })).status).toBe(400);
+    expect((await api(author.token).patch(`/api/posts/${free._id}`).send({ lectureGrade: "기초교과군" })).status).toBe(400);
+
+    // 교과군·강의명(제목)·교수(태그)도 함께 바꿀 수 있다
+    const changed = await api(author.token).patch(url).send({ lectureGrade: "심화교과군", title: "인공지능", tags: ["심화교과군", "홍진근"] });
+    expect(changed.status).toBe(200);
+    const detail = (await api(author.token).get(url)).body;
+    expect(detail).toMatchObject({ lectureGrade: "심화교과군", title: "인공지능", tags: ["심화교과군", "홍진근"] });
+  });
+
   test("없는 글 404, 볼 수 없는 글 403", async () => {
     const author = await createUser();
     const a = await createUser();

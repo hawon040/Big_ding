@@ -1,4 +1,5 @@
 const express = require("express");
+const { DEPARTMENT } = require("../constants/department");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
@@ -110,14 +111,10 @@ router.post("/check-nickname", async (req, res) => {
 // POST /api/auth/register - 회원가입
 router.post("/register", async (req, res) => {
   try {
-    const { studentId, name, professor, code, password, phone, department, grade } = req.body;
+    const { studentId, name, professor, code, password, phone, grade } = req.body;
     if (!studentId) return res.status(400).json({ message: "학번을 입력해주세요." });
 
-    // A안 회원가입에서 추가로 받는 학과·학년 (선택)
-    const departmentValue = typeof department === "string" && department.trim() ? department.trim() : undefined;
-    if (departmentValue && departmentValue.length > 50) {
-      return res.status(400).json({ message: "학과는 50자 이하로 입력해주세요." });
-    }
+    // 학과는 입력과 관계없이 AI 빅데이터 학과로 고정한다. 학년은 선택
     const gradeValue = grade === undefined || grade === null || grade === "" ? undefined : Number(grade);
     if (gradeValue !== undefined && (!Number.isInteger(gradeValue) || gradeValue < 1 || gradeValue > 4)) {
       return res.status(400).json({ message: "학년은 1~4 사이로 선택해주세요." });
@@ -148,7 +145,7 @@ const normalizedPhone = normalizePhone(phone); // DB에는 숫자만 저장 (fin
       nickname: name,            // 이름을 닉네임으로 저장
       professor,
       phone: normalizedPhone,
-      department: departmentValue,
+      department: DEPARTMENT,
       grade: gradeValue,
       onboardingCompleted: false, // 로그인 후 관심 분야 온보딩으로 이동
       isFirstLogin: false,       // 회원가입으로 생성 → 바로 로그인 가능

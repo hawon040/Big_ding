@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { departmentOf } = require("../constants/department");
 const { includesId } = require("./access");
 
 // A안 응답 형태로 변환하는 함수들. 작성자 정보는 AUTHOR_FIELDS로 populate한 값을 쓴다.
@@ -23,7 +24,7 @@ const toAuthor = (u) => {
   return {
     id: String(u._id),
     nickname: u.nickname,
-    department: u.department || null,
+    department: departmentOf(u),
     profileImage: u.avatar || null,
     isWithdrawn: !!u.isWithdrawn,
   };
@@ -55,7 +56,7 @@ const toPostCard = (p, meId) => ({
   createdAt: p.createdAt,
   likeCount: p.likeCount || 0,
   commentCount: p.commentCount || 0,
-  scrapCount: p.scrapCount || 0,
+  scrapCount: Math.max(0, p.scrapCount || 0),
   viewCount: p.viewCount || 0,
   isLiked: includesId(p.likes, meId),
   isScrapped: includesId(p.scraps, meId),
@@ -78,6 +79,8 @@ const toPoll = (poll, meId) => {
 
 const toPostDetail = (p, meId, { isFollowingAuthor = false } = {}) => ({
   ...toPostCard(p, meId),
+  // 상세는 scraps 배열 전체를 불러오므로 저장된 카운트 대신 실제 인원 수를 내려준다.
+  scrapCount: Array.isArray(p.scraps) ? p.scraps.length : Math.max(0, p.scrapCount || 0),
   content: p.content,
   images: p.images || [],
   poll: toPoll(p.poll, meId),

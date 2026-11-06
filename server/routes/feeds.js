@@ -157,7 +157,9 @@ router.get("/:id", auth, async (req, res) => {
 });
 
 // PUT /api/feeds/:id — 내 피드 글 수정 (사진은 그대로, content와 #태그만 바꾼다)
-router.put("/:id", auth, async (req, res) => {
+// multipart로 보내면 사진도 바꿀 수 있다: keepImages(JSON 배열, 남길 기존 사진 URL 순서대로) + images(새 파일).
+// 최종 사진 = 남긴 기존 사진 → 새 사진 순서. keepImages가 없으면(JSON 요청) 사진은 그대로 둔다.
+router.put("/:id", auth, upload.array("images", MAX_IMAGES), async (req, res) => {
   try {
     const feed = await findVisible(req.params.id, req.user.id);
     if (!sameId(feed.author._id, req.user.id)) throw new v.HttpError(403, "권한이 없습니다.");
@@ -167,6 +169,17 @@ router.put("/:id", auth, async (req, res) => {
     const tags = extractTags(content);
     if (tags.length > MAX_POST_TAGS) v.fail(`태그는 최대 ${MAX_POST_TAGS}개까지 달 수 있습니다.`);
     if (tags.some((t) => t.length > TAG_MAX_LEN)) v.fail(`태그는 ${TAG_MAX_LEN}자 이하로 입력해주세요.`);
+    if (req.body.keepImages !== undefined) {
+      const keepRaw = v.parseJsonField(req.body.keepImages, "사진");
+      if (!Array.isArray(keepRaw)) v.fail("사진 정보가 올바르지 않습니다.");
+      // 이 피드에 원래 있던 사진만 남길 수 있다(다른 URL을 끼워 넣지 못하게)
+      const keep = keepRaw.filter((url) => typeof url === "string" && feed.images.includes(url));
+      const files = req.files || [];
+      if (keep.length + files.length === 0) v.fail("사진을 1장 이상 올려주세요.");
+      if (keep.length + files.length > MAX_IMAGES) v.fail(`사진은 최대 ${MAX_IMAGES}장까지 올릴 수 있습니다.`);
+      const added = (await Promise.all(files.map((file) => uploadImage(file.buffer, "feeds")))).map((r) => r.secure_url);
+      feed.images = [...keep, ...added];
+    }
     feed.content = content;
     feed.tags = tags;
     await feed.save();

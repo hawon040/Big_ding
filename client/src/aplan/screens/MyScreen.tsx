@@ -10,6 +10,7 @@ import { useInfiniteList } from "@/aplan/hooks/useInfiniteList";
 import { useProfileCountsLive } from "@/aplan/hooks/useProfileCountsLive";
 import { TOPIC_MAP, type TopicKey } from "@/constants/topics";
 import type { Me } from "@/types/aplan";
+import { DEPARTMENT } from "@/constants/department";
 import "@/styles/aplan-tokens.css";
 
 interface MyScreenProps {
@@ -93,7 +94,7 @@ export function MyScreen({ onOpenPost, onOpenFeed, onEditProfile, onOpenSettings
                   <>
                     <span className="text-[20px] leading-[24px] font-bold" style={{ color: "var(--a-color-text-primary)" }}>{me.nickname}</span>
                     <span className="text-[13px] leading-[16px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>
-                      {[me.department, me.grade ? `${me.grade}학년` : null].filter(Boolean).join(" · ") || "학과 정보 없음"}
+                      {[me.department, me.grade ? `${me.grade}학년` : null].filter(Boolean).join(" · ") || DEPARTMENT}
                     </span>
                   </>
                 ) : (

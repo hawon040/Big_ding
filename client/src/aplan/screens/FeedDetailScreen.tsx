@@ -138,7 +138,7 @@ export function FeedDetailScreen({ feedId, onBack, onOpenUser }: FeedDetailScree
           feed={feed}
           onBack={() => setEditing(false)}
           onSaved={(updated) => {
-            patch(updated.id, { content: updated.content, tags: updated.tags });
+            patch(updated.id, { content: updated.content, tags: updated.tags, images: updated.images });
             setEditing(false);
           }}
         />

@@ -1,6 +1,6 @@
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { ChevronLeft, Plus, Search, X } from "lucide-react";
-import { postApi } from "@/api/aplan";
+import { meApi, postApi } from "@/api/aplan";
 import { BOARDS, PRIMARY_BOARDS, type BoardKey } from "@/constants/boards";
 import { IconButton } from "@/aplan/components/IconButton";
 import { PostListItem } from "@/aplan/components/PostListItem";
@@ -24,6 +24,14 @@ export function CommunityScreen({ initialBoard = "all", onBack, onOpenPost, onOp
   const [board, setBoard] = useState<BoardKey | "all">(initialBoard);
   const [moreOpen, setMoreOpen] = useState(() => initialBoard !== "all" && !PRIMARY_BOARDS.some((b) => b.key === initialBoard));
   const list = useInfiniteList((cursor) => postApi.list(board, cursor), [board]);
+  // 공지사항 게시판에서는 관리자·공지 작성 권한이 있는 계정에만 글쓰기 버튼을 보여준다
+  const [canWriteNotice, setCanWriteNotice] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    meApi.get().then((me) => !cancelled && setCanWriteNotice(!!(me.isAdmin || me.canPostEvents))).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+  const canWriteHere = board !== "event" || canWriteNotice;
 
   const tabs: { key: BoardKey | "all"; label: string }[] = [
     { key: "all", label: "전체" },
@@ -117,7 +125,7 @@ export function CommunityScreen({ initialBoard = "all", onBack, onOpenPost, onOp
           <EmptyState
             title="아직 글이 없어요"
             description="첫 번째 글을 남겨보세요"
-            action={{ label: "글쓰기", onClick: () => onWrite(board === "all" ? null : board) }}
+            action={canWriteHere ? { label: "글쓰기", onClick: () => onWrite(board === "all" ? null : board) } : undefined}
           />
         )}
         {list.status === "ready" &&
@@ -132,7 +140,7 @@ export function CommunityScreen({ initialBoard = "all", onBack, onOpenPost, onOp
       </main>
 
       {/* 2:330 글쓰기 버튼: 탭바 위 26px, 프레임 오른쪽 끝에서 20px (화면 좌우 1px 여백 안쪽 기준 19px) */}
-      <button
+      {canWriteHere && <button
         type="button"
         aria-label="글쓰기"
         onClick={() => onWrite(board === "all" ? null : board)}
@@ -140,7 +148,7 @@ export function CommunityScreen({ initialBoard = "all", onBack, onOpenPost, onOp
         style={{ borderRadius: 28, background: "var(--a-color-surface-inverse)", color: "var(--a-color-on-inverse)" }}
       >
         +
-      </button>
+      </button>}
     </div>
   );
 }

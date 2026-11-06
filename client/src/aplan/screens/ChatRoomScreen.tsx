@@ -10,6 +10,7 @@ import { BottomSheet, SheetItem } from "@/aplan/components/BottomSheet";
 import { PrimaryButton } from "@/aplan/components/PrimaryButton";
 import { TextField } from "@/aplan/components/TextField";
 import { ErrorState } from "@/aplan/components/States";
+import { ImageViewer } from "@/aplan/components/ImageViewer";
 import { useChatSocket } from "@/aplan/hooks/useChatSocket";
 import { alertDialog, confirmDialog } from "@/aplan/components/Dialog";
 import "@/styles/aplan-tokens.css";
@@ -64,7 +65,8 @@ export function ChatRoomScreen({ myId, target, onBack, onOpenUser, onInvite }: C
   const [sendError, setSendError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [photos, setPhotos] = useState<{ image: string; createdAt: string }[] | null>(null);
-  const [viewing, setViewing] = useState<string | null>(null);
+  // 크게 보는 사진. fromGallery면 닫을 때(우측 상단 X·Esc·배경) 사진 모아보기로 돌아간다
+  const [viewing, setViewing] = useState<{ src: string; fromGallery: boolean } | null>(null);
   const [revealed, setRevealed] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [unseen, setUnseen] = useState(false);
@@ -299,7 +301,7 @@ export function ChatRoomScreen({ myId, target, onBack, onOpenUser, onInvite }: C
                     onOpenUser={() => m.sender && onOpenUser(m.sender._id)}
                     onToggleTime={() => setRevealed((r) => (r === m.id ? null : m.id))}
                     onLike={() => toggleLike(m)}
-                    onImage={() => m.image && setViewing(m.image)}
+                    onImage={() => m.image && setViewing({ src: m.image, fromGallery: false })}
                   />
                 )}
               </div>
@@ -380,7 +382,7 @@ export function ChatRoomScreen({ myId, target, onBack, onOpenUser, onInvite }: C
         {photos?.length === 0 && <p className="m-0 py-[16px] text-center text-[13px]" style={{ color: "var(--a-color-text-secondary)" }}>주고받은 사진이 없어요.</p>}
         <div className="grid max-h-[50dvh] grid-cols-3 gap-[4px] overflow-y-auto">
           {photos?.map((p) => (
-            <button key={p.image} type="button" onClick={() => { setSheet(null); setViewing(p.image); }} className="aspect-square border-0 bg-transparent p-0">
+            <button key={p.image} type="button" onClick={() => { setSheet(null); setViewing({ src: p.image, fromGallery: true }); }} className="aspect-square border-0 bg-transparent p-0">
               <img src={resolveAssetUrl(p.image)} alt="" loading="lazy" className="size-full object-cover" style={{ borderRadius: "var(--a-radius-icon)" }} />
             </button>
           ))}
@@ -414,17 +416,15 @@ export function ChatRoomScreen({ myId, target, onBack, onOpenUser, onInvite }: C
       </BottomSheet>
 
       {viewing && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="사진 크게 보기"
-          onClick={() => setViewing(null)}
-          onKeyDown={(e) => e.key === "Escape" && setViewing(null)}
-          className="fixed inset-0 z-[90] flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.9)" }}
-        >
-          <img src={resolveAssetUrl(viewing)} alt="" className="max-h-full max-w-full object-contain" />
-        </div>
+        <ImageViewer
+          src={viewing.src}
+          alt="사진 크게 보기"
+          onClose={() => {
+            const backToGallery = viewing.fromGallery;
+            setViewing(null);
+            if (backToGallery) setSheet("photos");
+          }}
+        />
       )}
     </div>
   );

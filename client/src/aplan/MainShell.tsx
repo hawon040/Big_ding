@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import api from "@/api";
 import { meApi, notificationApi } from "@/api/aplan";
 import type { ChatTarget, GroupChat } from "@/api/chat";
@@ -52,6 +52,13 @@ interface MainShellProps {
 export function MainShell({ initialTab = "home" }: MainShellProps) {
   // 알림은 탭이 아니라 홈 알림 버튼으로 여는 화면이다 (개발 미리보기의 initialTab="notifications"도 이쪽으로 연다)
   const [tab, setTab] = useState<MainTab>(initialTab === "notifications" ? "home" : initialTab);
+  // 검색 "취소"로 돌아갈 직전 탭 (검색 외의 탭만 기억한다)
+  const [prevTab, setPrevTab] = useState<MainTab>("home");
+  const lastTab = useRef<MainTab>(tab);
+  useEffect(() => {
+    if (lastTab.current !== tab && lastTab.current !== "search") setPrevTab(lastTab.current);
+    lastTab.current = tab;
+  }, [tab]);
   const [notificationsOpen, setNotificationsOpen] = useState(initialTab === "notifications");
   const [unreadNotifications, setUnreadNotifications] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -129,7 +136,7 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
       break;
     case "search":
       content = (
-        <SearchScreen onOpenPost={openPost} onOpenUser={openUser} />
+        <SearchScreen onOpenPost={openPost} onOpenUser={openUser} onBack={() => setTab(prevTab === "search" ? "home" : prevTab)} />
       );
       break;
     case "my":

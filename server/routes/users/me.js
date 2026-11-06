@@ -1,5 +1,6 @@
 // /api/users/me — 내 정보·온보딩·프로필·설정·차단 목록
 const express = require("express");
+const { departmentOf } = require("../../constants/department");
 const router = express.Router();
 const User = require("../../models/User");
 const auth = require("../../middleware/authMiddleware");
@@ -19,7 +20,7 @@ const toMe = (u, live) => ({
   studentId: u.studentId,
   nickname: u.nickname,
   profileImage: u.avatar || null,
-  department: u.department || null,
+  department: departmentOf(u),
   grade: u.grade || null,
   bio: u.bio || null,
   interests: u.interests || [],
@@ -93,7 +94,7 @@ router.patch("/me", auth, upload.single("avatar"), async (req, res) => {
       }
       set[key] = v.requireString(value, name, { max });
     };
-    optionalText(department, "department", "학과", 50);
+    // 학과는 AI 빅데이터 학과로 고정이라 요청에 와도 무시한다(constants/department.js)
     optionalText(bio, "bio", "소개", 20);
     if (grade !== undefined) {
       if (grade === null || grade === "") {
@@ -147,7 +148,7 @@ router.get("/me/blocks", auth, async (req, res) => {
       id: String(u._id),
       nickname: u.nickname,
       profileImage: u.avatar || null,
-      department: u.department || null,
+      department: departmentOf(u),
     }));
     res.json({ items, nextCursor: null });
   } catch (err) {
