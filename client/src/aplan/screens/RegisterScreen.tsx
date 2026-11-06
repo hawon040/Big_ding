@@ -1,5 +1,4 @@
 import { useState, type FormEvent, type ReactNode } from "react";
-import { DEPARTMENT } from "@/constants/department";
 import { ChevronLeft, Eye, EyeOff } from "lucide-react";
 import api from "@/api";
 import { TextField } from "@/aplan/components/TextField";
@@ -251,11 +250,6 @@ else if (!PHONE_RULE.test(phone)) next.phone = "전화번호는 010-1234-5678 �
     setError("phone");
   }}
 />
-        </Field>
-
-        {/* 학과는 AI 빅데이터 학과로 고정 (서버도 입력값과 관계없이 이 값으로 저장) */}
-        <Field label="학과">
-          <TextField label="학과" value={DEPARTMENT} readOnly disabled aria-readonly />
         </Field>
 
         <Field label="학년" optional>
