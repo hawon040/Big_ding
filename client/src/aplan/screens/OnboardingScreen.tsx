@@ -6,6 +6,7 @@ import { TopicSelectChip } from "@/aplan/components/TopicSelectChip";
 import { PrimaryButton } from "@/aplan/components/PrimaryButton";
 import type { Me } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 interface OnboardingScreenProps {
   /** 처음 온보딩이면 "onboarding", 마이페이지에서 관심 기술을 고치러 들어오면 "edit" */
@@ -19,6 +20,7 @@ interface OnboardingScreenProps {
 // - 진행 바(2:46)는 가입 → 관심 분야 → 시작 중 두 번째 단계로 표시한다
 // - 마이페이지에서 다시 들어오면 진행 바 자리에 뒤로 가기를 두고 버튼은 "저장"으로 동작한다
 export function OnboardingScreen({ mode = "onboarding", initialInterests = [], onDone, onBack }: OnboardingScreenProps) {
+  useSwipeBack(onBack);
   const [selected, setSelected] = useState<TopicKey[]>(initialInterests);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

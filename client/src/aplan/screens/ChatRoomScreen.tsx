@@ -14,6 +14,7 @@ import { ImageViewer } from "@/aplan/components/ImageViewer";
 import { useChatSocket } from "@/aplan/hooks/useChatSocket";
 import { alertDialog, confirmDialog } from "@/aplan/components/Dialog";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 const REFRESH_MS = 5000;
 const DIVIDER_GAP_MS = 60 * 60 * 1000;
@@ -50,6 +51,7 @@ const clockLabel = (iso: string) => new Date(iso).toLocaleTimeString("ko-KR", { 
 // 대화방 (Figma에 없는 화면 — A안 톤으로 구성). 1:1과 단체 채팅이 같은 화면을 쓰고 target으로 갈린다.
 // 메시지: 탭하면 시간 표시, 더블 탭하면 하트, 입력칸이 비어 있으면 하트 버튼으로 ❤️를 바로 보낸다.
 export function ChatRoomScreen({ myId, target, onBack, onOpenUser, onInvite }: ChatRoomScreenProps) {
+  useSwipeBack(onBack);
   const isGroup = target.kind === "group";
   const [chat, setChat] = useState<GroupChat | null>(target.kind === "group" ? target.chat : null);
   const peer = target.kind === "direct" ? target.user : null;

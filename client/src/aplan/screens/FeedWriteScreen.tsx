@@ -3,6 +3,7 @@ import { ChevronLeft, Plus, X } from "lucide-react";
 import { feedPostApi } from "@/api/aplan";
 import { PrimaryButton } from "@/aplan/components/PrimaryButton";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 const MAX_IMAGES = 10;
 const CONTENT_MAX = 1000;
@@ -16,6 +17,7 @@ interface FeedWriteScreenProps {
 // 피드 올리기: 사진 1~10장이 반드시 있어야 올릴 수 있다. 글(최대 1000자)은 선택이고, 본문의 #단어는 태그로 저장된다.
 // 커뮤니티 글쓰기(WriteScreen)와 달리 게시판·제목이 없고, 저장도 별도 컬렉션(feeds)에 된다.
 export function FeedWriteScreen({ onBack, onDone }: FeedWriteScreenProps) {
+  useSwipeBack(onBack);
   const [images, setImages] = useState<File[]>([]);
   const [content, setContent] = useState("");
   const [error, setError] = useState<string | null>(null);

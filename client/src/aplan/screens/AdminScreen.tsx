@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
 import type { AdminReportTarget, AdminUser, InquiryItem, ReportItem, SanctionItem, SanctionType } from "@/types/aplan";
 import { confirmDialog } from "@/aplan/components/Dialog";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 type Tab = "reports" | "inquiries" | "users" | "sanctions";
 const TABS: { key: Tab; label: string }[] = [
@@ -25,6 +26,7 @@ const errMsg = (err: any, fallback: string) => err?.response?.data?.message || f
 
 // 관리자 화면: 신고 처리 · 건의 답변 · 회원 제재 · 제재 해제. 서버는 isAdmin이 아니면 403을 돌려준다.
 export function AdminScreen({ onBack }: { onBack: () => void }) {
+  useSwipeBack(onBack);
   const [tab, setTab] = useState<Tab>("reports");
   return (
     <div className="flex min-h-0 flex-1 flex-col">

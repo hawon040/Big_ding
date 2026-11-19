@@ -6,6 +6,7 @@ import { notificationApi } from "@/api/aplan";
 import { formatTime } from "@/utils";
 import type { NotificationItem, NotificationType } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 interface NotificationScreenProps {
   onBack: () => void;
@@ -19,6 +20,7 @@ const ADMIN_TYPES: NotificationType[] = ["adminWarning", "adminBan", "adminComme
 // 알림 (Figma에 없는 신규 화면 — Figma의 A-08은 설정 화면이다. A안 톤으로 새로 구성).
 // 유형별 문구는 기존 앱(app/components/CommunityScreen.tsx 알림 패널)의 표현을 A안 말투("~해요")로 옮겼다.
 export function NotificationScreen({ onBack, onOpenPost, onOpenFeed, onOpenUser }: NotificationScreenProps) {
+  useSwipeBack(onBack);
   const list = useInfiniteList((cursor) => notificationApi.list(cursor), []);
 
   const markAllRead = () => {

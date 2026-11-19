@@ -8,6 +8,7 @@ import { useProfileCountsLive } from "@/aplan/hooks/useProfileCountsLive";
 import type { UserSummary } from "@/types/aplan";
 import { alertDialog, confirmDialog } from "@/aplan/components/Dialog";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 export type FollowTab = "followers" | "following";
 
@@ -29,6 +30,7 @@ type Status = "loading" | "ready" | "error";
 // 각 줄에서 바로 팔로우·언팔로우할 수 있고, 내 팔로워 목록에서는 "삭제"로 팔로워를 내보낼 수 있다.
 // 비공개 계정은 본인·맞팔로우가 아니면 서버가 403을 준다.
 export function FollowListScreen({ userId, initialTab, onBack, onOpenUser }: FollowListScreenProps) {
+  useSwipeBack(onBack);
   const [tab, setTab] = useState<FollowTab>(initialTab);
   const [myId, setMyId] = useState<string | null>(null);
   const [lists, setLists] = useState<Record<FollowTab, UserSummary[]>>({ followers: [], following: [] });

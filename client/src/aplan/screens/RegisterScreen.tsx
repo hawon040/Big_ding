@@ -5,6 +5,7 @@ import { TextField } from "@/aplan/components/TextField";
 import { PrimaryButton } from "@/aplan/components/PrimaryButton";
 import { alertDialog } from "@/aplan/components/Dialog";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 // 담당 교수 (서버 routes/auth.js의 교수별 인증번호와 같은 이름이어야 한다)
 const PROFESSORS = ["유진호", "차대현", "홍진근"] as const;
@@ -36,6 +37,7 @@ interface RegisterScreenProps {
 // - 안내·오류는 팝업 대신 해당 칸 아래에 보여주고, 가입 완료만 확인 창으로 알린다
 // - 인증이 끝나면 학번·닉네임·교수·인증번호는 잠근다(전화번호·학과·비밀번호는 계속 고칠 수 있다)
 export function RegisterScreen({ onBack, onDone }: RegisterScreenProps) {
+  useSwipeBack(onBack);
   const [studentId, setStudentId] = useState("");
   const [nickname, setNickname] = useState("");
   const [professor, setProfessor] = useState("");

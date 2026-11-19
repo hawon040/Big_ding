@@ -63,10 +63,13 @@ interface FeedCardProps {
   onDelete?: (feed: FeedItem) => void;
   /** 좋아요 수를 누르면 좋아요 누른 사람 목록을 연다 */
   onOpenLikers?: (feed: FeedItem) => void;
+  /** 홈 목록에서는 이걸 주면 이 카드 안이 아니라 전체 피드를 스토리처럼 넘기는 뷰어(FeedStoryViewer)가 연다.
+   *  안 주면(상세 화면 등) 이 카드 자신의 사진만 보는 기본 ImageViewer가 연다. */
+  onImageClick?: (imageIndex: number) => void;
 }
 
 // 홈 피드 카드: 작성자 → 사진(여러 장 스와이프, 누르면 전체화면) → 좋아요·댓글 → 본문 → 주제. 커뮤니티 PostCard와 다른 게시물이다.
-export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, onTagClick, expanded = false, onEdit, onDelete, onOpenLikers }: FeedCardProps) {
+export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, onTagClick, expanded = false, onEdit, onDelete, onOpenLikers, onImageClick }: FeedCardProps) {
   // Figma 2:130: 카드 안 반응 아이콘은 14px (상세 화면은 누르기 쉽게 18px 유지)
   const actionIcon = expanded ? 18 : 14;
   // menu: ⋮ 메뉴 / report: 신고 사유 고르기 / reportEtc: "기타" 사유 직접 적기
@@ -120,7 +123,7 @@ export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, onTagClick, e
         {hasMenu && <IconButton icon={MoreVertical} label="더보기" onClick={() => setSheet("menu")} />}
       </div>
 
-      <ImageCarousel images={feed.images} onImageClick={setViewerIndex} />
+      <ImageCarousel images={feed.images} onImageClick={onImageClick ?? setViewerIndex} />
 
       <div className="flex w-full items-center gap-[14px]">
         {/* 하트는 좋아요 토글, 숫자는 좋아요 누른 사람 목록 (onOpenLikers가 있을 때) */}
@@ -227,7 +230,7 @@ export function FeedCard({ feed, onToggleLike, onOpen, onOpenUser, onTagClick, e
         </div>
       </BottomSheet>
 
-      {viewerIndex !== null && (
+      {!onImageClick && viewerIndex !== null && (
         <ImageViewer images={feed.images} startIndex={viewerIndex} alt="피드 사진" onClose={() => setViewerIndex(null)} />
       )}
     </article>

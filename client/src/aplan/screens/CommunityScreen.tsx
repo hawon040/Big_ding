@@ -7,6 +7,7 @@ import { PostListItem } from "@/aplan/components/PostListItem";
 import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
 import { useInfiniteList } from "@/aplan/hooks/useInfiniteList";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 interface CommunityScreenProps {
   initialBoard?: BoardKey | "all";
@@ -21,6 +22,7 @@ interface CommunityScreenProps {
 // A-06 커뮤니티 (Figma 2:320). 게시판 탭(전체·자유·Q&A·스터디·공모전·취업) + 최신순 목록 + 글쓰기 버튼.
 // A안 탭에 없는 기존 게시판(공지사항·작품 전시·꿀팁·강의평가·공강모임·졸업생)은 헤더의 [전체 게시판]에서 고른다.
 export function CommunityScreen({ initialBoard = "all", onBack, onOpenPost, onOpenSearch, onWrite }: CommunityScreenProps) {
+  useSwipeBack(onBack);
   const [board, setBoard] = useState<BoardKey | "all">(initialBoard);
   const [moreOpen, setMoreOpen] = useState(() => initialBoard !== "all" && !PRIMARY_BOARDS.some((b) => b.key === initialBoard));
   const list = useInfiniteList((cursor) => postApi.list(board, cursor), [board]);

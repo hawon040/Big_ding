@@ -5,9 +5,11 @@ import { ScreenHeader } from "@/aplan/components/ScreenHeader";
 import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
 import type { BlockedUser } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 // 차단 내역: 내가 차단한 사용자 목록과 차단 해제
 export function BlockedUsersScreen({ onBack }: { onBack: () => void }) {
+  useSwipeBack(onBack);
   const [items, setItems] = useState<BlockedUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);

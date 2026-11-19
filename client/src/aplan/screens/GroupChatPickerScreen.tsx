@@ -6,6 +6,7 @@ import { TextField } from "@/aplan/components/TextField";
 import { PrimaryButton } from "@/aplan/components/PrimaryButton";
 import { EmptyState, ErrorState } from "@/aplan/components/States";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 type Mode = { kind: "create" } | { kind: "invite"; chat: GroupChat };
 
@@ -21,6 +22,7 @@ interface GroupChatPickerScreenProps {
 // 후보는 대화한 적 있는 사람이고, 서버가 서로 팔로우하는 사이만 허용한다(아니면 서버 메시지를 그대로 보여준다).
 // 나 포함 2명이 되면 서버가 방을 만들지 않고 1:1 대화로 연결해 준다.
 export function GroupChatPickerScreen({ mode, onBack, onCreated, onInvited }: GroupChatPickerScreenProps) {
+  useSwipeBack(onBack);
   const [people, setPeople] = useState<ChatUser[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);

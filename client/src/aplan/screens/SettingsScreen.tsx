@@ -13,6 +13,7 @@ import { EditProfileScreen } from "@/aplan/screens/EditProfileScreen";
 import { applyTheme } from "@/aplan/theme";
 import type { Me } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 interface SettingsScreenProps {
   onBack: () => void;
@@ -24,6 +25,7 @@ interface SettingsScreenProps {
 
 // A-08 설정 (Figma 2:465).
 export function SettingsScreen({ onBack, onOpenAnnouncements }: SettingsScreenProps) {
+  useSwipeBack(onBack);
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [withdrawOpen, setWithdrawOpen] = useState(false);

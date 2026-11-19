@@ -4,6 +4,7 @@ import api from "@/api";
 import { TextField } from "@/aplan/components/TextField";
 import { PrimaryButton } from "@/aplan/components/PrimaryButton";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 interface FindPasswordScreenProps {
   onBack: () => void;
@@ -15,6 +16,7 @@ type Field = "studentId" | "phone" | "newPassword" | "confirmPassword";
 // 비밀번호 찾기 (7-5). 기존 기능(학번 + 가입 때 등록한 전화번호로 본인 확인 후 재설정)을
 // A-02 로그인 화면과 같은 톤으로 옮겼다. Figma에 없는 화면이라 A-02의 입력칸·버튼·글자 크기를 그대로 쓴다.
 export function FindPasswordScreen({ onBack, onDone }: FindPasswordScreenProps) {
+  useSwipeBack(onBack);
   const [values, setValues] = useState<Record<Field, string>>({
     studentId: "", phone: "", newPassword: "", confirmPassword: "",
   });

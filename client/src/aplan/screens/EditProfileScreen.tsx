@@ -8,6 +8,7 @@ import { TextField } from "@/aplan/components/TextField";
 import { TopicSelectChip } from "@/aplan/components/TopicSelectChip";
 import { ErrorState, Skeleton } from "@/aplan/components/States";
 import { confirmDialog } from "@/aplan/components/Dialog";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 import { DEPARTMENT } from "@/constants/department";
 import type { Me } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
@@ -129,6 +130,7 @@ export function EditProfileScreen({ onBack, onDone }: EditProfileScreenProps) {
     }
     onBack();
   };
+  useSwipeBack(handleBack);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">

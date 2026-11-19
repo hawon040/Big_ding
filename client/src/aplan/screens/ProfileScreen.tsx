@@ -12,6 +12,7 @@ import { useProfileCountsLive } from "@/aplan/hooks/useProfileCountsLive";
 import type { UserProfile } from "@/types/aplan";
 import { alertDialog } from "@/aplan/components/Dialog";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 const TABS: { key: ProfileTab; label: string }[] = [
   { key: "feeds", label: "피드글" },
@@ -31,6 +32,7 @@ interface ProfileScreenProps {
 // 마이페이지(A-07)와 같은 톤으로 구성하되 프로필 수정 대신 팔로우 버튼, 차단·신고 메뉴를 둔다.
 // 탭은 마이페이지와 같이 피드글 / 커뮤니티 글. 팔로워·팔로잉 숫자를 누르면 목록으로 간다.
 export function ProfileScreen({ userId, onBack, onOpenPost, onOpenFeed, onOpenFollows }: ProfileScreenProps) {
+  useSwipeBack(onBack);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<ProfileTab>("feeds");

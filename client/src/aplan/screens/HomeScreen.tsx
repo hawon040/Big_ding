@@ -4,6 +4,7 @@ import { feedPostApi, storyApi, tagAlertApi } from "@/api/aplan";
 import type { FeedItem, StoryTrayItem } from "@/types/aplan";
 import { IconButton } from "@/aplan/components/IconButton";
 import { FeedCard } from "@/aplan/components/FeedCard";
+import { FeedStoryViewer } from "@/aplan/components/FeedStoryViewer";
 import { StoryAdd } from "@/aplan/components/StoryAdd";
 import { StoryTray } from "@/aplan/components/StoryTray";
 import { StoryViewer } from "@/aplan/components/StoryViewer";
@@ -55,6 +56,9 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
 
   const feed = useInfiniteList((cursor) => feedPostApi.list(tag, cursor), [tag]);
   const { toggleLike, patch } = useFeedActions(feed.setItems);
+
+  // 사진을 눌러 연 전체화면 스토리형 뷰어: 몇 번째 피드의 몇 번째 사진인지
+  const [photoViewer, setPhotoViewer] = useState<{ feedIndex: number; imageIndex: number } | null>(null);
 
   // 내 피드 ⋯ 메뉴: 수정(글만) / 삭제
   const [editing, setEditing] = useState<FeedItem | null>(null);
@@ -127,8 +131,18 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
           <EmptyState title={tag ? `#${tag} 피드가 아직 없어요` : "아직 올라온 피드가 없어요"} description="사진과 함께 첫 피드를 올려보세요" action={{ label: "피드 올리기", onClick: onWriteFeed }} />
         )}
         {feed.status === "ready" &&
-          feed.items.map((item) => (
-            <FeedCard key={item.id} feed={item} onOpen={onOpenFeed} onOpenUser={onOpenUser} onTagClick={setTag} onToggleLike={toggleLike} onEdit={setEditing} onDelete={removeFeed} />
+          feed.items.map((item, feedIndex) => (
+            <FeedCard
+              key={item.id}
+              feed={item}
+              onOpen={onOpenFeed}
+              onOpenUser={onOpenUser}
+              onTagClick={setTag}
+              onToggleLike={toggleLike}
+              onEdit={setEditing}
+              onDelete={removeFeed}
+              onImageClick={(imageIndex) => setPhotoViewer({ feedIndex, imageIndex })}
+            />
           ))}
         {feed.loadingMore && <PostCardSkeleton />}
         {feed.hasMore && <div ref={feed.sentinelRef} className="h-px w-full shrink-0" aria-hidden />}
@@ -141,6 +155,17 @@ export function HomeScreen({ unreadMessages, unreadNotifications, onOpenFeed, on
             setViewerStart(null);
             if (changed) loadTray();
           }}
+        />
+      )}
+      {photoViewer && (
+        <FeedStoryViewer
+          feeds={feed.items}
+          startFeedIndex={photoViewer.feedIndex}
+          startImageIndex={photoViewer.imageIndex}
+          onClose={() => setPhotoViewer(null)}
+          onToggleLike={toggleLike}
+          onOpenUser={onOpenUser}
+          onOpenComments={(id) => { setPhotoViewer(null); onOpenFeed(id); }}
         />
       )}
       {editing && (

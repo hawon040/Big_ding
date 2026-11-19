@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
 import { useChatSocket } from "@/aplan/hooks/useChatSocket";
 import { formatTime } from "@/utils";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 const REFRESH_MS = 5000;
 
@@ -35,6 +36,7 @@ const previewText = (m: { content: string; image?: string } | null | undefined) 
 // 채팅 목록 (Figma에 없는 화면 — A안 톤으로 구성). 1:1 대화(이력 있는 상대)와 단체 채팅방을
 // 마지막 메시지 시각 순으로 한 목록에 보여준다. 실시간 이벤트 + 5초 간격으로 새로 불러온다.
 export function ChatListScreen({ myId, onBack, onOpenRoom, onCreateGroup }: ChatListScreenProps) {
+  useSwipeBack(onBack);
   const [people, setPeople] = useState<ChatUser[]>([]);
   const [hidden, setHidden] = useState<string[]>([]);
   const [groups, setGroups] = useState<GroupChat[]>([]);

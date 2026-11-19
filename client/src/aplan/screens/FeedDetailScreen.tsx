@@ -11,6 +11,7 @@ import { useFeedActions } from "@/aplan/hooks/useFeedActions";
 import { alertDialog, confirmDialog } from "@/aplan/components/Dialog";
 import { FeedEditScreen } from "@/aplan/screens/FeedEditScreen";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 interface FeedDetailScreenProps {
   feedId: string;
@@ -20,6 +21,7 @@ interface FeedDetailScreenProps {
 
 // 피드(게시물) 상세: 사진·본문 전체 + 댓글 목록/작성. ⋮ 메뉴로 내 피드는 수정·삭제, 다른 사람 피드는 신고한다.
 export function FeedDetailScreen({ feedId, onBack, onOpenUser }: FeedDetailScreenProps) {
+  useSwipeBack(onBack);
   const [feedList, setFeedList] = useState<FeedItem[]>([]);
   const [comments, setComments] = useState<FeedComment[]>([]);
   const [error, setError] = useState<string | null>(null);

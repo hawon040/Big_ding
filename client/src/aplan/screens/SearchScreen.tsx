@@ -7,6 +7,7 @@ import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
 import { useInfiniteList } from "@/aplan/hooks/useInfiniteList";
 import type { RecentSearch, TagResult, TrendingKeyword } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 type ResultTab = "post" | "user" | "tag";
 
@@ -20,6 +21,7 @@ interface SearchScreenProps {
 // A-05 검색 (Figma 2:245).
 // 입력 중에는 검색하지 않고, Enter/검색 버튼 또는 검색어 추천을 선택했을 때 실행한다.
 export function SearchScreen({ onOpenPost, onOpenUser, onBack }: SearchScreenProps) {
+  useSwipeBack(onBack);
   const [input, setInput] = useState("");
   const [query, setQuery] = useState("");
   const [searchExecution, setSearchExecution] = useState(0);

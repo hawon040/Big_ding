@@ -10,6 +10,7 @@ import { PrimaryButton } from "@/aplan/components/PrimaryButton";
 import { BottomSheet, SheetItem } from "@/aplan/components/BottomSheet";
 import { TopicSelectChip } from "@/aplan/components/TopicSelectChip";
 import { ErrorState } from "@/aplan/components/States";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 import type { PostDetail } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
 
@@ -31,6 +32,7 @@ const MAX_POLL_OPTIONS = 5;
 // 수정 모드는 postApi.get으로 원본을 먼저 불러온 뒤에만 아래 폼을 그려서, 폼의 초기 state가
 // 불러온 값으로 정확히 시작하게 한다(늦게 도착하는 응답을 useState 초기값에 반영할 수 없어서).
 export function WriteScreen({ initialBoard, editPostId, onDone, onBack }: WriteScreenProps) {
+  useSwipeBack(onBack);
   const [editPost, setEditPost] = useState<PostDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -64,6 +66,7 @@ function WriteForm({
   onDone: (postId: string) => void;
   onBack: () => void;
 }) {
+  useSwipeBack(onBack);
   const isEdit = !!editPost;
   const board = editPost?.board ?? initialBoard ?? "free";
   const [boardSheetOpen, setBoardSheetOpen] = useState(false);

@@ -12,6 +12,7 @@ import { UserListItem } from "@/aplan/components/UserListItem";
 import type { CommentNode, Poll, PostDetail, UserSummary } from "@/types/aplan";
 import { alertDialog, confirmDialog } from "@/aplan/components/Dialog";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 interface PostDetailScreenProps {
   postId: string;
@@ -27,6 +28,7 @@ const REPORT_REASONS = ["스팸/광고", "욕설·혐오 표현", "음란물", "
 // 헤더의 두 아이콘은 Figma 와이어프레임에 빈 사각형으로만 있어 공유·더보기(신고/수정/삭제)로 채웠다.
 // 액션 줄의 세 번째 아이콘(의미 불명)은 더보기 메뉴와 기능이 겹쳐 생략했다.
 export function PostDetailScreen({ postId, onBack, onOpenUser, onEditPost }: PostDetailScreenProps) {
+  useSwipeBack(onBack);
   const [post, setPost] = useState<PostDetail | null>(null);
   const [postError, setPostError] = useState<string | null>(null);
   const [comments, setComments] = useState<CommentNode[] | null>(null);

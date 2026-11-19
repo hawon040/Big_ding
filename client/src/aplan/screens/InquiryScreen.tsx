@@ -6,11 +6,13 @@ import { ScreenHeader, StatusBadge, formatDate } from "@/aplan/components/Screen
 import { EmptyState, ErrorState, Skeleton } from "@/aplan/components/States";
 import type { InquiryItem, ReportItem } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 const errMsg = (err: any, fallback: string) => err?.response?.data?.message || fallback;
 
 // 건의사항: 새로 작성하고, 내가 보낸 건의의 처리 상태·관리자 답변을 확인한다(미처리 건은 취소 가능).
 export function InquiryScreen({ onBack }: { onBack: () => void }) {
+  useSwipeBack(onBack);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -90,6 +92,7 @@ const SANCTION_LABEL: Record<string, string> = { warning: "경고", ban: "차단
 
 // 신고 내역: 내가 접수한 신고와 처리 결과
 export function MyReportsScreen({ onBack }: { onBack: () => void }) {
+  useSwipeBack(onBack);
   const [items, setItems] = useState<ReportItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 

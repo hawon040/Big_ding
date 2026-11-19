@@ -4,6 +4,7 @@ import { feedPostApi } from "@/api/aplan";
 import { PrimaryButton } from "@/aplan/components/PrimaryButton";
 import type { FeedItem } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
+import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
 
 const CONTENT_MAX = 1000;
 const MAX_IMAGES = 10;
@@ -17,6 +18,7 @@ interface FeedEditScreenProps {
 // 피드 수정: 글(#태그 포함)과 사진을 고친다. 사진은 1~10장이어야 하고,
 // 남긴 기존 사진 뒤에 새로 추가한 사진이 붙는다(서버 PUT /api/feeds/:id 규칙과 같음).
 export function FeedEditScreen({ feed, onBack, onSaved }: FeedEditScreenProps) {
+  useSwipeBack(onBack);
   const [content, setContent] = useState(feed.content);
   const [kept, setKept] = useState<string[]>(feed.images);
   const [added, setAdded] = useState<File[]>([]);
