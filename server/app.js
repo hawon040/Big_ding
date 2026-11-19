@@ -10,7 +10,22 @@ app.set("trust proxy", 1);
 // 미들웨어
 // Helmet: 클릭재킹, MIME 스니핑 등을 막는 표준 보안 HTTP 헤더를 자동으로 붙여준다.
 app.use(helmet());
-app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+// 허용 origin: 웹(CLIENT_URL, Vercel 배포 주소) + Capacitor로 감싼 iOS/Android 네이티브 앱.
+// 네이티브 앱은 브라우저가 아니라 WebView라서 기기마다 주소가 고정이고(기본적으로
+// https://localhost, 구버전 iOS는 capacitor://localhost), 그래서 이 두 값은 하드코딩해도 안전하다.
+const NATIVE_APP_ORIGINS = ["capacitor://localhost", "https://localhost", "http://localhost"];
+app.use(
+  cors({
+    origin(origin, callback) {
+      // origin이 없는 요청(서버-투-서버, curl, 헬스체크 등)은 그대로 허용.
+      if (!origin || origin === process.env.CLIENT_URL || NATIVE_APP_ORIGINS.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("CORS로 차단된 origin입니다."));
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 // 개발 환경(로컬 npm run dev)에서는 프론트 폴링(2~3초 간격 새로고침)이 많아

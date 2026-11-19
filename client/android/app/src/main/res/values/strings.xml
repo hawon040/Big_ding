@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Big Ding</string>
+    <string name="title_activity_main">Big Ding</string>
+    <string name="package_name">com.bigding.app</string>
+    <string name="custom_url_scheme">com.bigding.app</string>
+</resources>
