@@ -61,8 +61,17 @@
   min-height: 100dvh;
   margin: 0 auto;
   /* Figma 프레임은 1px 테두리 안쪽(358px)에 내용이 놓인다. 테두리는 그리지 않되 같은 폭을
-     유지해야 칩 줄바꿈 등 배치가 Figma와 똑같아지므로 좌우 1px을 비워둔다. */
-  padding-inline: 1px;
+     유지해야 칩 줄바꿈 등 배치가 Figma와 똑같아지므로 좌우 1px을 비워둔다.
+     거기에 더해 노치/펀치홀·홈 인디케이터·곡면 모서리가 있는 기기에서 콘텐츠나 버튼이
+     그 영역에 가려지지 않도록 safe-area-inset을 더한다(index.html의 viewport-fit=cover가
+     있어야 이 env() 값이 0이 아닌 실제 값으로 계산된다). 그런 기기가 아니면 env()가 0이라
+     기존 디자인과 완전히 동일하게 보인다.
+     주의: 아래쪽 패딩은 탭바가 있는 화면(MainShell)에서는 BottomTabBar 바깥쪽에 더해지고,
+     탭바가 없는 화면(로그인 등)에서는 화면 맨 아래 버튼 위에 더해져 똑같이 동작한다. */
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: calc(1px + env(safe-area-inset-left, 0px));
+  padding-right: calc(1px + env(safe-area-inset-right, 0px));
   font-family: var(--a-font-sans);
   color: var(--a-color-text-primary);
   background: var(--a-color-bg);
