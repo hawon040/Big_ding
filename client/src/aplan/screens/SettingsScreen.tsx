@@ -14,6 +14,7 @@ import { applyTheme } from "@/aplan/theme";
 import type { Me } from "@/types/aplan";
 import "@/styles/aplan-tokens.css";
 import { useSwipeBack } from "@/aplan/hooks/useSwipeBack";
+import { disablePush, enablePush, getPushStatus, needsInstallForPush, sendTestPush, unsubscribePushOnLogout, type PushStatus } from "@/utils/webPush";
 
 interface SettingsScreenProps {
   onBack: () => void;
@@ -50,7 +51,9 @@ export function SettingsScreen({ onBack, onOpenAnnouncements }: SettingsScreenPr
     meApi.updateSettings(patch).then(setMe).catch(load);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    // 이 기기로 로그아웃한 계정의 알림이 계속 오지 않도록 푸시 구독을 먼저 끊는다 (토큰이 있어야 서버에서 지울 수 있다)
+    await unsubscribePushOnLogout();
     localStorage.removeItem("token");
     window.location.reload();
   };
@@ -101,7 +104,7 @@ export function SettingsScreen({ onBack, onOpenAnnouncements }: SettingsScreenPr
                   checked={me.notificationSettings.studyRecruit}
                   onChange={(v) => patchSettings({ notificationSettings: { studyRecruit: v } })}
                 />
-                
+                <PushToggleRow />
               </>
             )}
 
@@ -337,6 +340,58 @@ function ToggleRow({ label, checked, onChange }: { label: string; checked: boole
     <div className="flex w-full items-center gap-[12px] py-[12px]">
       <span className="min-w-px flex-1 text-[15px] leading-[18px] font-normal" style={{ color: "var(--a-color-text-primary)" }}>{label}</span>
       <Toggle label={label} checked={checked} onChange={onChange} />
+    </div>
+  );
+}
+
+// 앱 밖(휴대폰 알림창) 푸시 알림. 기기마다 따로 켜야 해서 서버 설정이 아니라 이 기기의 구독 상태를 보여준다.
+function PushToggleRow() {
+  const [status, setStatus] = useState<PushStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    getPushStatus().then(setStatus);
+  }, []);
+
+  const toggle = async (on: boolean) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const next = on ? await enablePush() : await disablePush();
+      setStatus(next);
+      if (on && next === "denied") {
+        alertDialog("알림 권한이 꺼져 있어요", "휴대폰 설정 > 알림에서 Big Ding 알림을 허용한 뒤 다시 켜주세요.");
+      } else if (on && next === "on") {
+        sendTestPush().catch(() => {});
+      }
+    } catch (err) {
+      const e = err as { response?: { data?: { message?: string } } };
+      alertDialog("푸시 알림을 켜지 못했어요", e?.response?.data?.message || "잠시 후 다시 시도해주세요.");
+      getPushStatus().then(setStatus);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const hint = status === "unsupported"
+    ? needsInstallForPush()
+      ? "아이폰은 Safari 공유 버튼 → '홈 화면에 추가'로 설치한 앱에서만 받을 수 있어요."
+      : "이 브라우저에서는 푸시 알림을 받을 수 없어요."
+    : status === "denied"
+      ? "알림 권한이 꺼져 있어요. 휴대폰 설정에서 Big Ding 알림을 허용해주세요."
+      : "앱을 닫아도 휴대폰 알림창으로 알려드려요. (이 기기에만 적용)";
+
+  return (
+    <div className="flex w-full flex-col gap-[4px] py-[12px]">
+      <div className="flex w-full items-center gap-[12px]">
+        <span className="min-w-px flex-1 text-[15px] leading-[18px] font-normal" style={{ color: "var(--a-color-text-primary)" }}>휴대폰 푸시 알림</span>
+        <Toggle
+          label="휴대폰 푸시 알림"
+          checked={status === "on"}
+          disabled={busy || status === null || status === "unsupported"}
+          onChange={toggle}
+        />
+      </div>
+      <span className="text-[12px] leading-[16px] font-normal" style={{ color: "var(--a-color-text-secondary)" }}>{hint}</span>
     </div>
   );
 }

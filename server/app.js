@@ -70,6 +70,7 @@ app.use("/api/reports", require("./routes/reports"));
 app.use("/api/inquiries", require("./routes/inquiries"));
 app.use("/api/admin", require("./routes/admin"));
 app.use("/api/notifications", require("./routes/notifications"));
+app.use("/api/push", require("./routes/push")); // Web Push 구독 (앱 밖 휴대폰 알림)
 app.use("/api/group-chats", require("./routes/groupChat"));
 // 새 이미지는 전부 Cloudinary로 올라간다. 이 라우트는 마이그레이션 전 로컬 디스크에
 // 저장된 기존 아바타/채팅/게시글 이미지를 계속 보여주기 위한 하위 호환용이다.

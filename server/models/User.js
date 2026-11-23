@@ -93,6 +93,21 @@ const userSchema = new mongoose.Schema({
     studyRecruit: { type: Boolean, default: true }, // 관심 주제 스터디 모집
     marketing: { type: Boolean, default: false },   // 저장만 하고 발송 기능은 없음
   },
+  // Web Push 구독 (기기·브라우저마다 하나). 앱이 꺼져 있어도 휴대폰 알림창에 알림을 띄우는 데 쓴다.
+  // endpoint가 곧 기기 주소라 노출되면 안 되므로 기본 조회에서 뺀다.
+  pushSubscriptions: {
+    type: [{
+      _id: false,
+      endpoint: { type: String, required: true },
+      keys: {
+        p256dh: { type: String, required: true },
+        auth: { type: String, required: true },
+      },
+      createdAt: { type: Date, default: Date.now },
+    }],
+    select: false,
+    default: [],
+  },
   appSettings: {
     darkMode: { type: Boolean, default: false },    // 저장만 (다크 테마 색상은 다음 작업)
   },

@@ -19,3 +19,8 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+      # Web Push (앱 밖 휴대폰 알림). 값은 대시보드에서 입력, 한 번 정하면 바꾸지 말 것
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false

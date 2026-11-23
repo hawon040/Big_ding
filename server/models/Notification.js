@@ -44,6 +44,20 @@ const notificationSchema = new mongoose.Schema({
 notificationSchema.index({ recipient: 1, createdAt: -1 });
 notificationSchema.index({ recipient: 1, read: 1 });
 
+// 알림이 새로 만들어지면 받는 사람 기기로 Web Push를 보낸다 (utils/push.js).
+// create/save와 insertMany 모두 여기를 지나므로 라우트마다 따로 부를 필요가 없다.
+// 좋아요 묶음(findOneAndUpdate)은 utils/notify.js에서 직접 보낸다.
+// push.js가 User 모델을 불러오므로 순환 참조를 피하려고 훅 안에서 require한다.
+notificationSchema.pre("save", function () {
+  this.$locals.wasNew = this.isNew;
+});
+notificationSchema.post("save", function (doc) {
+  if (doc.$locals.wasNew) require("../utils/push").pushNotificationsSafely([doc]);
+});
+notificationSchema.post("insertMany", function (docs) {
+  require("../utils/push").pushNotificationsSafely(docs);
+});
+
 module.exports = mongoose.model("Notification", notificationSchema);
 module.exports.PERSISTENT_TYPES = PERSISTENT_TYPES;
 module.exports.NOTIFICATION_TTL_MS = NOTIFICATION_TTL_MS;

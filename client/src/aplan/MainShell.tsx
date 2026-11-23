@@ -24,6 +24,7 @@ import { EmptyState } from "@/aplan/components/States";
 import type { BoardKey } from "@/constants/boards";
 import type { TopicKey } from "@/constants/topics";
 import "@/styles/aplan-tokens.css";
+import { resyncPush } from "@/utils/webPush";
 
 type WriteTarget = { mode: "create"; board: BoardKey | null } | { mode: "edit"; postId: string };
 
@@ -95,6 +96,25 @@ export function MainShell({ initialTab = "home" }: MainShellProps) {
   useEffect(() => {
     if (chatView && !myId) meApi.get().then((me) => setMyId(me.id)).catch(() => setChatView(null));
   }, [chatView, myId]);
+
+  // 푸시 알림을 눌러 들어온 경우 알림 화면을 연다.
+  // 앱이 꺼져 있었으면 주소(?open=notifications)로, 이미 열려 있었으면 서비스 워커 메시지로 온다 (src/sw.ts).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("open") === "notifications") {
+      setNotificationsOpen(true);
+      params.delete("open");
+      const qs = params.toString();
+      window.history.replaceState(window.history.state, "", window.location.pathname + (qs ? `?${qs}` : "") + window.location.hash);
+    }
+    resyncPush();
+    if (!("serviceWorker" in navigator)) return;
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type === "open-notifications") setNotificationsOpen(true);
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

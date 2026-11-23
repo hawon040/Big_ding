@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Notification = require("../models/Notification");
 const User = require("../models/User");
 const { sameId, includesId } = require("./access");
+const { pushNotificationsSafely } = require("./push");
 
 // 사용자 알림 설정과 연결되는 유형 (설정이 꺼져 있으면 알림을 만들지 않는다)
 const SETTING_BY_TYPE = {
@@ -40,7 +41,11 @@ const notify = async ({ recipient, sender, type, post, feed, comment, commentCon
       ],
       { new: true, sort: { createdAt: -1 } }
     );
-    if (bundled) return bundled;
+    if (bundled) {
+      // 묶인 좋아요는 save 훅을 지나지 않으므로 여기서 푸시한다 (같은 tag라 기기에서 이전 알림을 대체)
+      pushNotificationsSafely([bundled]);
+      return bundled;
+    }
   }
 
   return Notification.create({

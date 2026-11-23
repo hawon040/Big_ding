@@ -26,6 +26,11 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
+      // 푸시 알림을 받으려면 서비스 워커를 직접 작성해야 해서 src/sw.ts를 쓴다
+      // (캐시 규칙·API 캐시 제외도 그 파일에 있다)
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       includeAssets: ['apple-touch-icon.png'],
       manifest: {
         name: 'Big Ding',
@@ -46,10 +51,6 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
-      },
-      workbox: {
-        // API/소켓 요청은 캐시하지 않는다 — 오래된 게시글·채팅이 그대로 보이면 더 위험하다.
-        navigateFallbackDenylist: [/^\/api\//],
       },
     }),
   ],
